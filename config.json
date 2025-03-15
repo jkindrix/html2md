@@ -1,0 +1,34 @@
+{
+  "domains": {
+    "chatgpt.com": {
+    },
+    "docs.datadoghq.com": {
+      "footer_marker": "## Further reading"
+    },
+    "learn.microsoft.com": {
+      "footer_marker": "## See Also"
+    },
+    "developer.android.com": {
+      "footer_marker": "Content and code samples on this page are subject to the licenses described in the"
+    },
+    "developer.hashicorp.com": {
+      "path_rules": {
+        "/vault/tutorials": {
+          "h1_occurrence": 2,
+          "footer_marker": "**Was this tutorial helpful?**"
+        },
+        "/vault/docs": {
+          "h1_occurrence": 3,
+          "footer_marker": "[Edit this page on GitHub]"
+        },
+        "/vault/api-docs": {
+          "h1_occurrence": 3,
+          "footer_marker": "[Edit this page on GitHub]"
+        }
+      }
+    },
+    "hashicorp.com": {
+      "footer_marker": "#### Sign up for the latest HashiCorp news"
+    }
+  }
+}
