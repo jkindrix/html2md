@@ -65,3 +65,49 @@ def trim_markdown(markdown_content, url):
 
     logging.info("Trimming markdown content based on detected indices.")
     return markdown_content[h1_index:footer_index].strip()
+
+
+def trim_markdown_local(markdown_content, file_name):
+    """
+    Simplified trimmer for local files.
+    Uses basic heuristics rather than domain-specific rules.
+
+    Args:
+        markdown_content (str): The markdown content to trim.
+        file_name (str): The name of the source file.
+
+    Returns:
+        str: Trimmed markdown content.
+    """
+    # Basic approach: find the first heading and keep everything after it
+    h1_index = markdown_content.find("# ")
+
+    if h1_index == -1:
+        logging.warning(f"No H1 header found in {file_name}. Returning full content.")
+        return markdown_content.strip()
+
+    # Look for common footer patterns that might indicate the end of main content
+    footer_markers = [
+        "## Further reading",
+        "## See Also",
+        "## References",
+        "## Credits",
+        "## Copyright",
+        "## License",
+    ]
+
+    footer_index = -1
+    for marker in footer_markers:
+        index = markdown_content.find(marker)
+        if index != -1:
+            if footer_index == -1 or index < footer_index:
+                footer_index = index
+
+    if footer_index == -1:
+        logging.info(
+            f"No footer marker found in {file_name}. Returning content from detected H1 onwards."
+        )
+        return markdown_content[h1_index:].strip()
+
+    logging.info(f"Trimming local file {file_name} content based on detected indices.")
+    return markdown_content[h1_index:footer_index].strip()

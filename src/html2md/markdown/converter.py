@@ -1,10 +1,11 @@
 import logging
+import os
 
 import requests
 from markdownify import markdownify as md
 
 from html2md.cookies.session_manager import get_session
-from html2md.markdown.trimmer import trim_markdown
+from html2md.markdown.trimmer import trim_markdown, trim_markdown_local
 from html2md.utils.formatter import format_markdown
 
 # Setup logger
@@ -69,3 +70,52 @@ def html_to_markdown(url, session=None, headers=None, trim=False):
 
     logger.info(f"Successfully converted HTML from {url} to Markdown.")
     return formatted_markdown
+
+
+def local_html_to_markdown(file_path, trim=False):
+    """
+    Convert HTML from a local file to Markdown.
+
+    Args:
+        file_path (str): Path to the local HTML file.
+        trim (bool, optional): Whether to apply trimming rules to the resulting markdown.
+
+    Returns:
+        str or None: Markdown content if successful, None otherwise.
+    """
+    try:
+        # Check if file exists
+        if not os.path.exists(file_path):
+            logger.error(f"File not found: {file_path}")
+            return None
+
+        logger.info(f"Reading local file: {file_path}")
+
+        # Read the HTML content from the file
+        with open(file_path, "r", encoding="utf-8") as f:
+            html_content = f.read()
+
+        logger.info(f"Read {len(html_content)} bytes of HTML from {file_path}.")
+
+        # Handle empty HTML file
+        if not html_content.strip():
+            logger.warning(f"Empty HTML file: {file_path}")
+            return None
+
+        # Convert HTML to Markdown using markdownify
+        markdown_content = md(html_content, heading_style="ATX")
+
+        # Apply formatting rules to clean up the generated markdown
+        formatted_markdown = format_markdown(markdown_content)
+
+        # Apply trimming if requested
+        if trim:
+            file_name = os.path.basename(file_path)
+            formatted_markdown = trim_markdown_local(formatted_markdown, file_name)
+
+        logger.info(f"Successfully converted HTML from {file_path} to Markdown.")
+        return formatted_markdown
+
+    except Exception as e:
+        logger.error(f"Error processing local file {file_path}: {str(e)}")
+        return None

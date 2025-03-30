@@ -1,9 +1,10 @@
 import argparse
 import logging
+import os
 from urllib.parse import urlparse
 
 from html2md.cookies.session_manager import get_session
-from html2md.markdown.converter import html_to_markdown
+from html2md.markdown.converter import html_to_markdown, local_html_to_markdown
 from html2md.utils.logger import setup_logging
 
 logger = setup_logging()
@@ -33,12 +34,23 @@ def save_to_file(output_filename, content):
         logger.error(f"Failed to write to {output_filename}: {e}")
 
 
+def is_url(source, force_local=False):
+    """Determine if the source is a URL or a local file path."""
+    if force_local:
+        return False
+
+    parsed = urlparse(source)
+    return bool(parsed.scheme in ("http", "https") and parsed.netloc)
+
+
 def main():
-    """Parse arguments and process URLs."""
+    """Parse arguments and process URLs or local files."""
     parser = argparse.ArgumentParser(
-        description="Convert HTML content from URLs to Markdown."
+        description="Convert HTML content from URLs or local files to Markdown."
     )
-    parser.add_argument("urls", nargs="+", help="URLs to fetch and convert.")
+    parser.add_argument(
+        "sources", nargs="+", help="URLs or local HTML files to convert."
+    )
     parser.add_argument(
         "--no-trim",
         action="store_false",
@@ -62,6 +74,11 @@ def main():
         action="store_true",
         help="Disable loading cookies from the browser.",
     )
+    parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Force treating sources as local files even if they look like URLs.",
+    )
 
     args = parser.parse_args()
 
@@ -70,29 +87,52 @@ def main():
 
     args.trim = True if args.trim is None else args.trim  # Ensure default is True
 
-    for url in args.urls:
-        headers = build_headers(url)
-        logger.info(f"Processing URL: {url}")
+    for source in args.sources:
+        if is_url(source, args.local):
+            # Process as URL
+            headers = build_headers(source)
+            logger.info(f"Processing URL: {source}")
 
-        try:
-            # Create a new session for each URL if cookies are not disabled
-            session = get_session() if not args.no_cookies else None
+            try:
+                # Create a new session for each URL if cookies are not disabled
+                session = get_session() if not args.no_cookies else None
 
-            # Process URL with session and headers
-            markdown_result = html_to_markdown(
-                url, session=session, headers=headers, trim=args.trim
-            )
+                # Process URL with session and headers
+                markdown_result = html_to_markdown(
+                    source, session=session, headers=headers, trim=args.trim
+                )
 
-            if markdown_result:
-                if args.output:
-                    save_to_file(args.output, markdown_result)
-                else:
-                    print(f"\n# URL: {url}\n")
-                    print(markdown_result)
-                logger.info(f"Successfully processed: {url}")
-        except Exception as e:
-            logger.error(f"Failed to process {url}: {e}")
-            continue  # Skip and continue with the next URL
+                if markdown_result:
+                    if args.output:
+                        save_to_file(args.output, markdown_result)
+                    else:
+                        print(f"\n# URL: {source}\n")
+                        print(markdown_result)
+                    logger.info(f"Successfully processed URL: {source}")
+            except Exception as e:
+                logger.error(f"Failed to process URL {source}: {e}")
+                continue  # Skip and continue with the next source
+        else:
+            # Process as local file
+            logger.info(f"Processing local file: {source}")
+
+            try:
+                # Expand to absolute path if needed
+                file_path = os.path.abspath(os.path.expanduser(source))
+
+                # Process local file
+                markdown_result = local_html_to_markdown(file_path, trim=args.trim)
+
+                if markdown_result:
+                    if args.output:
+                        save_to_file(args.output, markdown_result)
+                    else:
+                        print(f"\n# File: {file_path}\n")
+                        print(markdown_result)
+                    logger.info(f"Successfully processed local file: {file_path}")
+            except Exception as e:
+                logger.error(f"Failed to process local file {source}: {e}")
+                continue  # Skip and continue with the next source
 
 
 if __name__ == "__main__":
