@@ -80,7 +80,7 @@ def rewrite_links(content, url_mapping, base_output_dir):
     return content
 
 
-def process_markdown_links(source_files, output_dir, trim=True):
+def process_markdown_links(source_files, output_dir, trim=True, progress_callback=None):
     """
     Process markdown files, extract URLs, and convert each URL to markdown.
 
@@ -88,6 +88,7 @@ def process_markdown_links(source_files, output_dir, trim=True):
         source_files (list): List of markdown files to process
         output_dir (str): Directory to save the output files
         trim (bool, optional): Whether to trim the markdown. Defaults to True.
+        progress_callback (callable, optional): Function to call with progress updates
 
     Returns:
         int: Number of processed URLs
@@ -99,22 +100,37 @@ def process_markdown_links(source_files, output_dir, trim=True):
     url_to_file_mapping = {}
     processed_urls_count = 0
 
+    # Helper function to update progress
+    def update_progress(message, url=None, status=None):
+        logger.info(message)
+        if progress_callback:
+            progress_callback(message, url, status)
+
     # First pass: Process all URLs and build the mapping
     for source_file in source_files:
-        logger.info(f"Processing links in file: {source_file}")
+        update_progress(f"Processing links in file: {source_file}")
 
         # Extract URLs from the source file
         urls = get_urls_from_file(source_file)
         if not urls:
-            logger.warning(f"No URLs found in file: {source_file}")
+            update_progress(f"No URLs found in file: {source_file}", status="warning")
             continue
 
+        update_progress(f"Found {len(urls)} URLs in {source_file}")
+
         # Process each URL
-        for url in urls:
+        for index, url in enumerate(urls):
             # Skip if already processed
             if url in url_to_file_mapping:
-                logger.info(f"Skipping already processed URL: {url}")
+                update_progress(
+                    f"Skipping already processed URL: {url}", url, "skipped"
+                )
                 continue
+
+            # Update progress
+            update_progress(
+                f"Processing URL {index+1}/{len(urls)}: {url}", url, "processing"
+            )
 
             # Create directory structure for the URL
             url_dir = create_directory_structure(output_dir, url)
@@ -126,11 +142,9 @@ def process_markdown_links(source_files, output_dir, trim=True):
             # Save mapping
             url_to_file_mapping[url] = output_file
 
-            # Process the URL
-            logger.info(f"Processing URL: {url} -> {output_file}")
-
             try:
                 # Create session for the URL
+                update_progress(f"Fetching content from {url}", url, "fetching")
                 session = get_session()
                 headers = build_headers(url)
 
@@ -141,19 +155,28 @@ def process_markdown_links(source_files, output_dir, trim=True):
 
                 if markdown_content:
                     # Save to file
+                    update_progress(f"Saving markdown to {output_file}", url, "saving")
                     with open(output_file, "w", encoding="utf-8") as f:
                         f.write(markdown_content)
 
-                    logger.info(f"Saved markdown to: {output_file}")
+                    update_progress(f"Saved markdown to: {output_file}", url, "saved")
                     processed_urls_count += 1
                 else:
-                    logger.error(f"Failed to process URL: {url}")
+                    update_progress(f"Failed to process URL: {url}", url, "failed")
 
             except Exception as e:
-                logger.error(f"Error processing URL {url}: {str(e)}")
+                update_progress(f"Error processing URL {url}: {str(e)}", url, "error")
 
     # Second pass: Rewrite links in all files to point to local files
-    for url, output_file in url_to_file_mapping.items():
+    update_progress(f"Rewriting links between {len(url_to_file_mapping)} files...")
+
+    for i, (url, output_file) in enumerate(url_to_file_mapping.items()):
+        update_progress(
+            f"Updating links in file {i+1}/{len(url_to_file_mapping)}: {output_file}",
+            url,
+            "updating",
+        )
+
         try:
             # Read the file content
             with open(output_file, "r", encoding="utf-8") as f:
@@ -166,9 +189,12 @@ def process_markdown_links(source_files, output_dir, trim=True):
             with open(output_file, "w", encoding="utf-8") as f:
                 f.write(updated_content)
 
-            logger.info(f"Updated links in file: {output_file}")
+            update_progress(f"Updated links in file: {output_file}", url, "updated")
 
         except Exception as e:
-            logger.error(f"Error updating links in file {output_file}: {str(e)}")
+            update_progress(
+                f"Error updating links in file {output_file}: {str(e)}", url, "error"
+            )
 
+    update_progress(f"Completed processing {processed_urls_count} URLs")
     return processed_urls_count

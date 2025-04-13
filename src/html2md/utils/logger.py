@@ -13,9 +13,12 @@ LOG_LEVEL = os.getenv("HTML2MD_LOG_LEVEL", "INFO").upper()
 ENABLE_JSON_LOGGING = os.getenv("HTML2MD_JSON_LOGGING", "false").lower() == "true"
 
 
-def setup_logging():
+def setup_logging(console_output=True):
     """
     Configure logging for the application with both file and console handlers.
+
+    Args:
+        console_output (bool): Whether to output logs to the console. Defaults to True.
 
     - Ensures the logs directory exists before creating log files.
     - Supports log rotation (5MB per file, keeping 3 backups).
@@ -32,23 +35,26 @@ def setup_logging():
 
     # Prevent duplicate handlers if `setup_logging()` is called multiple times
     if logger.hasHandlers():
-        return logger
+        for handler in logger.handlers[:]:
+            logger.removeHandler(handler)
 
     # Set logging level dynamically based on environment variable
     logger.setLevel(getattr(logging, LOG_LEVEL, logging.INFO))
 
-    # Console handler
-    console_handler = logging.StreamHandler()
-    console_formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-
-    if ENABLE_JSON_LOGGING:
-        console_formatter = jsonlogger.JsonFormatter(
-            "%(asctime)s %(name)s %(levelname)s %(message)s"
+    # Console handler (if enabled)
+    if console_output:
+        console_handler = logging.StreamHandler()
+        console_formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
 
-    console_handler.setFormatter(console_formatter)
+        if ENABLE_JSON_LOGGING:
+            console_formatter = jsonlogger.JsonFormatter(
+                "%(asctime)s %(name)s %(levelname)s %(message)s"
+            )
+
+        console_handler.setFormatter(console_formatter)
+        logger.addHandler(console_handler)
 
     # File handler with log rotation
     file_handler = RotatingFileHandler(LOG_FILE, maxBytes=5_000_000, backupCount=3)
@@ -56,9 +62,6 @@ def setup_logging():
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
     file_handler.setFormatter(file_formatter)
-
-    # Attach handlers
-    logger.addHandler(console_handler)
     logger.addHandler(file_handler)
 
     return logger

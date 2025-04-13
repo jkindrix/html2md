@@ -123,3 +123,21 @@ def generate_safe_filename(url):
         safe_name += ".md"
 
     return safe_name
+
+
+def is_url(source, force_local=False):
+    """
+    Determine if the source is a URL or a local file path.
+
+    Args:
+        source (str): The source string to check
+        force_local (bool, optional): Force treating as local file. Defaults to False.
+
+    Returns:
+        bool: True if source is a URL, False otherwise
+    """
+    if force_local:
+        return False
+
+    parsed = urlparse(source)
+    return bool(parsed.scheme in ("http", "https") and parsed.netloc)
