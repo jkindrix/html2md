@@ -28,41 +28,26 @@ pip install .
 
 ## Usage
 
-html2md comes in two flavors:
-
-1. `html2md` - The classic CLI interface
-2. `html2md-modern` - A beautiful modern UI with progress bars and rich formatting
+html2md features a beautiful modern UI with progress bars and rich formatting
 
 ### Basic Usage
 
 Convert a single URL to Markdown:
 
 ```bash
-# Classic interface
 html2md convert https://example.com
-
-# Modern interface
-html2md-modern convert https://example.com
 ```
 
 Convert a local HTML file to Markdown:
 
 ```bash
-# Classic interface
 html2md convert path/to/local/file.html
-
-# Modern interface
-html2md-modern convert path/to/local/file.html
 ```
 
 Save the output to a file:
 
 ```bash
-# Classic interface
 html2md convert https://example.com --output result.md
-
-# Modern interface
-html2md-modern convert https://example.com --output result.md
 ```
 
 ### Batch Processing
@@ -70,23 +55,19 @@ html2md-modern convert https://example.com --output result.md
 Process markdown files containing links and create a modular output structure:
 
 ```bash
-# Classic interface
 html2md batch path/to/link-collection.md --output-dir docs
-
-# Modern interface with beautiful progress bars
-html2md-modern batch path/to/link-collection.md --output-dir docs
 ```
 
 Process multiple files at once:
 
 ```bash
-html2md-modern batch file1.md file2.md --output-dir docs
+html2md batch file1.md file2.md --output-dir docs
 ```
 
 Use glob patterns to process multiple files:
 
 ```bash
-html2md-modern batch "docs/*.md" --output-dir output
+html2md batch "docs/*.md" --output-dir output
 ```
 
 ## Command Line Options
@@ -107,9 +88,9 @@ html2md-modern batch "docs/*.md" --output-dir output
 - `--output-dir DIR, -o DIR`: Directory to save the output files and folders (default: "output")
 - `--trim/--no-trim`: Enable/disable trimming based on domain-specific rules
 
-## Modern UI Features
+## UI Features
 
-The modern UI (`html2md-modern`) includes these enhancements:
+The modern UI includes these enhancements:
 
 - Beautiful colored output with syntax highlighting
 - Progress spinners and bars for long-running operations
@@ -126,7 +107,7 @@ The modern UI (`html2md-modern`) includes these enhancements:
 If you need to access a site that requires authentication, html2md can use your browser cookies:
 
 ```bash
-html2md-modern convert https://private-site.com/protected-page
+html2md convert https://private-site.com/protected-page
 ```
 
 ### Batch Processing Documentation Links
@@ -134,7 +115,7 @@ html2md-modern convert https://private-site.com/protected-page
 Create a structured documentation site from a collection of markdown links with a beautiful progress display:
 
 ```bash
-html2md-modern batch incomplete-docs/*.txt --output-dir documentation
+html2md batch incomplete-docs/*.txt --output-dir documentation
 ```
 
 This will:
