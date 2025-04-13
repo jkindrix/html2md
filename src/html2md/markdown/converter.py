@@ -49,6 +49,19 @@ def html_to_markdown(url, session=None, headers=None, trim=False):
         html_content = response.text
         logger.info(f"Received {len(html_content)} bytes of HTML from {url}.")
 
+    except requests.exceptions.Timeout:
+        logger.error(f"Timeout while fetching {url}")
+        return None
+    except requests.exceptions.TooManyRedirects:
+        logger.error(f"Too many redirects while fetching {url}")
+        return None
+    except requests.exceptions.ConnectionError:
+        logger.error(f"Connection error while fetching {url}")
+        return None
+    except requests.exceptions.HTTPError as e:
+        status_code = e.response.status_code if hasattr(e, "response") else "unknown"
+        logger.error(f"HTTP error {status_code} while fetching {url}: {e}")
+        return None
     except requests.RequestException as e:
         logger.error(f"Failed to retrieve {url}: {e}")
         return None
@@ -57,6 +70,13 @@ def html_to_markdown(url, session=None, headers=None, trim=False):
     if not html_content.strip():
         logger.warning(f"Empty HTML response from {url}")
         return None
+
+    # Check for tiny responses that are likely error pages
+    if len(html_content) < 100:
+        logger.warning(
+            f"Very small response ({len(html_content)} bytes) from {url}, might be an error page"
+        )
+        # We'll still try to convert it, but log a warning
 
     # Convert HTML to Markdown using markdownify
     markdown_content = md(html_content, heading_style="ATX")

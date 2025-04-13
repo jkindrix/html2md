@@ -114,6 +114,29 @@ def process_single_with_progress(
 
                 progress.update(task_id, description=f"✅ Completed {source}")
                 return True
+            else:
+                # Handle empty result case
+                progress.stop()
+                console.print(
+                    Panel(
+                        f"[bold red]Unable to retrieve content from:[/bold red] {source}",
+                        title="Error",
+                        border_style="red",
+                    )
+                )
+                console.print("[yellow]Possible causes:[/yellow]")
+                console.print("• The website may require authentication")
+                console.print("• The website may be blocking automated requests")
+                console.print("• There may be network connectivity issues")
+                console.print("• The website may be returning an empty response")
+                console.print(
+                    "\n[blue]Try using the --no-cookies flag if you're having login issues[/blue]"
+                )
+                progress.start()
+                progress.update(
+                    task_id, description=f"❌ Failed to retrieve content from {source}"
+                )
+                return False
         except Exception as e:
             logger.error(f"Failed to process URL {source}: {e}")
             progress.update(task_id, description=f"❌ Failed {source} ({str(e)})")
