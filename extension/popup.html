@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HTML2MD</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">
+        <img src="images/icon48.png" alt="HTML2MD Logo">
+        <h1>HTML2MD</h1>
+      </div>
+      <div class="theme-toggle">
+        <button id="theme-toggle-btn" title="Toggle dark/light mode">
+          <svg viewBox="0 0 24 24" width="24" height="24" id="light-icon">
+            <path d="M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2a7 7 0 1 1 0-14 7 7 0 0 1 0 14zm0-18a1 1 0 0 1 1 1v2a1 1 0 0 1-2 0V2a1 1 0 0 1 1-1zm0 18a1 1 0 0 1 1 1v2a1 1 0 0 1-2 0v-2a1 1 0 0 1 1-1zM2 12a1 1 0 0 1 1-1h2a1 1 0 0 1 0 2H3a1 1 0 0 1-1-1zm18 0a1 1 0 0 1 1-1h2a1 1 0 0 1 0 2h-2a1 1 0 0 1-1-1z"></path>
+          </svg>
+          <svg viewBox="0 0 24 24" width="24" height="24" id="dark-icon" style="display:none">
+            <path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm0-2a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm4-8a4 4 0 1 1-8 0 4 4 0 0 1 8 0z"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="options">
+      <div class="option-group">
+        <label for="conversion-mode">Conversion Mode:</label>
+        <select id="conversion-mode">
+          <option value="full-page">Full Page</option>
+          <option value="selection">Selection Only</option>
+          <option value="article">Main Article</option>
+        </select>
+      </div>
+
+      <div class="option-group">
+        <label for="trim-content">Content Trimming:</label>
+        <div class="toggle-switch">
+          <input type="checkbox" id="trim-content" checked>
+          <span class="toggle-slider"></span>
+        </div>
+      </div>
+
+      <div class="option-group">
+        <label for="output-action">After Converting:</label>
+        <select id="output-action">
+          <option value="show">Show in Popup</option>
+          <option value="download">Download File</option>
+          <option value="copy">Copy to Clipboard</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="action-buttons">
+      <button id="convert-btn" class="primary-btn">Convert to Markdown</button>
+      <button id="settings-btn" class="secondary-btn">Advanced Settings</button>
+    </div>
+
+    <div id="result-container" style="display: none;">
+      <div class="result-header">
+        <h3>Conversion Result</h3>
+        <div class="result-actions">
+          <button id="copy-btn" title="Copy to clipboard">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"></path>
+            </svg>
+          </button>
+          <button id="download-btn" title="Download as file">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <pre id="markdown-result"></pre>
+    </div>
+
+    <div id="status-container">
+      <div id="status-message"></div>
+      <div id="spinner" class="spinner" style="display: none;"></div>
+    </div>
+
+    <footer>
+      <div class="shortcuts">
+        <span title="Keyboard shortcut">⌨️ Ctrl+Shift+M</span>
+      </div>
+      <a href="#" id="cli-link" title="Download CLI Tool">CLI Tool</a>
+    </footer>
+  </div>
+
+  <div id="settings-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Advanced Settings</h2>
+        <span class="close">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="setting-group">
+          <h3>Markdown Options</h3>
+          <div class="setting-item">
+            <label for="heading-style">Heading Style:</label>
+            <select id="heading-style">
+              <option value="atx"># Heading (ATX)</option>
+              <option value="setext">Heading\n======= (Setext)</option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <label for="link-style">Link Style:</label>
+            <select id="link-style">
+              <option value="inline">[text](url)</option>
+              <option value="reference">[text][id]</option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <label for="bullet-marker">List Marker:</label>
+            <select id="bullet-marker">
+              <option value="-">- (dash)</option>
+              <option value="*">* (asterisk)</option>
+              <option value="+">+ (plus)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <h3>Content Processing</h3>
+          <div class="setting-item checkbox-item">
+            <input type="checkbox" id="preserve-images" checked>
+            <label for="preserve-images">Include Images</label>
+          </div>
+          <div class="setting-item checkbox-item">
+            <input type="checkbox" id="include-tables" checked>
+            <label for="include-tables">Format Tables</label>
+          </div>
+          <div class="setting-item checkbox-item">
+            <input type="checkbox" id="code-blocks" checked>
+            <label for="code-blocks">Format Code Blocks</label>
+          </div>
+          <div class="setting-item checkbox-item">
+            <input type="checkbox" id="inline-links" checked>
+            <label for="inline-links">Keep Links Inline</label>
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <h3>Integration</h3>
+          <div class="setting-item">
+            <label for="cli-path">CLI Tool Path (optional):</label>
+            <input type="text" id="cli-path" placeholder="/usr/local/bin/html2md">
+          </div>
+          <p class="help-text">If you have the html2md CLI tool installed, you can integrate with it for enhanced conversion options.</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="save-settings" class="primary-btn">Save Settings</button>
+        <button id="reset-defaults" class="secondary-btn">Reset to Defaults</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="turndown.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -11,6 +11,7 @@ A command-line utility for converting HTML content to Markdown.
 - Batch processing of markdown files containing links
 - Modular output with preserved link structure
 - Beautiful modern UI with progress indicators
+- Chrome extension for instant web page conversion
 
 ## Installation
 
@@ -183,6 +184,18 @@ This will:
 5. Provide beautiful visuals and detailed status updates throughout
 
 All with intuitive progress indicators and intelligent terminal adaptations!
+
+## Chrome Extension
+
+HTML2MD comes with a Chrome extension for instant conversion of web pages to Markdown:
+
+- Convert any web page with one click
+- Multiple conversion modes (full page, selection, main article)
+- Copy to clipboard, download or preview in the extension
+- Dark mode support and customizable settings
+- Context menu integration and keyboard shortcuts
+
+Check out the [extension directory](./extension) for installation instructions.
 
 ## License
 
