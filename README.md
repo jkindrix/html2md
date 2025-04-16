@@ -87,6 +87,7 @@ html2md batch "docs/*.md" --output-dir output
 
 - `--output-dir DIR, -o DIR`: Directory to save the output files and folders (default: "output")
 - `--trim/--no-trim`: Enable/disable trimming based on domain-specific rules
+- `--flatten`: Output files directly to domain directories (e.g., 'docs.github.com/')
 
 ## UI Features
 
@@ -150,8 +151,14 @@ Create a structured documentation site from a collection of markdown links with 
 html2md batch incomplete-docs/*.txt --output-dir documentation
 ```
 
+For a simpler output structure, use the flatten option:
+
+```bash
+html2md batch urls.txt --output-dir documentation --flatten
+```
+
 This will:
-1. Extract all URLs from the provided markdown files
+1. Extract all URLs from the provided files (including plain URL lists)
 2. Convert each URL's HTML content to markdown
 3. Save the files in a structured directory layout
 4. Update links between files to maintain correct references
