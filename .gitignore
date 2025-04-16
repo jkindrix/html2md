@@ -42,3 +42,9 @@ Thumbs.db
 
 # Dedicated .ignore directory
 .ignore/
+
+# Generated content directories
+docs.github.com/
+*github-docs/
+flattened-github-docs/
+urls.txt
