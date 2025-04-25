@@ -163,6 +163,9 @@ var TurndownService = (function () {
         .replace(/\n+$/, '\n')
         .replace(/\n/gm, '\n    ');
 
+      // Remove extra blank lines
+      content = content.replace(/^\s*\n\s*\n/gm, '\n');
+
       var prefix = options.bulletListMarker + ' ';
       var parent = node.parentNode;
 
@@ -447,9 +450,19 @@ var TurndownService = (function () {
     var output = this.process(root);
 
     // Clean up extra newlines
-    return output
+    output = output
       .replace(/\n{3,}/g, '\n\n')  // replace 3+ newlines with just 2
       .trim();
+
+    // Fix common markdown formatting issues
+    output = output
+      // Fix list item spacing - remove extra blank lines between list items
+      .replace(/\n\s*\n(\s*[*\-+]\s)/g, '\n$1')
+      .replace(/\n\s*\n(\s*\d+\.\s)/g, '\n$1')
+      // Remove extra blank lines between content inside list items
+      .replace(/(\s*[*\-+]\s.*)\n\s*\n(\s{4})/g, '$1\n$2');
+
+    return output;
   };
 
   /**
