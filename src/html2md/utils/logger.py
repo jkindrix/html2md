@@ -13,17 +13,21 @@ LOG_LEVEL = os.getenv("HTML2MD_LOG_LEVEL", "INFO").upper()
 ENABLE_JSON_LOGGING = os.getenv("HTML2MD_JSON_LOGGING", "false").lower() == "true"
 
 
-def setup_logging(console_output=True):
+def setup_logging(console_output=True, debug_file=None):
     """
     Configure logging for the application with both file and console handlers.
 
     Args:
         console_output (bool): Whether to output logs to the console. Defaults to True.
+        debug_file (str, optional): Optional path to a debug log file. All logs will be
+                                   written to this file at DEBUG level regardless of the
+                                   global log level.
 
     - Ensures the logs directory exists before creating log files.
     - Supports log rotation (5MB per file, keeping 3 backups).
     - Reads log level from an environment variable.
     - Supports optional JSON logging.
+    - Can write debug logs to a separate file when debug_file is provided.
     """
 
     # Ensure the logs directory exists
@@ -63,5 +67,22 @@ def setup_logging(console_output=True):
     )
     file_handler.setFormatter(file_formatter)
     logger.addHandler(file_handler)
+    
+    # Optional dedicated debug log file
+    if debug_file:
+        # Create parent directory if needed
+        debug_dir = os.path.dirname(debug_file)
+        if debug_dir and not os.path.exists(debug_dir):
+            os.makedirs(debug_dir, exist_ok=True)
+            
+        # Create a file handler that captures everything at DEBUG level
+        debug_handler = logging.FileHandler(debug_file, mode='w')  # 'w' to overwrite each time
+        debug_handler.setLevel(logging.DEBUG)  # Force DEBUG level for this handler
+        debug_formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+        debug_handler.setFormatter(debug_formatter)
+        logger.addHandler(debug_handler)
+        logger.debug(f"Debug logging enabled to: {debug_file}")
 
     return logger

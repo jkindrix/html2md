@@ -16,13 +16,36 @@ def build_headers(url):
     parsed_url = urlparse(url)
     domain = parsed_url.netloc
 
-    return {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0",
+    # Basic headers for most sites
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
         "Accept-Language": "en-US,en;q=0.9",
         "Referer": f"https://{domain}/",
         "Connection": "keep-alive",
         "Cache-Control": "no-cache",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br",
+        "sec-ch-ua": '"Google Chrome";v="123", "Not:A-Brand";v="8", "Chromium";v="123"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-User": "?1",
+        "Sec-Fetch-Dest": "document",
     }
+    
+    # Special case for ChatGPT which has stricter bot detection
+    if "chatgpt.com" in domain:
+        headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+            "Origin": f"https://{domain}",
+            "dnt": "1",
+            "authority": domain,
+            "Pragma": "no-cache",
+        })
+        
+    return headers
 
 
 def create_directory_structure(output_dir, url, flatten_domain=False):
