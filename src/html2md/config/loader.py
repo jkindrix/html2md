@@ -13,6 +13,7 @@ DEFAULT_CONFIG = {
     "domains": {},
     "logging": {"level": "INFO"},
     "oauth": {"CLIENT_ID": "", "CLIENT_SECRET": ""},
+    "browser": {"preferred": "chrome"},
 }
 
 
@@ -55,6 +56,7 @@ def validate_config(config_data):
         "domains": {},
         "logging": {"level": "INFO"},
         "oauth": {"CLIENT_ID": "", "CLIENT_SECRET": ""},
+        "browser": {"preferred": "chrome"},
     }
 
     # Ensure each required section exists
