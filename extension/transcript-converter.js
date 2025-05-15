@@ -45,6 +45,24 @@ class TranscriptConverter {
       // If no messages were found, try raw text extraction
       if (messages.length === 0) {
         console.log('No messages found in DOM structure, trying raw text extraction');
+        
+        // Log available elements for debugging
+        console.log('Available elements in DOM:');
+        const articles = tempDiv.querySelectorAll('article');
+        console.log(`- Found ${articles.length} article elements`);
+        
+        const dataTest = tempDiv.querySelectorAll('[data-testid]');
+        console.log(`- Found ${dataTest.length} data-testid elements`);
+        
+        const headings = tempDiv.querySelectorAll('h1, h2, h3, h4, h5, h6');
+        console.log(`- Found ${headings.length} heading elements`);
+        
+        const paragraphs = tempDiv.querySelectorAll('p');
+        console.log(`- Found ${paragraphs.length} paragraph elements`);
+        
+        const divs = tempDiv.querySelectorAll('div');
+        console.log(`- Found ${divs.length} div elements`);
+        
         this.extractFromRawText(html, messages);
       }
       
@@ -54,9 +72,26 @@ class TranscriptConverter {
         this.extractSimpleContent(tempDiv, messages);
       }
       
-      // If still no messages, return a placeholder but add debug info
+      // If still no messages, show sample HTML and return a placeholder
       if (messages.length === 0) {
         console.error('All extraction methods failed. HTML preview:', html.substring(0, 500));
+        
+        // Log more details to console
+        console.log('HTML Structure Sample:');
+        if (tempDiv.innerHTML.length > 0) {
+          // Print a sample of the DOM structure for debugging
+          const sampleNodes = Array.from(tempDiv.children).slice(0, 3);
+          sampleNodes.forEach((node, index) => {
+            console.log(`Node ${index + 1} tagName:`, node.tagName);
+            console.log(`Node ${index + 1} classList:`, node.classList?.value || 'none');
+            console.log(`Node ${index + 1} attributes:`, Array.from(node.attributes || []).map(attr => `${attr.name}="${attr.value}"`).join(', '));
+            console.log(`Node ${index + 1} childNodes:`, node.childNodes.length);
+          });
+        }
+        
+        // Show example of turns - this helps debug the ChatGPT structure
+        console.log('Here are examples of turns:', tempDiv.innerHTML.substring(0, 1000));
+        
         return this.createPlaceholderTranscript();
       }
       
@@ -561,6 +596,11 @@ format: "transcript-v1.0"
   static extractMessages(doc, messages) {
     // Try different message extraction strategies
     
+    // Strategy 0: Latest ChatGPT structure (2025 version)
+    if (this.extractLatestChatGPTFormat(doc, messages)) {
+      return;
+    }
+    
     // Strategy 1: Modern ChatGPT structure
     if (this.extractMessagesModernChatGPT(doc, messages)) {
       return;
@@ -576,14 +616,90 @@ format: "transcript-v1.0"
   }
   
   /**
+   * Extract messages from the latest ChatGPT DOM structure (2025)
+   * @param {Document} doc - HTML document
+   * @param {Array} messages - Array to store extracted messages
+   * @returns {boolean} - True if messages were found
+   */
+  static extractLatestChatGPTFormat(doc, messages) {
+    // Look specifically for the 2025 ChatGPT DOM structure
+    // which uses article elements with specific attributes
+    const turns = doc.querySelectorAll('article[data-testid^="conversation-turn-"]');
+    
+    if (turns.length === 0) {
+      console.log('No 2025 ChatGPT turns found');
+      return false;
+    }
+    
+    console.log('Found 2025 ChatGPT structure with', turns.length, 'turns');
+    
+    let messageCount = 0;
+    
+    for (const turn of turns) {
+      // Determine role based on the sr-only heading
+      let role = 'assistant';
+      const srOnlyHeading = turn.querySelector('h5.sr-only, h6.sr-only');
+      
+      if (srOnlyHeading) {
+        const headingText = srOnlyHeading.textContent;
+        if (headingText.includes('You said') || headingText.includes('User:')) {
+          role = 'user';
+        }
+      }
+      
+      // For users, look for div with whitespace-pre-wrap class
+      let contentElement = null;
+      
+      if (role === 'user') {
+        contentElement = turn.querySelector('.whitespace-pre-wrap');
+      } else {
+        // For assistant, look for markdown or prose
+        contentElement = turn.querySelector('.markdown.prose') || turn.querySelector('.prose') || turn.querySelector('.whitespace-pre-wrap');
+      }
+      
+      // If we still don't have content, try a more general approach
+      if (!contentElement || !contentElement.textContent.trim()) {
+        // Look for any div with substantial content
+        const allDivs = turn.querySelectorAll('div');
+        for (const div of allDivs) {
+          if (div.textContent.trim().length > 50) {
+            contentElement = div;
+            break;
+          }
+        }
+      }
+      
+      // Skip if we couldn't find content
+      if (!contentElement || !contentElement.textContent.trim()) {
+        continue;
+      }
+      
+      // Process content
+      const content = this.processMessageContent(contentElement);
+      
+      // Only add if we got meaningful content
+      if (content && content.trim().length > 10) {
+        messages.push({
+          role,
+          content
+        });
+        messageCount++;
+        console.log(`Added 2025 ${role} message with ${content.length} chars`);
+      }
+    }
+    
+    return messageCount > 0;
+  }
+  
+  /**
    * Extract messages from modern ChatGPT structure
    * @param {Document} doc - HTML document
    * @param {Array} messages - Array to store extracted messages
    * @returns {boolean} - True if messages were found
    */
   static extractMessagesModernChatGPT(doc, messages) {
-    // Look for conversation turns
-    const turns = doc.querySelectorAll('[data-testid="conversation-turn"], [data-message-author-role]');
+    // Look for conversation turns - handling the latest ChatGPT DOM structure
+    const turns = doc.querySelectorAll('[data-testid^="conversation-turn-"], [data-message-author-role], article');
     
     if (turns.length === 0) {
       return false;
@@ -593,14 +709,49 @@ format: "transcript-v1.0"
     
     for (const turn of turns) {
       // Determine role
-      const isUser = turn.getAttribute('data-message-author-role') === 'user' || 
-                   turn.querySelector('[data-message-author-role="user"]');
+      let isUser = false;
+      
+      // Check various ways to identify user messages
+      if (turn.getAttribute('data-message-author-role') === 'user') {
+        isUser = true;
+      } else if (turn.querySelector('[data-message-author-role="user"]')) {
+        isUser = true;
+      } else if (turn.querySelector('.min-h-8[data-message-author-role="user"]')) {
+        isUser = true;
+      } else if (turn.querySelector('h5.sr-only') && turn.querySelector('h5.sr-only').textContent.includes('You said')) {
+        isUser = true;
+      }
+      
       const role = isUser ? 'user' : 'assistant';
       
-      // Extract content
-      let contentElement = turn.querySelector('.markdown') || 
-                         turn.querySelector('[data-message-author-role] .markdown') ||
-                         turn;
+      // Extract content - try multiple selectors to find the content
+      const contentSelectors = [
+        '.markdown', 
+        '.whitespace-pre-wrap',
+        '.min-h-8[data-message-author-role] .whitespace-pre-wrap',
+        '.min-h-8[data-message-author-role] .markdown',
+        '.min-h-8 .prose',
+        '[data-message-author-role] .markdown',
+        '[data-message-author-role] div div',
+        '.text-message .relative',
+        '.text-base'
+      ];
+      
+      let contentElement = null;
+      
+      // Try each selector until we find content
+      for (const selector of contentSelectors) {
+        const el = turn.querySelector(selector);
+        if (el && el.textContent && el.textContent.trim().length > 10) {
+          contentElement = el;
+          break;
+        }
+      }
+      
+      // If we still didn't find it, use the turn itself
+      if (!contentElement) {
+        contentElement = turn;
+      }
       
       // Skip empty messages
       if (!contentElement.textContent.trim()) continue;
@@ -608,10 +759,14 @@ format: "transcript-v1.0"
       // Process content
       const content = this.processMessageContent(contentElement);
       
-      messages.push({
-        role,
-        content
-      });
+      // Only add if we got meaningful content (longer than a few chars)
+      if (content && content.trim().length > 5) {
+        messages.push({
+          role,
+          content
+        });
+        console.log(`Added ${role} message with ${content.length} chars`);
+      }
     }
     
     return messages.length > 0;
@@ -624,8 +779,13 @@ format: "transcript-v1.0"
    * @returns {boolean} - True if messages were found
    */
   static extractMessagesLegacyFormat(doc, messages) {
-    // Look for chat message classes
-    const chatMessages = doc.querySelectorAll('.chat-message, .user-message, .assistant-message');
+    // Look for chat message classes and common message patterns
+    const chatMessages = doc.querySelectorAll(
+      '.chat-message, .user-message, .assistant-message, ' + 
+      '.message, .user, .assistant, .text-message, ' + 
+      '[role="user"], [role="assistant"], ' +
+      '.min-h-8, .relative.flex.w-full'
+    );
     
     if (chatMessages.length === 0) {
       return false;
@@ -635,14 +795,54 @@ format: "transcript-v1.0"
     
     for (const msg of chatMessages) {
       // Determine role
-      const isUser = msg.classList.contains('user-message') || 
-                   msg.classList.contains('user') || 
-                   msg.querySelector('.user');
+      let isUser = false;
+      
+      // Check various user indicators
+      if (msg.classList.contains('user-message') || 
+          msg.classList.contains('user') || 
+          msg.querySelector('.user') ||
+          msg.getAttribute('role') === 'user' ||
+          msg.getAttribute('data-message-author-role') === 'user' ||
+          msg.querySelector('[data-message-author-role="user"]')) {
+        isUser = true;
+      }
+      
+      // Look for "You:" or "User:" patterns in the text
+      const msgText = msg.textContent.trim();
+      if (msgText.startsWith('You:') || msgText.startsWith('User:') || 
+          msg.querySelector('h5.sr-only, h6.sr-only')?.textContent.includes('You said')) {
+        isUser = true;
+      }
       
       const role = isUser ? 'user' : 'assistant';
       
-      // Get content
-      const contentElement = msg.querySelector('.message-content, .content') || msg;
+      // Try multiple content selectors
+      const contentSelectors = [
+        '.message-content', 
+        '.content',
+        '.markdown',
+        '.prose',
+        '.whitespace-pre-wrap',
+        'p',
+        '.text-message',
+        '[data-message-author-role] div div'
+      ];
+      
+      let contentElement = null;
+      
+      // Try each selector
+      for (const selector of contentSelectors) {
+        const el = msg.querySelector(selector);
+        if (el && el.textContent && el.textContent.trim().length > 5) {
+          contentElement = el;
+          break;
+        }
+      }
+      
+      // If no specific content element found, use the message itself
+      if (!contentElement) {
+        contentElement = msg;
+      }
       
       // Skip empty messages
       if (!contentElement.textContent.trim()) continue;
@@ -650,10 +850,14 @@ format: "transcript-v1.0"
       // Process content
       const content = this.processMessageContent(contentElement);
       
-      messages.push({
-        role,
-        content
-      });
+      // Only add if content is meaningful (more than a few chars)
+      if (content && content.trim().length > 5) {
+        messages.push({
+          role,
+          content
+        });
+        console.log(`Added legacy ${role} message with ${content.length} chars`);
+      }
     }
     
     return messages.length > 0;
