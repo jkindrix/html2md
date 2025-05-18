@@ -39,6 +39,8 @@ Thumbs.db
 # Logs and temporary files
 *.log
 *.tmp
+src/logs/
+logs/
 
 # Dedicated .ignore directory
 .ignore/
@@ -48,3 +50,11 @@ docs.github.com/
 *github-docs/
 flattened-github-docs/
 urls.txt
+
+# Test files and temporary test data
+test.html
+test_output/
+chatgpt_tools/results_*/
+
+# Local configuration
+config.json
