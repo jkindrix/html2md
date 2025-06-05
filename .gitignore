@@ -58,3 +58,7 @@ chatgpt_tools/results_*/
 
 # Local configuration
 config.json
+
+# Test outputs
+test_image_download/*.md
+test_image_download/*.html
