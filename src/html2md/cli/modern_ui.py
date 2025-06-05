@@ -229,6 +229,8 @@ def process_single_with_progress(
     cookie_path: Optional[Path] = None,
     cookie_json: Optional[Path] = None,
     local: bool = False,
+    download_images: bool = False,
+    images_dir: str = "images",
     progress: Progress = None,
     task_id: TaskID = None,
 ) -> bool:
@@ -273,9 +275,18 @@ def process_single_with_progress(
                         progress.update(task_id, description=f"Using cookies from {browser_name} browser for {source}")
                         logger.info(f"Using cookies from {browser_name} browser for {source}")
 
+            # Determine output directory for images if needed
+            output_dir = None
+            if download_images and output:
+                output_dir = os.path.dirname(os.path.abspath(output))
+            elif download_images:
+                # If no output file specified but downloading images, use current directory
+                output_dir = os.getcwd()
+
             # Process URL with session and headers
             markdown_result = html_to_markdown(
-                source, session=session, headers=headers, trim=trim
+                source, session=session, headers=headers, trim=trim,
+                download_images=download_images, output_dir=output_dir, images_dir=images_dir
             )
 
             progress.update(task_id, description=f"Converting {source} to markdown")
@@ -345,8 +356,19 @@ def process_single_with_progress(
             file_path = os.path.abspath(os.path.expanduser(source))
             progress.update(task_id, description=f"Reading local file {file_path}")
 
+            # Determine output directory for images if needed
+            output_dir = None
+            if download_images and output:
+                output_dir = os.path.dirname(os.path.abspath(output))
+            elif download_images:
+                # If no output file specified but downloading images, use file's directory
+                output_dir = os.path.dirname(file_path)
+
             # Process local file
-            markdown_result = local_html_to_markdown(file_path, trim=trim)
+            markdown_result = local_html_to_markdown(file_path, trim=trim,
+                                                    download_images=download_images,
+                                                    output_dir=output_dir,
+                                                    images_dir=images_dir)
 
             progress.update(task_id, description=f"Converting {file_path} to markdown")
 
@@ -417,6 +439,16 @@ def convert_command(
         "--local",
         help="Force treating sources as local files even if they look like URLs.",
     ),
+    download_images: bool = typer.Option(
+        False,
+        "--download-images",
+        help="Download images from the webpage and store them locally.",
+    ),
+    images_dir: str = typer.Option(
+        "images",
+        "--images-dir",
+        help="Directory name for storing downloaded images.",
+    ),
     log_level: LogLevel = typer.Option(
         LogLevel.INFO, "--log-level", help="Set logging level."
     ),
@@ -476,7 +508,9 @@ def convert_command(
                 browser=browser,
                 cookie_path=cookie_path,
                 cookie_json=cookie_json,
-                local=local, 
+                local=local,
+                download_images=download_images,
+                images_dir=images_dir,
                 progress=progress, 
                 task_id=task_id
             ):
