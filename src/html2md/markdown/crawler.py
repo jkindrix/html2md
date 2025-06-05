@@ -64,6 +64,8 @@ def crawl_website(
     trim=True,
     progress_callback=None,
     flatten_output=False,
+    download_images=False,
+    images_dir="images",
 ):
     """
     Crawl a website starting from a URL and convert each page to markdown.
@@ -82,6 +84,8 @@ def crawl_website(
         progress_callback (callable, optional): Function to call with progress updates
         flatten_output (bool, optional): If True, creates output directories directly
                                        named after domain. Defaults to False.
+        download_images (bool, optional): Whether to download images from pages.
+        images_dir (str, optional): Directory name for images (default: "images").
 
     Returns:
         tuple: (processed_urls_count, url_to_file_mapping)
@@ -165,7 +169,8 @@ def crawl_website(
 
             # Convert HTML to markdown
             markdown_content = html_to_markdown(
-                url, session=session, headers=headers, trim=trim
+                url, session=session, headers=headers, trim=trim,
+                download_images=download_images, output_dir=url_dir, images_dir=images_dir
             )
 
             if markdown_content:
