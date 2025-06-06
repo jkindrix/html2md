@@ -1318,16 +1318,23 @@ def delete_config_value(
 
 
 @config_app.command(name="add-domain")
-def add_domain_config():
-    """Interactive wizard to add domain-specific configuration."""
+def add_domain_config(
+    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Domain name (e.g., example.com). If not provided, runs in interactive mode."),
+    quick: bool = typer.Option(False, "--quick", "-q", help="Quick mode: add domain with default settings without prompts")
+):
+    """Add domain-specific configuration. Use --domain to specify domain directly, or run interactively."""
     config = load_config()
 
     # Domain name
-    domain = Prompt.ask("[bold blue]Enter domain name[/bold blue] (e.g., example.com)")
+    if domain is None:
+        domain = Prompt.ask("[bold blue]Enter domain name[/bold blue] (e.g., example.com)")
 
     # Check if domain already exists
     if domain in config.get("domains", {}):
-        if not Confirm.ask(
+        if quick:
+            console.print(f"[yellow]Domain '{domain}' already exists. Use interactive mode to update it.[/yellow]")
+            return
+        elif not Confirm.ask(
             f"Domain '{domain}' already exists. Do you want to update it?"
         ):
             return
@@ -1337,6 +1344,13 @@ def add_domain_config():
         config["domains"] = {}
     if domain not in config["domains"]:
         config["domains"][domain] = {}
+
+    # In quick mode, just add the domain with empty config
+    if quick:
+        # Save the config
+        CONFIG_FILE.write_text(json.dumps(config, indent=2), encoding="utf-8")
+        console.print(f"[bold green]✓[/bold green] Domain '{domain}' added with default settings")
+        return
 
     # Ask for footer marker
     if Confirm.ask(
