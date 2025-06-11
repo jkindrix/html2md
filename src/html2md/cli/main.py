@@ -2,12 +2,10 @@ import argparse
 import glob
 import logging
 import os
+import sys
 from urllib.parse import urlparse
 
-from html2md.cookies.session_manager import get_session, apply_browser_cookies
-from html2md.markdown.batch_processor import process_markdown_links
-from html2md.markdown.converter import html_to_markdown, local_html_to_markdown
-from html2md.markdown.crawler import crawl_website
+# Delay imports that might trigger config validation
 from html2md.utils.logger import setup_logging
 
 logger = setup_logging()
@@ -265,10 +263,109 @@ def process_recursive(
     return total_processed > 0
 
 
+def init_config():
+    """Initialize configuration file with example values."""
+    from html2md.config.loader import CONFIG_PATH
+    import json
+    import shutil
+    from pathlib import Path
+    
+    logger = setup_logging()
+    
+    # Path to template config file
+    template_path = Path(__file__).parent.parent / "config" / "config.json"
+    
+    # Check if config already exists
+    if CONFIG_PATH.exists():
+        logger.warning(f"Config file already exists at: {CONFIG_PATH}")
+        response = input("Do you want to overwrite it? (y/N): ")
+        if response.lower() != 'y':
+            logger.info("Config initialization cancelled.")
+            return False
+    
+    # Ensure directory exists
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Copy template file or create default
+    try:
+        if template_path.exists():
+            shutil.copy2(template_path, CONFIG_PATH)
+            logger.info(f"Config file created from template at: {CONFIG_PATH}")
+        else:
+            # Fallback to creating a basic config
+            example_config = {
+                "oauth": {
+                    "CLIENT_ID": "YOUR_GOOGLE_CLIENT_ID_HERE",
+                    "CLIENT_SECRET": "YOUR_GOOGLE_CLIENT_SECRET_HERE"
+                },
+                "browser": {
+                    "preferred": "chrome",
+                    "custom_path": {}
+                },
+                "domains": {},
+                "logging": {
+                    "level": "INFO"
+                }
+            }
+            with open(CONFIG_PATH, 'w') as f:
+                json.dump(example_config, f, indent=2)
+            logger.info(f"Config file created at: {CONFIG_PATH}")
+        
+        logger.info("Please edit the config file to add your Google OAuth credentials.")
+        logger.info("You can get OAuth credentials from: https://console.cloud.google.com/")
+        logger.info("\nFor ChatGPT conversion, OAuth is required. For other sites, you can use the tool without OAuth.")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to create config file: {e}")
+        return False
+
+
 def main():
     """Parse arguments and process URLs or local files."""
+    # Handle --init-config before full argument parsing to avoid import issues
+    if "--init-config" in sys.argv:
+        success = init_config()
+        sys.exit(0 if success else 1)
+    
+    # Handle --help for main command only (not subcommands)
+    if len(sys.argv) == 1 or (len(sys.argv) == 2 and sys.argv[1] in ["--help", "-h"]):
+        parser = argparse.ArgumentParser(
+            description="Convert HTML content from URLs or local files to Markdown."
+        )
+        parser.add_argument(
+            "--init-config",
+            action="store_true",
+            help="Initialize configuration file with example values."
+        )
+        # Add basic help for commands without importing modules
+        parser.add_argument(
+            "command",
+            nargs="?",
+            choices=["convert", "batch", "crawl"],
+            help="Command to execute (convert, batch, or crawl)"
+        )
+        parser.print_help()
+        print("\nCommands:")
+        print("  convert    Convert a single URL or file to markdown")
+        print("  batch      Process markdown files with links and create modular output")
+        print("  crawl      Recursively crawl websites and convert to markdown")
+        print("\nUse 'html2md <command> --help' for help on a specific command.")
+        sys.exit(0)
+    
+    # Now import the modules that might trigger config validation
+    from html2md.cookies.session_manager import get_session, apply_browser_cookies
+    from html2md.markdown.batch_processor import process_markdown_links
+    from html2md.markdown.converter import html_to_markdown, local_html_to_markdown
+    from html2md.markdown.crawler import crawl_website
+    
     parser = argparse.ArgumentParser(
         description="Convert HTML content from URLs or local files to Markdown."
+    )
+    
+    parser.add_argument(
+        "--init-config",
+        action="store_true",
+        help="Initialize configuration file with example values."
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Command to execute")

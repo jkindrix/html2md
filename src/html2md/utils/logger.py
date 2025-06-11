@@ -2,7 +2,11 @@ import logging
 import os
 from logging.handlers import RotatingFileHandler
 
-from pythonjsonlogger import jsonlogger
+try:
+    from pythonjsonlogger import jsonlogger
+    HAS_JSON_LOGGER = True
+except ImportError:
+    HAS_JSON_LOGGER = False
 
 # Allow environment variables to override default settings
 DEFAULT_LOG_DIR = os.path.join(os.path.dirname(__file__), "../../logs")
@@ -10,7 +14,7 @@ DEFAULT_LOG_FILE = os.path.join(DEFAULT_LOG_DIR, "html2md.log")
 
 LOG_FILE = os.getenv("HTML2MD_LOG_PATH", DEFAULT_LOG_FILE)
 LOG_LEVEL = os.getenv("HTML2MD_LOG_LEVEL", "INFO").upper()
-ENABLE_JSON_LOGGING = os.getenv("HTML2MD_JSON_LOGGING", "false").lower() == "true"
+ENABLE_JSON_LOGGING = os.getenv("HTML2MD_JSON_LOGGING", "false").lower() == "true" and HAS_JSON_LOGGER
 
 
 def setup_logging(console_output=True, debug_file=None):

@@ -10,11 +10,23 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
-from Crypto.Cipher import AES
-from Crypto.Protocol.KDF import PBKDF2
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
+
+# Optional dependencies for browser cookie extraction
+try:
+    from Crypto.Cipher import AES
+    from Crypto.Protocol.KDF import PBKDF2
+    HAS_CRYPTO = True
+except ImportError:
+    HAS_CRYPTO = False
+
+# Optional dependencies for OAuth
+try:
+    from google.auth.transport.requests import Request
+    from google.oauth2.credentials import Credentials
+    from google_auth_oauthlib.flow import InstalledAppFlow
+    HAS_GOOGLE_AUTH = True
+except ImportError:
+    HAS_GOOGLE_AUTH = False
 
 from html2md.config.loader import TOKENS_FILE, load_config
 
@@ -27,11 +39,15 @@ config = load_config()
 CLIENT_ID = config.get("oauth", {}).get("CLIENT_ID", "")
 CLIENT_SECRET = config.get("oauth", {}).get("CLIENT_SECRET", "")
 
-if not CLIENT_ID or not CLIENT_SECRET:
-    logger.error("Missing OAuth credentials in config file.")
-    raise ValueError(
-        "OAuth credentials (CLIENT_ID, CLIENT_SECRET) must be set in config.json"
-    )
+# Defer validation until OAuth is actually needed
+def validate_oauth_config():
+    """Validate OAuth configuration when needed."""
+    if not CLIENT_ID or not CLIENT_SECRET:
+        logger.error("Missing OAuth credentials in config file.")
+        raise ValueError(
+            "OAuth credentials (CLIENT_ID, CLIENT_SECRET) must be set in config.json. "
+            "Run 'html2md --init-config' to create a config file with placeholders."
+        )
 
 REDIRECT_URI = "http://localhost"
 SCOPES = [
@@ -48,6 +64,10 @@ SCOPES = [
 
 def load_tokens():
     """Load OAuth tokens from a local file."""
+    if not HAS_GOOGLE_AUTH:
+        raise ImportError("Google auth libraries are required for OAuth. Install with: pip install google-auth google-auth-oauthlib google-auth-httplib2")
+    
+    validate_oauth_config()  # Validate when tokens are actually needed
     if not TOKENS_FILE.exists():
         logger.warning(
             f"Token file not found at {TOKENS_FILE}. Performing fresh authentication."
@@ -76,6 +96,10 @@ def save_tokens(creds):
 
 def authenticate_google():
     """Authenticate using Google OAuth and obtain an access token."""
+    if not HAS_GOOGLE_AUTH:
+        raise ImportError("Google auth libraries are required for OAuth. Install with: pip install google-auth google-auth-oauthlib google-auth-httplib2")
+    
+    validate_oauth_config()  # Validate when OAuth is actually needed
     creds = None
 
     # Load existing credentials if available
@@ -139,6 +163,10 @@ def refresh_token_if_expired(creds):
 
 def get_credentials():
     """Get credentials using stored tokens or authenticate fresh."""
+    if not HAS_GOOGLE_AUTH:
+        raise ImportError("Google auth libraries are required for OAuth. Install with: pip install google-auth google-auth-oauthlib google-auth-httplib2")
+    
+    validate_oauth_config()  # Validate when OAuth is actually needed
     creds = load_tokens()
 
     # Refresh or authenticate if necessary
@@ -222,6 +250,9 @@ def get_browser_cookie_path():
 
 def get_chrome_encryption_key():
     """Get encryption key for Chrome cookies"""
+    if not HAS_CRYPTO:
+        raise ImportError("pycryptodome is required for browser cookie extraction. Install with: pip install pycryptodome")
+    
     if sys.platform == "win32":  # Windows
         import win32crypt
         try:
@@ -279,6 +310,9 @@ def get_chrome_encryption_key():
 
 def decrypt_chrome_cookie(encrypted_value, key):
     """Decrypt Chrome cookie value"""
+    if not HAS_CRYPTO:
+        raise ImportError("pycryptodome is required for browser cookie extraction. Install with: pip install pycryptodome")
+    
     try:
         # For newer Chrome versions, cookies are encrypted with AES-256-GCM
         if encrypted_value.startswith(b'v10') or encrypted_value.startswith(b'v11'):

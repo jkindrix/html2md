@@ -37,6 +37,7 @@ def get_config_path():
 
 # Allow external configuration path override
 CONFIG_FILE = Path(os.getenv("HTML2MD_CONFIG_PATH", get_config_path()))
+CONFIG_PATH = CONFIG_FILE  # Alias for external use
 
 # Set the token file location according to best practice
 CONFIG_DIR = CONFIG_FILE.parent
@@ -76,6 +77,18 @@ def validate_config(config_data):
     return config_data
 
 
+def ensure_config_exists():
+    """Ensure configuration file exists, creating with defaults if missing."""
+    if not CONFIG_FILE.exists():
+        logger.warning(
+            f"Configuration file not found: {CONFIG_FILE}. Creating with defaults."
+        )
+        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
+        CONFIG_FILE.write_text(json.dumps(DEFAULT_CONFIG, indent=4), encoding="utf-8")
+        return True
+    return False
+
+
 def load_config(force_reload=False):
     """Load configuration from a JSON file, creating it if missing."""
     global _cached_config
@@ -83,14 +96,8 @@ def load_config(force_reload=False):
     if _cached_config is not None and not force_reload:
         return _cached_config  # Use cached config
 
-    if not CONFIG_FILE.exists():
-        logger.warning(
-            f"Configuration file not found: {CONFIG_FILE}. Creating with defaults."
-        )
-        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
-        CONFIG_FILE.write_text(json.dumps(DEFAULT_CONFIG, indent=4), encoding="utf-8")
-        _cached_config = deepcopy(DEFAULT_CONFIG)
-        return _cached_config
+    ensure_config_exists()
+    _cached_config = deepcopy(DEFAULT_CONFIG) if not CONFIG_FILE.exists() else None
 
     try:
         with CONFIG_FILE.open("r", encoding="utf-8") as f:
