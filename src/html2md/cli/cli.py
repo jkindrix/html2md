@@ -719,14 +719,8 @@ def batch_command(
     # Start time for processing report
     start_time = time.time()
 
-    # Create layout for more advanced display
+    # Display header without the layout
     if not quiet:
-        layout = Layout()
-        layout.split(
-            Layout(name="header", size=3),
-            Layout(name="main", ratio=1),
-        )
-
         # Create header with styled title and stats
         header_text = Text()
         header_text.append("📚 ", style="bold")
@@ -735,15 +729,13 @@ def batch_command(
             " - Convert URLs to structured Markdown", style="italic cyan"
         )
 
-        layout["header"].update(
+        console.print(
             Panel(
                 header_text,
                 border_style="magenta",
                 padding=(1, 2),
             )
         )
-
-        console.print(layout)
     else:
         # Display minimal header in quiet mode
         console.print(
@@ -1044,14 +1036,8 @@ def crawl_command(
     # Start time for processing report
     start_time = time.time()
 
-    # Create layout for more advanced display
+    # Display header without the layout
     if not quiet:
-        layout = Layout()
-        layout.split(
-            Layout(name="header", size=3),
-            Layout(name="main", ratio=1),
-        )
-
         # Create header with styled title and stats
         header_text = Text()
         header_text.append("🕸️ ", style="bold")
@@ -1060,15 +1046,13 @@ def crawl_command(
             " - Recursively convert websites to Markdown", style="italic cyan"
         )
 
-        layout["header"].update(
+        console.print(
             Panel(
                 header_text,
                 border_style="blue",
                 padding=(1, 2),
             )
         )
-
-        console.print(layout)
     else:
         # Display minimal header in quiet mode
         console.print(
