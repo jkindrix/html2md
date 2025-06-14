@@ -11,7 +11,7 @@ A command-line utility for converting HTML content to Markdown.
 - Batch processing of markdown files containing links
 - Recursive website crawling with link following
 - Modular output with preserved link structure
-- Beautiful modern UI with progress indicators
+- Beautiful UI with progress indicators
 - Chrome extension for instant web page conversion
 
 ## Installation
@@ -30,7 +30,7 @@ pip install .
 
 ## Usage
 
-html2md features a beautiful modern UI with progress bars and rich formatting
+html2md features a beautiful UI with progress bars and rich formatting
 
 ### Basic Usage
 
@@ -109,7 +109,7 @@ html2md batch "docs/*.md" --output-dir output
 
 ## UI Features
 
-The modern UI includes these enhancements:
+The UI includes these enhancements:
 
 - Beautiful colored output with adaptive theme and syntax highlighting
 - Progress spinners and bars with time estimates for long-running operations

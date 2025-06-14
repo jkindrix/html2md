@@ -62,12 +62,6 @@ html2md batch urls.txt --output-dir docs
 html2md batch urls.txt --output-dir docs --flatten
 ```
 
-For the classic interface:
-
-```bash
-html2md convert https://example.com --output example.md
-```
-
 ## Troubleshooting
 
 If you encounter any issues:

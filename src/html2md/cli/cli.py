@@ -1,5 +1,5 @@
 """
-Modern CLI for html2md using Typer and Rich for a beautiful user experience.
+CLI for html2md using Typer and Rich for a beautiful user experience.
 """
 
 import glob

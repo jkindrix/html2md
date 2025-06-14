@@ -38,7 +38,7 @@ pre-commit = "*"
 types-requests = "^2.32.0.20250328"
 
 [tool.poetry.scripts]
-html2md = "html2md.cli.modern_ui:entry_point"
+html2md = "html2md.cli.cli:entry_point"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
