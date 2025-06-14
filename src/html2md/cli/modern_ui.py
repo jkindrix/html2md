@@ -406,6 +406,124 @@ def process_single_with_progress(
     return False
 
 
+def process_single_quiet(
+    source: str,
+    trim: bool,
+    output: Optional[Path],
+    no_cookies: bool,
+    browser_cookies: bool,
+    browser: Optional[Browser],
+    cookie_path: Optional[Path] = None,
+    cookie_json: Optional[Path] = None,
+    local: bool = False,
+    download_images: bool = False,
+    images_dir: str = "images",
+) -> bool:
+    """Process a single URL or file in quiet mode (just output content)."""
+    if is_url(source, local):
+        # Process as URL
+        headers = build_headers(source)
+        logger.info(f"Processing URL: {source}")
+
+        try:
+            # Create a new session
+            session = None
+            
+            # Determine session type based on flags
+            if not no_cookies:
+                session = get_session()
+                
+                # If browser cookies flag is set, apply browser cookies to session
+                if browser_cookies and session:
+                    # Store browser preference in config or use specified one
+                    config = load_config()
+                    if browser:
+                        config.setdefault('browser', {})['preferred'] = browser
+                    
+                    # Apply browser cookies to session - use JSON file if provided
+                    if cookie_json:
+                        session = apply_browser_cookies(session, source, cookie_json)
+                        logger.info(f"Using cookies from JSON file for {source}")
+                    else:
+                        # Otherwise use browser extraction
+                        session = apply_browser_cookies(session, source)
+                        browser_name = browser or config.get('browser', {}).get('preferred', 'chrome')
+                        logger.info(f"Using cookies from {browser_name} browser for {source}")
+
+            # Determine output directory for images if needed
+            output_dir = None
+            if download_images and output:
+                output_dir = os.path.dirname(os.path.abspath(output))
+            elif download_images:
+                output_dir = os.getcwd()
+
+            # Process URL with session and headers
+            markdown_result = html_to_markdown(
+                source, session=session, headers=headers, trim=trim,
+                download_images=download_images, output_dir=output_dir, images_dir=images_dir
+            )
+
+            if markdown_result:
+                if output:
+                    # Save to file silently
+                    with open(output, "w", encoding="utf-8") as f:
+                        f.write(markdown_result)
+                    logger.info(f"Successfully processed URL: {source}")
+                else:
+                    # Print to console without decoration
+                    print(markdown_result)
+                    logger.info(f"Successfully processed URL: {source}")
+                return True
+            else:
+                if not output:
+                    console.print(f"[red]Error: Unable to retrieve content from {source}[/red]", err=True)
+                return False
+        except Exception as e:
+            logger.error(f"Failed to process URL {source}: {e}")
+            if not output:
+                console.print(f"[red]Error processing {source}: {str(e)}[/red]", err=True)
+            return False
+    else:
+        # Process as local file
+        logger.info(f"Processing local file: {source}")
+
+        try:
+            # Expand to absolute path if needed
+            file_path = os.path.abspath(os.path.expanduser(source))
+
+            # Determine output directory for images if needed
+            output_dir = None
+            if download_images and output:
+                output_dir = os.path.dirname(os.path.abspath(output))
+            elif download_images:
+                output_dir = os.path.dirname(file_path)
+
+            # Process local file
+            markdown_result = local_html_to_markdown(file_path, trim=trim,
+                                                    download_images=download_images,
+                                                    output_dir=output_dir,
+                                                    images_dir=images_dir)
+
+            if markdown_result:
+                if output:
+                    # Save to file silently
+                    with open(output, "w", encoding="utf-8") as f:
+                        f.write(markdown_result)
+                    logger.info(f"Successfully processed local file: {file_path}")
+                else:
+                    # Print to console without decoration
+                    print(markdown_result)
+                    logger.info(f"Successfully processed local file: {file_path}")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to process local file {source}: {e}")
+            if not output:
+                console.print(f"[red]Error processing {source}: {str(e)}[/red]", err=True)
+            return False
+
+    return False
+
+
 @app.command(name="convert")
 def convert_command(
     sources: List[str] = typer.Argument(
@@ -450,78 +568,96 @@ def convert_command(
         help="Directory name for storing downloaded images.",
     ),
     log_level: LogLevel = typer.Option(
-        LogLevel.INFO, "--log-level", help="Set logging level."
+        LogLevel.WARNING, "--log-level", help="Set logging level."
     ),
     debug_log: Optional[Path] = typer.Option(
         None, "--debug-log", help="Write debug logs to specified file."
+    ),
+    fancy: bool = typer.Option(
+        False, "--fancy", help="Enable fancy output with progress bars and decorations."
     ),
 ):
     """Convert HTML content from URLs or local files to Markdown."""
     set_log_level(log_level, debug_log)
 
-    # Display a beautiful header
-    console.print(
-        Panel.fit(
-            "🌐 [bold cyan]html2md[/bold cyan] - HTML to Markdown Converter",
-            border_style="cyan",
+    # Handle config updates for cookie path
+    if cookie_path:
+        config = load_config()
+        config.setdefault('browser', {}).setdefault('custom_path', {})
+        if browser:
+            config['browser']['custom_path'][browser] = str(cookie_path)
+        else:
+            pref_browser = config.get('browser', {}).get('preferred', 'chrome')
+            config['browser']['custom_path'][pref_browser] = str(cookie_path)
+        CONFIG_FILE.write_text(json.dumps(config, indent=2), encoding="utf-8")
+
+    if fancy:
+        # Fancy mode with progress bars and decorations
+        console.print(
+            Panel.fit(
+                "🌐 [bold cyan]html2md[/bold cyan] - HTML to Markdown Converter",
+                border_style="cyan",
+            )
         )
-    )
 
-    # Create a progress display
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[bold blue]{task.description}[/bold blue]"),
-        BarColumn(),
-        TextColumn("[bold]{task.completed}/{task.total}[/bold]"),
-        console=console,
-    ) as progress:
-        # Create a task for each source
-        tasks = {
-            source: progress.add_task(f"Queued: {source}", total=1)
-            for source in sources
-        }
+        # Create a progress display
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[bold blue]{task.description}[/bold blue]"),
+            BarColumn(),
+            TextColumn("[bold]{task.completed}/{task.total}[/bold]"),
+            console=console,
+        ) as progress:
+            # Create a task for each source
+            tasks = {
+                source: progress.add_task(f"Queued: {source}", total=1)
+                for source in sources
+            }
 
-        # Process each source
-        successes = 0
+            # Process each source
+            successes = 0
+            for source in sources:
+                task_id = tasks[source]
+                    
+                if process_single_with_progress(
+                    source=source, 
+                    trim=trim, 
+                    output=output, 
+                    no_cookies=no_cookies, 
+                    browser_cookies=browser_cookies, 
+                    browser=browser,
+                    cookie_path=cookie_path,
+                    cookie_json=cookie_json,
+                    local=local,
+                    download_images=download_images,
+                    images_dir=images_dir,
+                    progress=progress, 
+                    task_id=task_id
+                ):
+                    successes += 1
+                progress.update(task_id, completed=1)
+
+        # Show summary
+        if len(sources) > 1:
+            console.print(
+                f"\n✨ [bold green]Completed {successes}/{len(sources)} conversions[/bold green]"
+            )
+    else:
+        # Quiet mode - just output the content
         for source in sources:
-            task_id = tasks[source]
-            
-            # Update config with cookie path if provided
-            if cookie_path:
-                config = load_config()
-                config.setdefault('browser', {}).setdefault('custom_path', {})
-                if browser:
-                    config['browser']['custom_path'][browser] = str(cookie_path)
-                else:
-                    pref_browser = config.get('browser', {}).get('preferred', 'chrome')
-                    config['browser']['custom_path'][pref_browser] = str(cookie_path)
-                    
-                # Write config back for session managers to use
-                CONFIG_FILE.write_text(json.dumps(config, indent=2), encoding="utf-8")
-                    
-            if process_single_with_progress(
-                source=source, 
-                trim=trim, 
-                output=output, 
-                no_cookies=no_cookies, 
-                browser_cookies=browser_cookies, 
+            success = process_single_quiet(
+                source=source,
+                trim=trim,
+                output=output,
+                no_cookies=no_cookies,
+                browser_cookies=browser_cookies,
                 browser=browser,
                 cookie_path=cookie_path,
                 cookie_json=cookie_json,
                 local=local,
                 download_images=download_images,
                 images_dir=images_dir,
-                progress=progress, 
-                task_id=task_id
-            ):
-                successes += 1
-            progress.update(task_id, completed=1)
-
-    # Show summary
-    if len(sources) > 1:
-        console.print(
-            f"\n✨ [bold green]Completed {successes}/{len(sources)} conversions[/bold green]"
-        )
+            )
 
 
 @app.command(name="batch")
@@ -561,7 +697,7 @@ def batch_command(
         help="Reduce output verbosity, showing only essential information.",
     ),
     log_level: LogLevel = typer.Option(
-        LogLevel.INFO, "--log-level", help="Set logging level."
+        LogLevel.WARNING, "--log-level", help="Set logging level."
     ),
     debug_log: Optional[Path] = typer.Option(
         None, "--debug-log", help="Write debug logs to specified file."
@@ -885,7 +1021,7 @@ def crawl_command(
         help="Reduce output verbosity, showing only essential information.",
     ),
     log_level: LogLevel = typer.Option(
-        LogLevel.INFO, "--log-level", help="Set logging level."
+        LogLevel.WARNING, "--log-level", help="Set logging level."
     ),
     debug_log: Optional[Path] = typer.Option(
         None, "--debug-log", help="Write debug logs to specified file."
@@ -1143,20 +1279,20 @@ def crawl_command(
 @app.callback()
 def main(
     log_level: LogLevel = typer.Option(
-        LogLevel.INFO, "--log-level", help="Set logging level."
+        LogLevel.WARNING, "--log-level", help="Set logging level."
     ),
     debug_log: Optional[Path] = typer.Option(
         None, "--debug-log", help="Write debug logs to specified file."
     ),
-    no_banner: bool = typer.Option(
-        False, "--no-banner", help="Don't display the welcome banner."
+    banner: bool = typer.Option(
+        False, "--banner", help="Display the welcome banner."
     ),
 ):
     """Main entry point for the application."""
     set_log_level(log_level, debug_log)
 
-    # Show welcome banner unless disabled
-    if not no_banner and typer.get_app_dir("html2md") not in sys.argv[0]:
+    # Show welcome banner if explicitly requested
+    if banner:
         show_welcome_banner()
 
 
