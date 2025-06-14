@@ -44,15 +44,15 @@ fi
 
 # Step 4: Verify installation
 echo -e "\n${YELLOW}Verifying installation...${NC}"
-if which html2md > /dev/null && which html2md-classic > /dev/null; then
-    echo -e "${GREEN}✅ Verification successful! Both html2md and html2md-classic are available.${NC}"
+if which html2md > /dev/null; then
+    echo -e "${GREEN}✅ Verification successful! html2md is available.${NC}"
 
     # Get version info
     VERSION=$(html2md --version 2>/dev/null || echo "Unknown")
 
     echo -e "\n${GREEN}Deployment complete!${NC}"
     echo -e "Version: ${VERSION}"
-    echo -e "You can now use ${YELLOW}html2md${NC} and ${YELLOW}html2md-classic${NC} from anywhere."
+    echo -e "You can now use ${YELLOW}html2md${NC} from anywhere."
     echo -e "Example: ${YELLOW}html2md batch urls.txt --output-dir output${NC}"
 else
     echo -e "${RED}❌ Verification failed. The commands are not available on PATH.${NC}"
