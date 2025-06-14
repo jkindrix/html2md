@@ -63,6 +63,30 @@ def trim_markdown(markdown_content, url):
         )
         return markdown_content[h1_index:].strip()
 
+    # If footer comes before H1, search for footer after H1
+    if footer_index <= h1_index:
+        logging.warning(
+            f"Footer marker appears before H1 for {domain}. Searching for footer after H1."
+        )
+        # Search for footer marker after the H1
+        footer_marker = None
+        if "path_rules" in domain_rules:
+            for rule_path, rule in domain_rules["path_rules"].items():
+                if path.startswith(rule_path) and "footer_marker" in rule:
+                    footer_marker = rule["footer_marker"]
+                    break
+        elif "footer_marker" in domain_rules:
+            footer_marker = domain_rules["footer_marker"]
+        
+        if footer_marker:
+            footer_index = markdown_content.find(footer_marker, h1_index)
+        
+        if footer_index == -1:
+            logging.warning(
+                f"No footer marker found after H1 for {domain}. Returning content from H1 onwards."
+            )
+            return markdown_content[h1_index:].strip()
+
     logging.info("Trimming markdown content based on detected indices.")
     return markdown_content[h1_index:footer_index].strip()
 

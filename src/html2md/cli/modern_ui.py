@@ -476,12 +476,12 @@ def process_single_quiet(
                 return True
             else:
                 if not output:
-                    console.print(f"[red]Error: Unable to retrieve content from {source}[/red]", err=True)
+                    print(f"Error: Unable to retrieve content from {source}", file=sys.stderr)
                 return False
         except Exception as e:
             logger.error(f"Failed to process URL {source}: {e}")
             if not output:
-                console.print(f"[red]Error processing {source}: {str(e)}[/red]", err=True)
+                print(f"Error processing {source}: {str(e)}", file=sys.stderr)
             return False
     else:
         # Process as local file
@@ -518,7 +518,7 @@ def process_single_quiet(
         except Exception as e:
             logger.error(f"Failed to process local file {source}: {e}")
             if not output:
-                console.print(f"[red]Error processing {source}: {str(e)}[/red]", err=True)
+                print(f"Error processing {source}: {str(e)}", file=sys.stderr)
             return False
 
     return False
