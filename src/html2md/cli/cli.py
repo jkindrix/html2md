@@ -1691,6 +1691,105 @@ def list_cli_defaults():
         console.print()  # Add spacing between tables
 
 
+@config_app.command(name="show-options")
+def show_config_options():
+    """Show all available configuration options with descriptions."""
+    console.print(Panel.fit("[bold cyan]HTML2MD Configuration Options[/bold cyan]", border_style="cyan"))
+    
+    # CLI Defaults Section
+    console.print("\n[bold yellow]CLI Defaults[/bold yellow]")
+    console.print("Configure default values for command-line options\n")
+    
+    cli_options = {
+        "convert": {
+            "browser_cookies": ("bool", "Use cookies from browser automatically"),
+            "no_cookies": ("bool", "Disable cookie loading by default"),
+            "browser": ("str", "Default browser for cookie extraction (chrome/firefox/edge/safari)"),
+            "trim": ("bool", "Enable/disable content trimming"),
+            "download_images": ("bool", "Download images from pages"),
+            "images_dir": ("str", "Directory name for downloaded images"),
+            "fancy": ("bool", "Enable fancy output with progress bars"),
+            "local": ("bool", "Treat sources as local files by default")
+        },
+        "batch": {
+            "hierarchical": ("bool", "Create hierarchical domain folders (com/example/www)"),
+            "flatten": ("bool", "Output files directly to domain directories"),
+            "flatten_all": ("bool", "Output all files to single directory"),
+            "trim": ("bool", "Enable/disable content trimming"),
+            "visualize": ("bool", "Show visual directory structure"),
+            "quiet": ("bool", "Reduce output verbosity")
+        },
+        "crawl": {
+            "hierarchical": ("bool", "Create hierarchical domain folders"),
+            "flatten": ("bool", "Output files directly to domain directories"),
+            "follow": ("str", "Link following strategy (domain-only/host-only/subdomain/regex)"),
+            "max_depth": ("int", "Maximum crawl depth"),
+            "max_pages": ("int", "Maximum pages to crawl"),
+            "trim": ("bool", "Enable/disable content trimming"),
+            "visualize": ("bool", "Show visual directory structure"),
+            "quiet": ("bool", "Reduce output verbosity")
+        }
+    }
+    
+    for command, options in cli_options.items():
+        table = Table(title=f"{command.capitalize()} Command Options", title_style="bold blue")
+        table.add_column("Option", style="cyan")
+        table.add_column("Type", style="green")
+        table.add_column("Description", style="white")
+        
+        for option, (opt_type, description) in options.items():
+            table.add_row(option, opt_type, description)
+        
+        console.print(table)
+        console.print()
+    
+    # Domain Configuration Section
+    console.print("[bold yellow]Domain-Specific Trimming[/bold yellow]")
+    console.print("Configure content trimming rules per domain\n")
+    
+    domain_table = Table(title="Domain Configuration Options")
+    domain_table.add_column("Setting", style="cyan")
+    domain_table.add_column("Description", style="white")
+    
+    domain_table.add_row("footer_marker", "Text that marks where to trim content")
+    domain_table.add_row("path_rules", "Path-specific trimming rules")
+    domain_table.add_row("path_rules.*.h1_occurrence", "Which h1 heading to keep (e.g., 2 = second h1)")
+    domain_table.add_row("path_rules.*.footer_marker", "Path-specific footer marker")
+    
+    console.print(domain_table)
+    console.print()
+    
+    # Browser Configuration Section
+    console.print("[bold yellow]Browser Configuration[/bold yellow]")
+    console.print("Configure browser cookie extraction settings\n")
+    
+    browser_table = Table(title="Browser Options")
+    browser_table.add_column("Setting", style="cyan")
+    browser_table.add_column("Description", style="white")
+    
+    browser_table.add_row("preferred", "Default browser (chrome/firefox/edge/safari)")
+    browser_table.add_row("custom_path.<browser>", "Custom path to browser cookie database")
+    
+    console.print(browser_table)
+    console.print()
+    
+    # Examples
+    console.print("[bold yellow]Examples[/bold yellow]\n")
+    
+    examples = [
+        ("Set browser cookies as default", "html2md config set-cli-default convert browser_cookies true"),
+        ("Enable hierarchical folders", "html2md config set-cli-default batch hierarchical true"),
+        ("Set max crawl pages", "html2md config set-cli-default crawl max_pages 500"),
+        ("Add domain trimming rule", "html2md config add-domain --domain example.com"),
+        ("Set config value directly", "html2md config set browser.preferred firefox"),
+        ("View current config", "html2md config show"),
+    ]
+    
+    for desc, cmd in examples:
+        console.print(f"[bold blue]{desc}:[/bold blue]")
+        console.print(f"  [dim]$[/dim] {cmd}\n")
+
+
 def detect_color_support():
     """Detect if the terminal supports colors and how many."""
     # Check if NO_COLOR environment variable is set (respecting no-color.org standard)
