@@ -14,6 +14,36 @@ DEFAULT_CONFIG = {
     "logging": {"level": "WARNING"},
     "oauth": {"CLIENT_ID": "", "CLIENT_SECRET": ""},
     "browser": {"preferred": "chrome"},
+    "cli_defaults": {
+        "batch": {
+            "hierarchical": False,
+            "flatten": False,
+            "flatten_all": False,
+            "trim": True,
+            "visualize": False,
+            "quiet": False
+        },
+        "crawl": {
+            "hierarchical": False,
+            "flatten": False,
+            "follow": "domain-only",
+            "max_depth": 3,
+            "max_pages": 100,
+            "trim": True,
+            "visualize": False,
+            "quiet": False
+        },
+        "convert": {
+            "browser_cookies": False,
+            "no_cookies": False,
+            "browser": None,
+            "trim": True,
+            "download_images": False,
+            "images_dir": "images",
+            "fancy": False,
+            "local": False
+        }
+    }
 }
 
 

@@ -104,6 +104,14 @@ app = typer.Typer(
     add_completion=False,
 )
 
+
+def get_cli_default(command: str, option: str, default_value=None):
+    """Get CLI default value from config or use provided default."""
+    config = load_config()
+    cli_defaults = config.get("cli_defaults", {})
+    command_defaults = cli_defaults.get(command, {})
+    return command_defaults.get(option, default_value)
+
 # Create config subcommand app
 config_app = typer.Typer(
     help="Manage html2md configuration settings.",
@@ -532,7 +540,7 @@ def convert_command(
         ..., help="URLs or local HTML files to convert."
     ),
     trim: bool = typer.Option(
-        True,
+        get_cli_default("convert", "trim", True),
         "--trim/--no-trim",
         help="Enable/disable trimming based on domain-specific rules.",
     ),
@@ -540,13 +548,13 @@ def convert_command(
         None, "--output", "-o", help="Output file to save converted markdown."
     ),
     no_cookies: bool = typer.Option(
-        False, "--no-cookies", help="Disable loading cookies from the browser."
+        get_cli_default("convert", "no_cookies", False), "--no-cookies", help="Disable loading cookies from the browser."
     ),
     browser_cookies: bool = typer.Option(
-        False, "--browser-cookies", help="Use cookies from the local browser to authenticate with websites."
+        get_cli_default("convert", "browser_cookies", False), "--browser-cookies", help="Use cookies from the local browser to authenticate with websites."
     ),
     browser: Optional[Browser] = typer.Option(
-        None, "--browser", help="Specify which browser to extract cookies from (default: chrome)."
+        get_cli_default("convert", "browser", None), "--browser", help="Specify which browser to extract cookies from (default: chrome)."
     ),
     cookie_path: Optional[Path] = typer.Option(
         None, "--cookie-path", help="Path to browser cookies database file (helps with Windows/WSL)."
@@ -555,17 +563,17 @@ def convert_command(
         None, "--cookie-json", help="Path to JSON file with exported cookies (from browser developer tools)."
     ),
     local: bool = typer.Option(
-        False,
+        get_cli_default("convert", "local", False),
         "--local",
         help="Force treating sources as local files even if they look like URLs.",
     ),
     download_images: bool = typer.Option(
-        False,
+        get_cli_default("convert", "download_images", False),
         "--download-images",
         help="Download images from the webpage and store them locally.",
     ),
     images_dir: str = typer.Option(
-        "images",
+        get_cli_default("convert", "images_dir", "images"),
         "--images-dir",
         help="Directory name for storing downloaded images.",
     ),
@@ -576,7 +584,7 @@ def convert_command(
         None, "--debug-log", help="Write debug logs to specified file."
     ),
     fancy: bool = typer.Option(
-        False, "--fancy", help="Enable fancy output with progress bars and decorations."
+        get_cli_default("convert", "fancy", False), "--fancy", help="Enable fancy output with progress bars and decorations."
     ),
 ):
     """Convert HTML content from URLs or local files to Markdown."""
@@ -674,22 +682,27 @@ def batch_command(
         help="Directory to save output files and folders.",
     ),
     trim: bool = typer.Option(
-        True,
+        get_cli_default("batch", "trim", True),
         "--trim/--no-trim",
         help="Enable/disable trimming based on domain-specific rules.",
     ),
     flatten_output: bool = typer.Option(
-        False,
+        get_cli_default("batch", "flatten", False),
         "--flatten",
         help="Output files directly to domain directories (e.g., 'docs.github.com/')",
     ),
     flatten_all: bool = typer.Option(
-        False,
+        get_cli_default("batch", "flatten_all", False),
         "--flatten-all",
         help="Output all files to a single directory, ignoring domain structure",
     ),
+    hierarchical: bool = typer.Option(
+        get_cli_default("batch", "hierarchical", False),
+        "--hierarchical",
+        help="Create hierarchical domain folders (e.g., com/jetbrains/www)",
+    ),
     visualize: bool = typer.Option(
-        False,
+        get_cli_default("batch", "visualize", False),
         "--visualize",
         help="Display a visual representation of the output directory structure.",
     ),
@@ -699,7 +712,7 @@ def batch_command(
         help="Generate a detailed Markdown report of the process.",
     ),
     quiet: bool = typer.Option(
-        False,
+        get_cli_default("batch", "quiet", False),
         "--quiet",
         help="Reduce output verbosity, showing only essential information.",
     ),
@@ -716,6 +729,9 @@ def batch_command(
     # Validate flatten options
     if flatten_output and flatten_all:
         console.print("[bold red]Error:[/bold red] Cannot use both --flatten and --flatten-all options together.")
+        raise typer.Exit(1)
+    if (flatten_output or flatten_all) and hierarchical:
+        console.print("[bold red]Error:[/bold red] Cannot use --hierarchical with --flatten or --flatten-all options.")
         raise typer.Exit(1)
 
     # Start time for processing report
@@ -815,6 +831,7 @@ def batch_command(
                 progress_callback=progress_callback,
                 flatten_output=flatten_output,
                 flatten_all=flatten_all,
+                hierarchical_domains=hierarchical,
             )
 
             # Set completed state
@@ -995,33 +1012,38 @@ def crawl_command(
         help="Directory to save output files and folders.",
     ),
     follow_option: str = typer.Option(
-        "domain-only",
+        get_cli_default("crawl", "follow", "domain-only"),
         "--follow",
         help="How to follow links. Options: 'domain-only', 'host-only', 'subdomain', or a regex pattern.",
     ),
     max_depth: int = typer.Option(
-        3, "--max-depth", help="Maximum link depth to follow."
+        get_cli_default("crawl", "max_depth", 3), "--max-depth", help="Maximum link depth to follow."
     ),
     max_pages: int = typer.Option(
-        100, "--max-pages", help="Maximum number of pages to crawl."
+        get_cli_default("crawl", "max_pages", 100), "--max-pages", help="Maximum number of pages to crawl."
     ),
     trim: bool = typer.Option(
-        True,
+        get_cli_default("crawl", "trim", True),
         "--trim/--no-trim",
         help="Enable/disable trimming based on domain-specific rules.",
     ),
     flatten_output: bool = typer.Option(
-        False,
+        get_cli_default("crawl", "flatten", False),
         "--flatten",
         help="Output files directly to domain directories (e.g., 'docs.github.com/')",
     ),
+    hierarchical: bool = typer.Option(
+        get_cli_default("crawl", "hierarchical", False),
+        "--hierarchical",
+        help="Create hierarchical domain folders (e.g., com/jetbrains/www)",
+    ),
     visualize: bool = typer.Option(
-        False,
+        get_cli_default("crawl", "visualize", False),
         "--visualize",
         help="Display a visual representation of the output directory structure.",
     ),
     quiet: bool = typer.Option(
-        False,
+        get_cli_default("crawl", "quiet", False),
         "--quiet",
         help="Reduce output verbosity, showing only essential information.",
     ),
@@ -1138,6 +1160,7 @@ def crawl_command(
                     trim=trim,
                     progress_callback=progress_callback,
                     flatten_output=flatten_output,
+                    hierarchical_domains=hierarchical,
                 )
 
                 # Update totals
@@ -1586,6 +1609,86 @@ def reset_config():
     syntax = Syntax(json_str, "json", theme="monokai", line_numbers=True)
 
     console.print(Panel(syntax, title="Default Configuration", border_style="yellow"))
+
+
+@config_app.command(name="set-cli-default")
+def set_cli_default(
+    command: str = typer.Argument(..., help="Command name (convert, batch, crawl)"),
+    option: str = typer.Argument(..., help="Option name (e.g., browser_cookies, hierarchical)"),
+    value: str = typer.Argument(..., help="Value to set (true/false for booleans, or other values)"),
+):
+    """Set a default value for a CLI option."""
+    config = load_config()
+    
+    # Ensure cli_defaults exists
+    if "cli_defaults" not in config:
+        config["cli_defaults"] = DEFAULT_CONFIG["cli_defaults"]
+    
+    # Validate command
+    if command not in config["cli_defaults"]:
+        console.print(f"[bold red]Error:[/bold red] Unknown command '{command}'. Valid commands: convert, batch, crawl")
+        return
+    
+    # Validate option exists in the command defaults
+    if option not in config["cli_defaults"][command]:
+        valid_options = ", ".join(config["cli_defaults"][command].keys())
+        console.print(f"[bold red]Error:[/bold red] Unknown option '{option}' for command '{command}'.")
+        console.print(f"Valid options: {valid_options}")
+        return
+    
+    # Convert value to appropriate type
+    current_value = config["cli_defaults"][command][option]
+    if isinstance(current_value, bool):
+        # Convert string to boolean
+        if value.lower() in ["true", "yes", "1", "on"]:
+            parsed_value = True
+        elif value.lower() in ["false", "no", "0", "off"]:
+            parsed_value = False
+        else:
+            console.print(f"[bold red]Error:[/bold red] Boolean value expected. Use 'true' or 'false'.")
+            return
+    elif isinstance(current_value, int):
+        try:
+            parsed_value = int(value)
+        except ValueError:
+            console.print(f"[bold red]Error:[/bold red] Integer value expected.")
+            return
+    else:
+        parsed_value = value
+    
+    # Set the value
+    config["cli_defaults"][command][option] = parsed_value
+    
+    # Save the updated config
+    CONFIG_FILE.write_text(json.dumps(config, indent=2), encoding="utf-8")
+    
+    console.print(f"[bold green]Updated:[/bold green] {command}.{option} = {parsed_value}")
+    console.print(f"\n[bold blue]Tip:[/bold blue] This will be the default value for --{option.replace('_', '-')} when using 'html2md {command}'")
+
+
+@config_app.command(name="list-cli-defaults")
+def list_cli_defaults():
+    """List all CLI default settings."""
+    config = load_config()
+    cli_defaults = config.get("cli_defaults", {})
+    
+    if not cli_defaults:
+        console.print("[yellow]No CLI defaults configured yet.[/yellow]")
+        return
+    
+    # Create a table for each command
+    for command, options in cli_defaults.items():
+        table = Table(title=f"{command.capitalize()} Command Defaults")
+        table.add_column("Option", style="cyan")
+        table.add_column("Default Value", style="green")
+        table.add_column("CLI Flag", style="magenta")
+        
+        for option, value in options.items():
+            cli_flag = f"--{option.replace('_', '-')}"
+            table.add_row(option, str(value), cli_flag)
+        
+        console.print(table)
+        console.print()  # Add spacing between tables
 
 
 def detect_color_support():

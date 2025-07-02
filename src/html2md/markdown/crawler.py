@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 
 from html2md.cookies.session_manager import get_session
 from html2md.markdown.converter import html_to_markdown
+from html2md.markdown.batch_processor import create_directory_structure
 from html2md.network.request_handler import fetch_html
 from html2md.utils.parser import (
     extract_links_from_html,
@@ -64,6 +65,7 @@ def crawl_website(
     trim=True,
     progress_callback=None,
     flatten_output=False,
+    hierarchical_domains=False,
     download_images=False,
     images_dir="images",
 ):
@@ -84,6 +86,8 @@ def crawl_website(
         progress_callback (callable, optional): Function to call with progress updates
         flatten_output (bool, optional): If True, creates output directories directly
                                        named after domain. Defaults to False.
+        hierarchical_domains (bool, optional): If True, creates hierarchical domain structure
+                                              (e.g., com/jetbrains/www). Defaults to False.
         download_images (bool, optional): Whether to download images from pages.
         images_dir (str, optional): Directory name for images (default: "images").
 
@@ -137,28 +141,10 @@ def crawl_website(
                 continue
 
             # Create directory structure for the URL
-            parsed_url = urlparse(url)
-            domain = parsed_url.netloc
-
-            if flatten_output:
-                # Just use the domain as the output directory
-                url_dir = os.path.join(output_dir, domain)
-            else:
-                # Create domain directory as a subdirectory
-                url_dir = os.path.join(output_dir, domain)
-
-                # Create path directories if they exist
-                path_parts = parsed_url.path.strip("/").split("/")
-                if path_parts and path_parts[0]:
-                    # If there are path components, create directories for them
-                    for i in range(
-                        len(path_parts) - 1
-                    ):  # Exclude the last part (filename)
-                        if path_parts[i]:
-                            url_dir = os.path.join(url_dir, path_parts[i])
-
-            # Create the directories if they don't exist
-            os.makedirs(url_dir, exist_ok=True)
+            url_dir = create_directory_structure(
+                output_dir, url, flatten_domain=flatten_output, 
+                hierarchical_domains=hierarchical_domains
+            )
 
             # Generate a safe filename for the URL
             safe_filename = generate_safe_filename(url)

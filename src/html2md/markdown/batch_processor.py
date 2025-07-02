@@ -48,7 +48,7 @@ def build_headers(url):
     return headers
 
 
-def create_directory_structure(output_dir, url, flatten_domain=False, flatten_all=False):
+def create_directory_structure(output_dir, url, flatten_domain=False, flatten_all=False, hierarchical_domains=False):
     """
     Create a directory structure based on the URL's domain.
 
@@ -59,6 +59,8 @@ def create_directory_structure(output_dir, url, flatten_domain=False, flatten_al
                                          instead of creating a subdirectory structure. Defaults to False.
         flatten_all (bool, optional): If True, returns the output_dir directly without creating
                                      any domain-based subdirectories. Defaults to False.
+        hierarchical_domains (bool, optional): If True, creates hierarchical domain structure
+                                              (e.g., com/jetbrains/www). Defaults to False.
 
     Returns:
         str: Path to the directory where the file should be saved
@@ -70,7 +72,17 @@ def create_directory_structure(output_dir, url, flatten_domain=False, flatten_al
     parsed_url = urlparse(url)
     domain = parsed_url.netloc
 
-    if flatten_domain:
+    if hierarchical_domains:
+        # Split domain into parts and reverse them
+        # e.g., www.jetbrains.com -> ['com', 'jetbrains', 'www']
+        domain_parts = domain.split('.')
+        domain_parts.reverse()
+        
+        # Build hierarchical path
+        domain_dir = output_dir
+        for part in domain_parts:
+            domain_dir = os.path.join(domain_dir, part)
+    elif flatten_domain:
         # Just use the domain as the output directory
         domain_dir = domain
 
@@ -121,7 +133,7 @@ def rewrite_links(content, url_mapping, base_output_dir):
 
 def process_markdown_links(
     source_files, output_dir, trim=True, progress_callback=None, flatten_output=False,
-    flatten_all=False, download_images=False, images_dir="images"
+    flatten_all=False, hierarchical_domains=False, download_images=False, images_dir="images"
 ):
     """
     Process markdown files, extract URLs, and convert each URL to markdown.
@@ -135,6 +147,8 @@ def process_markdown_links(
                                         named after domain. Defaults to False.
         flatten_all (bool, optional): If True, outputs all files to a single directory,
                                      ignoring domain structure. Defaults to False.
+        hierarchical_domains (bool, optional): If True, creates hierarchical domain structure
+                                              (e.g., com/jetbrains/www). Defaults to False.
         download_images (bool, optional): Whether to download images from pages.
         images_dir (str, optional): Directory name for images (default: "images").
 
@@ -195,7 +209,8 @@ def process_markdown_links(
 
             # Create directory structure for the URL
             url_dir = create_directory_structure(
-                output_dir, url, flatten_domain=flatten_output, flatten_all=flatten_all
+                output_dir, url, flatten_domain=flatten_output, flatten_all=flatten_all,
+                hierarchical_domains=hierarchical_domains
             )
 
             # Generate a safe filename for the URL
