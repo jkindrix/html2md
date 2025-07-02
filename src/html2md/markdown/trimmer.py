@@ -26,12 +26,14 @@ def trim_markdown(markdown_content, url):
     footer_index = -1  # Default value
 
     # Handle path-specific rules if available
+    path_matched = False
     if "path_rules" in domain_rules:
         for rule_path, rule in domain_rules["path_rules"].items():
             if path.startswith(rule_path):
                 logging.info(
                     f"Applying path-based trimming rule for {domain}{rule_path}: {rule}"
                 )
+                path_matched = True
                 if "h1_occurrence" in rule:
                     h1_index = find_nth_occurrence(
                         markdown_content, "# ", rule["h1_occurrence"]
@@ -40,8 +42,8 @@ def trim_markdown(markdown_content, url):
                     footer_index = markdown_content.find(rule["footer_marker"])
                 break  # Stop checking after the first matching rule
 
-    # Handle domain-wide footer markers if no path-specific rule matched
-    elif "footer_marker" in domain_rules:
+    # Handle domain-wide footer markers if no path-specific footer was found
+    if "footer_marker" in domain_rules and footer_index == -1:
         logging.info(
             f"Applying domain-wide footer marker for {domain}: {domain_rules['footer_marker']}"
         )

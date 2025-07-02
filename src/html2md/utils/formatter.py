@@ -38,6 +38,10 @@ def format_markdown(markdown_content):
     )
     logging.info("Converted HTML <pre><code> to markdown code blocks")
 
+    # Remove "Content copied to clipboard" and "Link copied to clipboard" lines
+    markdown_content = re.sub(r'\n*(?:Content|Link) copied to clipboard\n*', '\n', markdown_content)
+    logging.info("Removed clipboard copy notifications")
+    
     # Collapse excessive newlines
     markdown_content = re.sub(r"\n{3,}", "\n\n", markdown_content)
     logging.info("Collapsed excessive newlines")
