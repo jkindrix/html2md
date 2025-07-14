@@ -1022,6 +1022,11 @@ def crawl_command(
     max_pages: int = typer.Option(
         get_cli_default("crawl", "max_pages", 100), "--max-pages", help="Maximum number of pages to crawl."
     ),
+    delay: float = typer.Option(
+        get_cli_default("crawl", "delay", 0.0), 
+        "--delay", 
+        help="Delay between requests in seconds (e.g., 1.5). A random jitter of ±30% will be added."
+    ),
     trim: bool = typer.Option(
         get_cli_default("crawl", "trim", True),
         "--trim/--no-trim",
@@ -1104,6 +1109,8 @@ def crawl_command(
         console.print(f"[bold]Follow option:[/bold] {follow_option}")
         console.print(f"[bold]Maximum depth:[/bold] {max_depth}")
         console.print(f"[bold]Maximum pages:[/bold] {max_pages}")
+        if delay > 0:
+            console.print(f"[bold]Request delay:[/bold] {delay}s (±30% jitter)")
 
         with EnhancedProgress() as progress:
             task = progress.add_task(f"Crawling {start_url}...", total=None)
@@ -1157,6 +1164,7 @@ def crawl_command(
                     follow_option=follow_option,
                     max_depth=max_depth,
                     max_pages=max_pages,
+                    delay=delay,
                     trim=trim,
                     progress_callback=progress_callback,
                     flatten_output=flatten_output,
@@ -1725,6 +1733,7 @@ def show_config_options():
             "follow": ("str", "Link following strategy (domain-only/host-only/subdomain/regex)"),
             "max_depth": ("int", "Maximum crawl depth"),
             "max_pages": ("int", "Maximum pages to crawl"),
+            "delay": ("float", "Delay between requests in seconds (with ±30% jitter)"),
             "trim": ("bool", "Enable/disable content trimming"),
             "visualize": ("bool", "Show visual directory structure"),
             "quiet": ("bool", "Reduce output verbosity")

@@ -1,6 +1,8 @@
 import logging
 import os
 import re
+import time
+import random
 from collections import deque
 from urllib.parse import urlparse
 
@@ -62,6 +64,7 @@ def crawl_website(
     follow_option="domain-only",
     max_depth=3,
     max_pages=100,
+    delay=0.0,
     trim=True,
     progress_callback=None,
     flatten_output=False,
@@ -82,6 +85,7 @@ def crawl_website(
             - Any other string is treated as a regex pattern to match URLs
         max_depth (int, optional): Maximum link depth to follow. Defaults to 3.
         max_pages (int, optional): Maximum number of pages to crawl. Defaults to 100.
+        delay (float, optional): Delay between requests in seconds. Random jitter of ±30% will be added. Defaults to 0.0.
         trim (bool, optional): Whether to trim the markdown. Defaults to True.
         progress_callback (callable, optional): Function to call with progress updates
         flatten_output (bool, optional): If True, creates output directories directly
@@ -167,6 +171,20 @@ def crawl_website(
 
                 update_progress(f"Saved markdown to: {output_file}", url, "saved")
                 processed_urls_count += 1
+                
+                # Apply delay with jitter if configured
+                if delay > 0 and processed_urls_count < max_pages:
+                    # Calculate jitter: ±30% of the base delay
+                    jitter = delay * 0.3
+                    actual_delay = delay + random.uniform(-jitter, jitter)
+                    actual_delay = max(0.1, actual_delay)  # Ensure minimum 0.1s delay
+                    
+                    update_progress(
+                        f"Waiting {actual_delay:.1f}s before next request...", 
+                        url, 
+                        "delaying"
+                    )
+                    time.sleep(actual_delay)
 
                 # Extract links if we haven't reached max depth
                 if depth < max_depth:

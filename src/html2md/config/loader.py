@@ -29,6 +29,7 @@ DEFAULT_CONFIG = {
             "follow": "domain-only",
             "max_depth": 3,
             "max_pages": 100,
+            "delay": 0.0,
             "trim": True,
             "visualize": False,
             "quiet": False
