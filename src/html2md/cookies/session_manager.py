@@ -725,9 +725,8 @@ def apply_browser_cookies(session, url, cookie_json=None):
                         cookie_value = cookie['value']
                         cookie_path = cookie.get('path', '/')
                         
-                        # Process domain for cookies (remove leading dot for requests compatibility)
-                        if cookie_domain.startswith('.'):
-                            cookie_domain = cookie_domain[1:]
+                        # Don't modify cookie domain - requests library handles leading dots correctly
+                        # A leading dot means the cookie should be sent to all subdomains
                         
                         # Skip domain check for now, we want to apply all cookies from the file
                         # Cookies with wrong domain will be ignored by the browser anyway
