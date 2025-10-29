@@ -3,6 +3,7 @@ import os
 import sys
 from copy import deepcopy
 from pathlib import Path
+from typing import Any, Dict
 
 from html2md.utils.logger import setup_logging
 
@@ -124,6 +125,42 @@ TOKENS_FILE = CONFIG_DIR / "tokens.json"
 
 _cached_config = None  # Cached configuration
 
+# Lazy-loaded singleton instances (imported on first use to avoid circular deps)
+_backup_manager = None
+_recovery_handler = None
+
+
+def get_backup_manager():
+    """
+    Get or create singleton backup manager instance.
+
+    Returns:
+        ConfigBackupManager: Singleton backup manager
+    """
+    global _backup_manager
+    if _backup_manager is None:
+        from html2md.config.backup import ConfigBackupManager
+        _backup_manager = ConfigBackupManager(CONFIG_FILE, max_backups=5)
+    return _backup_manager
+
+
+def get_recovery_handler():
+    """
+    Get or create singleton recovery handler instance.
+
+    Returns:
+        ConfigRecoveryHandler: Singleton recovery handler
+    """
+    global _recovery_handler
+    if _recovery_handler is None:
+        from html2md.config.recovery import ConfigRecoveryHandler
+        _recovery_handler = ConfigRecoveryHandler(
+            CONFIG_FILE,
+            get_backup_manager(),
+            DEFAULT_CONFIG
+        )
+    return _recovery_handler
+
 
 def validate_config(config_data):
     """Ensure the loaded config contains required keys, falling back if necessary."""
@@ -160,8 +197,64 @@ def ensure_config_exists():
     return False
 
 
+def save_config(config_data: Dict[str, Any]) -> None:
+    """
+    Save configuration to file with atomic write and backup.
+
+    This is the centralized write path for all configuration modifications.
+    It ensures data safety through:
+    - Validation before saving
+    - Atomic write operation (no partial writes)
+    - Cache invalidation (write-through)
+
+    Args:
+        config_data: Configuration dictionary to save
+
+    Raises:
+        OSError: If write operation fails
+        TypeError: If data cannot be serialized to JSON
+
+    Example:
+        >>> config = load_config()
+        >>> config['domains']['example.com'] = {'footer_marker': 'Copyright'}
+        >>> save_config(config)
+    """
+    global _cached_config
+
+    # Validate before saving
+    validated_config = validate_config(config_data)
+
+    # Atomic write using our safe writer
+    from html2md.config.writer import atomic_write_json
+    atomic_write_json(CONFIG_FILE, validated_config, indent=4)
+
+    # Invalidate cache (write-through pattern)
+    _cached_config = validated_config
+
+    logger.info(f"Saved configuration to: {CONFIG_FILE}")
+
+
 def load_config(force_reload=False):
-    """Load configuration from a JSON file, creating it if missing."""
+    """
+    Load configuration from a JSON file with robust error recovery.
+
+    This function:
+    - Returns cached config if available (unless force_reload=True)
+    - Creates default config file if missing
+    - Validates loaded config against defaults
+    - Uses recovery handler for corruption/errors (never silently overwrites)
+
+    Args:
+        force_reload: If True, bypass cache and reload from disk
+
+    Returns:
+        Configuration dictionary (validated and merged with defaults)
+
+    Example:
+        >>> config = load_config()
+        >>> print(config['domains'])
+        {}
+    """
     global _cached_config
 
     if _cached_config is not None and not force_reload:
@@ -176,11 +269,10 @@ def load_config(force_reload=False):
             _cached_config = validate_config(config_data)
             logger.info(f"Loaded configuration from: {CONFIG_FILE}")
             return _cached_config
-    except (json.JSONDecodeError, FileNotFoundError) as e:
-        logger.error(
-            f"Invalid or missing config ({CONFIG_FILE}): {e}. Resetting to defaults."
-        )
-        CONFIG_FILE.write_text(json.dumps(DEFAULT_CONFIG, indent=4), encoding="utf-8")
 
-    _cached_config = deepcopy(DEFAULT_CONFIG)
-    return _cached_config
+    except (json.JSONDecodeError, FileNotFoundError) as e:
+        # Use recovery handler instead of immediate overwrite
+        # This respects user data and provides context-aware recovery
+        recovery_handler = get_recovery_handler()
+        _cached_config = recovery_handler.handle_corrupt_config(e)
+        return _cached_config
