@@ -6,6 +6,7 @@ enabling interruption and resumption of long-running crawl operations.
 """
 
 import json
+import os
 import signal
 import time
 import uuid
@@ -16,6 +17,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any, Callable
 import logging
 import shutil
+
+from html2md.config.writer import atomic_write_json
 
 logger = logging.getLogger(__name__)
 
@@ -319,29 +322,20 @@ class StateManager:
         # Update last checkpoint time
         state.last_checkpoint = datetime.now().isoformat()
         
-        # Atomic write: write to temp file then rename
-        temp_file = state_file.with_suffix('.tmp')
-        
         try:
-            # Write to temporary file
-            with open(temp_file, 'w') as f:
-                json.dump(state.to_dict(), f, indent=2)
-            
             # Create backup of existing file
             if state_file.exists():
                 backup_file = state_file.with_suffix('.bak')
                 shutil.copy2(state_file, backup_file)
-            
-            # Atomic rename
-            temp_file.rename(state_file)
+                if os.name == "posix":
+                    os.chmod(backup_file, 0o600)
+
+            atomic_write_json(state_file, state.to_dict(), indent=2, private=True)
             
             logger.debug(f"Saved state to {state_file}")
             
         except Exception as e:
             logger.error(f"Failed to save state: {e}")
-            # Clean up temp file if it exists
-            if temp_file.exists():
-                temp_file.unlink()
             raise
     
     def save_checkpoint(self, trigger: str = "auto", message: Optional[str] = None):
@@ -518,8 +512,7 @@ class StateManager:
         if not state:
             raise ValueError(f"Crawl {crawl_id} not found")
         
-        with open(output_file, 'w') as f:
-            json.dump(state.to_dict(), f, indent=2)
+        atomic_write_json(Path(output_file), state.to_dict(), indent=2, private=True)
         
         logger.info(f"Exported state to {output_file}")
     

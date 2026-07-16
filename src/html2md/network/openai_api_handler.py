@@ -4,15 +4,13 @@ This module implements OAuth authentication and API-based access to ChatGPT cont
 """
 
 import json
-import logging
 import re
-import time
-import urllib.parse
 import requests
 from datetime import datetime, timedelta
-from html2md.network.chatgpt_handler import extract_conversation_id, is_chatgpt_url
+from html2md.network.chatgpt_handler import extract_conversation_id
+from html2md.utils.redaction import get_redacting_logger
 
-logger = logging.getLogger("openai_api_handler")
+logger = get_redacting_logger("openai_api_handler")
 
 # OpenAI API endpoints
 AUTH_URL = "https://auth0.openai.com/oauth/token"
@@ -70,10 +68,7 @@ def get_oauth_token(email, password):
     
     if login_response.status_code != 200:
         logger.error(f"Login failed with status code: {login_response.status_code}")
-        try:
-            logger.debug(f"Login response: {login_response.json()}")
-        except:
-            logger.debug(f"Login response: {login_response.text[:500]}")
+        logger.debug("Login response body omitted")
         return None
     
     # Step 3: Get callback URL and complete authentication
@@ -203,21 +198,17 @@ def get_conversation_api(conversation_id, access_token):
         if response.status_code != 200:
             logger.error(f"API request failed with status {response.status_code}")
             
-            try:
-                error_data = response.json()
-                logger.debug(f"Error response: {error_data}")
-            except:
-                logger.debug(f"Error response text: {response.text[:500]}...")
+            logger.debug("API error response body omitted")
                 
             return None
         
         try:
             conversation_data = response.json()
-            logger.info(f"Successfully retrieved conversation data via API")
+            logger.info("Successfully retrieved conversation data via API")
             return conversation_data
         except json.JSONDecodeError:
             logger.error("Failed to parse API response as JSON")
-            logger.debug(f"Response text: {response.text[:500]}...")
+            logger.debug("Invalid JSON response body omitted")
             return None
             
     except Exception as e:
@@ -320,11 +311,11 @@ def generate_conversation_html(conversation_data, conversation_id):
         logger.debug(f"Traceback: {traceback.format_exc()}")
         
         # Generate error HTML
-        html += f"<div><h2>Error Generating Conversation</h2>"
+        html += "<div><h2>Error Generating Conversation</h2>"
         html += f"<p>An error occurred while processing the conversation data: {str(e)}</p>"
-        html += f"<h3>Raw Conversation Data:</h3>"
+        html += "<h3>Raw Conversation Data:</h3>"
         html += f"<pre>{json.dumps(conversation_data, indent=2)}</pre>"
-        html += f"</div></body></html>"
+        html += "</div></body></html>"
         return html
 
 
@@ -381,15 +372,15 @@ def get_conversation_oauth(url, email=None, password=None, cookies=None):
 
 def generate_error_html(conversation_id, message):
     """Generate an HTML page with error information."""
-    html = f"<!DOCTYPE html>\n<html><head><title>ChatGPT Error</title></head><body>\n"
-    html += f"<h1>Error: Unable to retrieve ChatGPT conversation</h1>\n"
+    html = "<!DOCTYPE html>\n<html><head><title>ChatGPT Error</title></head><body>\n"
+    html += "<h1>Error: Unable to retrieve ChatGPT conversation</h1>\n"
     html += f"<h2>Conversation ID: {conversation_id}</h2>\n"
     html += f"<p>{message}</p>\n"
-    html += f"<p>Possible solutions:</p>\n"
-    html += f"<ul>\n"
-    html += f"<li>Provide valid OAuth credentials (email/password) using the --oauth-email and --oauth-password options</li>\n"
-    html += f"<li>Export fresh cookies from your browser and use the --cookie-json option</li>\n"
-    html += f"<li>Make sure you have access to this conversation in your ChatGPT account</li>\n"
-    html += f"</ul>\n"
-    html += f"</body></html>"
+    html += "<p>Possible solutions:</p>\n"
+    html += "<ul>\n"
+    html += "<li>Provide valid OAuth credentials (email/password) using the --oauth-email and --oauth-password options</li>\n"
+    html += "<li>Export fresh cookies from your browser and use the --cookie-json option</li>\n"
+    html += "<li>Make sure you have access to this conversation in your ChatGPT account</li>\n"
+    html += "</ul>\n"
+    html += "</body></html>"
     return html

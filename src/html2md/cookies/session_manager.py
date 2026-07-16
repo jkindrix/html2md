@@ -1,10 +1,10 @@
 import json
-import logging
 import os
-import pickle
 import re
 import sqlite3
 import sys
+import shutil
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -29,8 +29,10 @@ except ImportError:
     HAS_GOOGLE_AUTH = False
 
 from html2md.config.loader import TOKENS_FILE, load_config
+from html2md.utils.secure_files import atomic_write_private_text
+from html2md.utils.redaction import get_redacting_logger
 
-logger = logging.getLogger("session_manager")
+logger = get_redacting_logger("session_manager")
 
 # Load configuration
 config = load_config()
@@ -87,8 +89,7 @@ def load_tokens():
 def save_tokens(creds):
     """Save OAuth tokens to a local file."""
     try:
-        with TOKENS_FILE.open("w", encoding="utf-8") as f:
-            f.write(creds.to_json())
+        atomic_write_private_text(TOKENS_FILE, creds.to_json())
         logger.info(f"Saved OAuth tokens to {TOKENS_FILE}")
     except IOError as e:
         logger.error(f"Failed to save tokens to {TOKENS_FILE}: {e}")
@@ -281,7 +282,6 @@ def get_chrome_encryption_key():
             # Use OSX keychain to get the actual password
             # This would require additional macOS-specific libraries
             salt = b'saltysalt'
-            iv = b' ' * 16
             iterations = 1003
             key = PBKDF2(password, salt, dkLen=16, count=iterations)
             return key
@@ -294,7 +294,6 @@ def get_chrome_encryption_key():
         # Here's a basic implementation for Ubuntu/Debian
         try:
             salt = b'saltysalt'
-            iv = b' ' * 16
             iterations = 1
             # Many Linux distros store this in the Gnome keyring
             # This is a simplified implementation that works on some systems
@@ -349,6 +348,24 @@ def decrypt_chrome_cookie(encrypted_value, key):
         return None
 
 
+def _copy_cookie_database(source_path):
+    """Copy a locked browser database into unpredictable owner-only storage."""
+    temp_directory = tempfile.TemporaryDirectory(prefix="html2md-cookies-")
+    if os.name == "posix":
+        os.chmod(temp_directory.name, 0o700)
+    destination = Path(temp_directory.name) / "cookies.sqlite"
+    try:
+        fd = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with open(source_path, "rb") as source, os.fdopen(fd, "wb") as target:
+            shutil.copyfileobj(source, target)
+        if os.name == "posix":
+            os.chmod(destination, 0o600)
+        return temp_directory, destination
+    except BaseException:
+        temp_directory.cleanup()
+        raise
+
+
 def get_chrome_cookies(domain):
     """Retrieve Chrome cookies for a specific domain"""
     cookie_dict = {}
@@ -364,31 +381,10 @@ def get_chrome_cookies(domain):
         logger.warning("Could not retrieve Chrome encryption key")
         return cookie_dict
     
-    # Create a temporary copy of the database to avoid locking issues
-    # Use /tmp directory in WSL which has proper permissions
-    temp_dir = Path("/tmp/html2md")
-    temp_dir.mkdir(parents=True, exist_ok=True)
-    temp_db_path = temp_dir / "cookies_temp.db"
-    
+    temp_directory = None
+    conn = None
     try:
-        # Copy the database to a temporary file
-        import shutil
-        try:
-            # Try to use shutil.copy2 which preserves metadata
-            shutil.copy2(cookie_path, temp_db_path)
-        except Exception as copy_err:
-            # If that fails, try a basic file read/write approach
-            logger.warning(f"Error using shutil.copy2: {copy_err}, falling back to manual file copy")
-            with open(cookie_path, "rb") as src, open(temp_db_path, "wb") as dst:
-                dst.write(src.read())
-                
-        logger.info(f"Created temporary copy of cookies database at {temp_db_path}")
-    except Exception as e:
-        logger.error(f"Could not copy cookies database: {e}")
-        return cookie_dict
-    
-    # Connect to the temporary SQLite database
-    try:
+        temp_directory, temp_db_path = _copy_cookie_database(cookie_path)
         domain_pattern = f"%{domain}%"
         conn = sqlite3.connect(str(temp_db_path))
         cursor = conn.cursor()
@@ -411,9 +407,6 @@ def get_chrome_cookies(domain):
         now = int((datetime.now(timezone.utc) - datetime(1970, 1, 1, tzinfo=timezone.utc)).total_seconds())
         
         for name, value, encrypted_value, host_key, expires_utc, path in cursor.fetchall():
-            # Convert Chrome's expire format (microseconds since 1601) to standard format
-            # Chrome uses Windows epoch (January 1, 1601)
-            chrome_epoch = datetime(1601, 1, 1, tzinfo=timezone.utc)
             try:
                 # Convert microseconds to seconds and adjust for epoch difference
                 expires = expires_utc / 1000000.0
@@ -433,21 +426,15 @@ def get_chrome_cookies(domain):
             except Exception as e:
                 logger.debug(f"Error processing cookie {name}: {e}")
         
-        conn.close()
-        
-        # Clean up the temporary file
-        try:
-            os.remove(temp_db_path)
-        except Exception:
-            pass
-            
     except Exception as e:
         logger.error(f"Error reading Chrome cookies: {e}")
-        # Clean up the temporary file on error
+    finally:
         try:
-            os.remove(temp_db_path)
-        except Exception:
-            pass
+            if conn is not None:
+                conn.close()
+        finally:
+            if temp_directory is not None:
+                temp_directory.cleanup()
     
     logger.info(f"Retrieved {len(cookie_dict)} cookies for domain {domain}")
     return cookie_dict
@@ -523,22 +510,11 @@ def get_firefox_cookies(domain):
         logger.warning(f"Firefox cookies database not found at {cookies_db}")
         return cookie_dict
     
-    # Connect to SQLite database and fetch cookies
+    temp_directory = None
+    conn = None
     try:
         domain_pattern = f"%{domain}%"
-        
-        # Firefox locks its database, so we need to make a copy first
-        temp_path = cookies_db.with_suffix(".sqlite.tmp")
-        
-        # Copy the database to a temporary file
-        try:
-            with open(cookies_db, "rb") as src, open(temp_path, "wb") as dst:
-                dst.write(src.read())
-        except Exception as e:
-            logger.error(f"Could not copy Firefox cookies database: {e}")
-            return cookie_dict
-        
-        # Now connect to the copy
+        temp_directory, temp_path = _copy_cookie_database(cookies_db)
         conn = sqlite3.connect(str(temp_path))
         cursor = conn.cursor()
         
@@ -561,15 +537,15 @@ def get_firefox_cookies(domain):
         except sqlite3.OperationalError as e:
             logger.error(f"Error querying Firefox cookies: {e}")
         
-        conn.close()
-        
-        # Clean up the temporary file
-        try:
-            os.remove(temp_path)
-        except Exception:
-            pass
     except Exception as e:
         logger.error(f"Error reading Firefox cookies: {e}")
+    finally:
+        try:
+            if conn is not None:
+                conn.close()
+        finally:
+            if temp_directory is not None:
+                temp_directory.cleanup()
     
     logger.info(f"Retrieved {len(cookie_dict)} cookies for domain {domain}")
     return cookie_dict
@@ -805,9 +781,7 @@ def apply_browser_cookies(session, url, cookie_json=None):
             logger.debug(f"Setting browser cookie: {name}")
             session.cookies.set(name, value, domain=url_domain)
     
-    # Log all cookies for debugging
-    all_cookies = {k: v for k, v in session.cookies.items()}
-    logger.debug(f"All cookies after applying: {all_cookies}")
+    logger.debug("Applied %s cookies to session", len(session.cookies.get_dict()))
     logger.info(f"Applied cookies to session for {url}")
     
     return session

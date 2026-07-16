@@ -15,6 +15,14 @@ The current development version is **0.1.0 (alpha)**. Feature work is temporaril
 - Passing unit tests do not currently imply that every documented workflow works end to end.
 - The current measured status and known blockers are maintained in [`INTEGRITY_REVIEW.md`](./INTEGRITY_REVIEW.md).
 
+### Security boundaries
+
+- Generated crawl and batch paths are resolved beneath the selected output root; encoded traversal segments and symlink escapes are rejected or sanitized.
+- Browser cookie databases are copied only into unpredictable, owner-private temporary directories and removed after success, failure, or an interrupt.
+- Configuration, OAuth token, and crawl-state files are atomically replaced with `0600` files inside `0700` directories on POSIX systems.
+- Windows does not implement POSIX mode bits; private files rely on the current account's directory ACLs and Python's exclusive temporary-file creation.
+- Diagnostic logging redacts credential-bearing headers and token-like values. Response bodies and cookie values are intentionally omitted even at debug level.
+
 ## Features
 
 - Convert HTML from URLs to Markdown

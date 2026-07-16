@@ -21,6 +21,7 @@ from html2md.utils.parser import (
     generate_safe_filename,
     should_follow_link,
 )
+from html2md.utils.path_safety import contained_output_file
 
 # Setup logger
 logger = logging.getLogger("html2md")
@@ -401,7 +402,7 @@ def crawl_website(
 
             # Generate a safe filename for the URL
             safe_filename = generate_safe_filename(url)
-            output_file = os.path.join(url_dir, safe_filename)
+            output_file = str(contained_output_file(output_dir, url_dir, safe_filename))
 
             # Convert HTML to markdown
             markdown_content = html_content_to_markdown(

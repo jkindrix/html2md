@@ -1,11 +1,13 @@
 import logging
 import os
+from pathlib import Path
 from urllib.parse import urlparse
 
 from html2md.cookies.session_manager import get_session
 from html2md.markdown.converter import html_to_markdown
 from html2md.markdown.link_rewriter import rewrite_links
 from html2md.utils.parser import generate_safe_filename, get_urls_from_file
+from html2md.utils.path_safety import contained_output_file, contained_path, safe_path_segment
 
 # Setup logger
 logger = logging.getLogger("html2md")
@@ -65,46 +67,42 @@ def create_directory_structure(output_dir, url, flatten_domain=False, flatten_al
     Returns:
         str: Path to the directory where the file should be saved
     """
-    # If flatten_all is True, just return the output directory
-    if flatten_all:
-        return output_dir
-    
+    output_root = Path(output_dir).expanduser().resolve()
     parsed_url = urlparse(url)
-    domain = parsed_url.netloc
+    domain = safe_path_segment(parsed_url.netloc)
 
-    if hierarchical_domains:
+    if flatten_all:
+        domain_dir = output_root
+    elif hierarchical_domains:
         # Split domain into parts and reverse them
         # e.g., www.jetbrains.com -> ['com', 'jetbrains', 'www']
-        domain_parts = domain.split('.')
+        domain_parts = [safe_path_segment(part) for part in domain.split('.')]
         domain_parts.reverse()
         
         # Build hierarchical path
-        domain_dir = output_dir
+        domain_dir = output_root
         for part in domain_parts:
             domain_dir = os.path.join(domain_dir, part)
     elif flatten_domain:
         # Just use the domain as the output directory
-        domain_dir = domain
-
-        # Check if an absolute output path was provided
-        if os.path.isabs(output_dir):
-            domain_dir = os.path.join(output_dir, domain_dir)
+        domain_dir = output_root / domain
     else:
         # Create domain directory as a subdirectory
-        domain_dir = os.path.join(output_dir, domain)
+        domain_dir = output_root / domain
 
         # Create path directories if they exist
-        path_parts = parsed_url.path.strip("/").split("/")
+        path_parts = [safe_path_segment(part) for part in parsed_url.path.strip("/").split("/")]
         if path_parts and path_parts[0]:
             # If there are path components, create directories for them
             for i in range(len(path_parts) - 1):  # Exclude the last part (filename)
                 if path_parts[i]:
-                    domain_dir = os.path.join(domain_dir, path_parts[i])
+                    domain_dir = Path(domain_dir) / path_parts[i]
 
     # Create the directories if they don't exist
-    os.makedirs(domain_dir, exist_ok=True)
+    domain_dir = contained_path(output_root, domain_dir)
+    domain_dir.mkdir(parents=True, exist_ok=True)
 
-    return domain_dir
+    return str(domain_dir)
 
 
 def process_markdown_links(
@@ -194,7 +192,7 @@ def process_markdown_links(
 
             # Generate a safe filename for the URL
             safe_filename = generate_safe_filename(url)
-            output_file = os.path.join(url_dir, safe_filename)
+            output_file = str(contained_output_file(output_dir, url_dir, safe_filename))
 
             try:
                 # Create session for the URL

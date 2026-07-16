@@ -45,8 +45,8 @@ class TestBatchProcessor(unittest.TestCase):
         for url, expected in test_cases:
             self.assertEqual(generate_safe_filename(url), expected)
 
-    @mock.patch("os.makedirs")
-    def test_create_directory_structure(self, mock_makedirs):
+    @mock.patch("pathlib.Path.mkdir")
+    def test_create_directory_structure(self, mock_mkdir):
         """Test creating directory structure from URLs."""
         output_dir = "/output"
         test_cases = [
@@ -58,7 +58,7 @@ class TestBatchProcessor(unittest.TestCase):
         for url, expected in test_cases:
             result = create_directory_structure(output_dir, url)
             self.assertEqual(result, expected)
-            mock_makedirs.assert_called_with(expected, exist_ok=True)
+            mock_mkdir.assert_called_with(parents=True, exist_ok=True)
 
     def test_rewrite_links(self):
         """Test rewriting links in markdown content."""

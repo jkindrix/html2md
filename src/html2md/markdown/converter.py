@@ -10,6 +10,7 @@ from html2md.utils.formatter import format_markdown
 from html2md.network.chatgpt_handler import is_chatgpt_url, get_conversation_html
 from html2md.network.openai_api_handler import get_conversation_oauth
 from html2md.network.image_downloader import ImageDownloader
+from html2md.utils.redaction import redact_mapping
 
 # Setup logger
 logger = logging.getLogger("html2md")
@@ -90,9 +91,6 @@ def html_to_markdown(url, session=None, headers=None, trim=False, oauth_email=No
             html_content = response.text
             
             # Log raw content info for debugging
-            raw_content = response.content
-            logger.debug(f"First 100 bytes of raw content: {raw_content[:100]}")
-            
             # Requests decodes every advertised Content-Encoding when the
             # corresponding decoder is installed. Brotli is a runtime
             # dependency, so no byte-prefix guessing or double-decompression
@@ -104,7 +102,7 @@ def html_to_markdown(url, session=None, headers=None, trim=False, oauth_email=No
             logger.info(f"Received {len(html_content)} bytes of HTML from {url}.")
             logger.info(f"Response status code: {response.status_code}")
             logger.info(f"Response encoding: {response.encoding}")
-            logger.debug(f"Response headers: {response.headers}")
+            logger.debug(f"Response headers: {redact_mapping(response.headers)}")
 
         except requests.exceptions.Timeout:
             logger.error(f"Timeout while fetching {url}")

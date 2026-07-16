@@ -11,7 +11,7 @@ import logging
 import sys
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from rich.console import Console
 from rich.prompt import Confirm, Prompt
@@ -352,7 +352,7 @@ class ConfigRecoveryHandler:
 
             # Write defaults atomically
             from html2md.config.writer import atomic_write_json
-            atomic_write_json(self.config_file, self.default_config)
+            atomic_write_json(self.config_file, self.default_config, private=True)
 
             console.print("[yellow]Configuration reset to defaults[/yellow]")
             console.print(

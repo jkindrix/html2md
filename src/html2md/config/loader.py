@@ -216,7 +216,7 @@ def validate_config(config_data):
                 user_value = user_dict[key]
 
                 # Check if types match
-                if type(user_value) != type(default_value):
+                if type(user_value) is not type(default_value):
                     config_path = f"{path}.{key}" if path else key
                     logger.warning(
                         f"Config type mismatch at '{config_path}': "
@@ -246,7 +246,7 @@ def ensure_config_exists():
         )
         # Use atomic write to ensure even initial creation is safe
         from html2md.config.writer import atomic_write_json
-        atomic_write_json(CONFIG_FILE, DEFAULT_CONFIG)
+        atomic_write_json(CONFIG_FILE, DEFAULT_CONFIG, private=True)
         return True
     return False
 
@@ -292,7 +292,7 @@ def save_config(config_data: Dict[str, Any]) -> None:
         # Atomic write using our safe writer with disk-full error handling
         try:
             from html2md.config.writer import atomic_write_json
-            atomic_write_json(CONFIG_FILE, validated_config, indent=4)
+            atomic_write_json(CONFIG_FILE, validated_config, indent=4, private=True)
         except OSError as e:
             # Handle disk full error gracefully
             if e.errno == 28:  # errno.ENOSPC - No space left on device

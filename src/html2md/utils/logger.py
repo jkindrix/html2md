@@ -2,6 +2,8 @@ import logging
 import os
 from logging.handlers import RotatingFileHandler
 
+from html2md.utils.redaction import RedactingFilter
+
 try:
     from pythonjsonlogger import jsonlogger
     HAS_JSON_LOGGER = True
@@ -40,6 +42,9 @@ def setup_logging(console_output=True, debug_file=None):
         os.makedirs(log_dir, exist_ok=True)
 
     logger = logging.getLogger("html2md")
+    redacting_filter = RedactingFilter()
+    if not any(isinstance(item, RedactingFilter) for item in logger.filters):
+        logger.addFilter(redacting_filter)
 
     # Prevent duplicate handlers if `setup_logging()` is called multiple times
     if logger.hasHandlers():
@@ -62,6 +67,7 @@ def setup_logging(console_output=True, debug_file=None):
             )
 
         console_handler.setFormatter(console_formatter)
+        console_handler.addFilter(redacting_filter)
         logger.addHandler(console_handler)
     else:
         # Even with console output disabled (the CLI default, keeping stdout
@@ -70,6 +76,7 @@ def setup_logging(console_output=True, debug_file=None):
         error_handler = logging.StreamHandler()
         error_handler.setLevel(logging.ERROR)
         error_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+        error_handler.addFilter(redacting_filter)
         logger.addHandler(error_handler)
 
     # File handler with log rotation
@@ -78,6 +85,7 @@ def setup_logging(console_output=True, debug_file=None):
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
     file_handler.setFormatter(file_formatter)
+    file_handler.addFilter(redacting_filter)
     logger.addHandler(file_handler)
     
     # Optional dedicated debug log file
@@ -94,7 +102,10 @@ def setup_logging(console_output=True, debug_file=None):
             "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
         debug_handler.setFormatter(debug_formatter)
+        debug_handler.addFilter(redacting_filter)
         logger.addHandler(debug_handler)
+        if os.name == "posix":
+            os.chmod(debug_file, 0o600)
         logger.debug(f"Debug logging enabled to: {debug_file}")
 
     return logger

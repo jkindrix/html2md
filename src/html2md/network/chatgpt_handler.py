@@ -3,11 +3,12 @@ Special handler for accessing ChatGPT content.
 """
 
 import json
-import logging
 import re
 from urllib.parse import urlparse
 
-logger = logging.getLogger("chatgpt_handler")
+from html2md.utils.redaction import get_redacting_logger, redact_mapping
+
+logger = get_redacting_logger("chatgpt_handler")
 
 
 def extract_conversation_id(url):
@@ -41,7 +42,7 @@ def get_conversation_html(url, session, headers):
         logger.info("Attempting direct HTML retrieval")
         
         # Debug cookie information to see what's available
-        logger.debug(f"Available cookies for session: {session.cookies.get_dict()}")
+        logger.debug("Session has %s cookies", len(session.cookies.get_dict()))
         
         # Add required headers for ChatGPT
         chat_headers = headers.copy()
@@ -62,17 +63,15 @@ def get_conversation_html(url, session, headers):
             "Referer": "https://chatgpt.com/"
         })
         
-        logger.debug(f"Headers being used: {chat_headers}")
+        logger.debug(f"Headers being used: {redact_mapping(chat_headers)}")
         
         response = session.get(url, headers=chat_headers, timeout=30)
         
         # Log detailed response info
         logger.debug(f"Response status code: {response.status_code}")
-        logger.debug(f"Response headers: {response.headers}")
+        logger.debug(f"Response headers: {redact_mapping(response.headers)}")
         
-        # Log the first 200 characters of the response for debugging
-        if response.text:
-            logger.debug(f"First 200 chars of response: {response.text[:200]}")
+        logger.debug("Response body length: %s bytes", len(response.text or ""))
         
         if response.status_code == 200 and len(response.text) > 1000:
             logger.info("Successfully retrieved conversation HTML directly")
@@ -90,7 +89,7 @@ def get_conversation_html(url, session, headers):
                 if "log in" in response.text.lower() or "sign in" in response.text.lower():
                     logger.warning("Response appears to be a login page - authentication failed")
             
-            logger.debug(f"First 500 chars of failed response: {response.text[:500]}")
+            logger.debug("Failed response body omitted; length=%s", len(response.text or ""))
             
     except Exception as e:
         logger.error(f"Error in direct HTML retrieval: {e}")
@@ -107,7 +106,7 @@ def get_conversation_html(url, session, headers):
         logger.debug(f"API URL: {api_url}")
         
         # Dump cookies again to see if they change
-        logger.debug(f"Cookies available for API request: {session.cookies.get_dict()}")
+        logger.debug("Session has %s cookies for API request", len(session.cookies.get_dict()))
         
         # Update headers for API request
         api_headers = headers.copy()
@@ -122,15 +121,14 @@ def get_conversation_html(url, session, headers):
             "Accept-Language": "en-US,en;q=0.9"
         })
         
-        logger.debug(f"API Request Headers: {api_headers}")
+        logger.debug(f"API Request Headers: {redact_mapping(api_headers)}")
         
         api_response = session.get(api_url, headers=api_headers, timeout=30)
         
         logger.debug(f"API Response Status: {api_response.status_code}")
-        logger.debug(f"API Response Headers: {api_response.headers}")
+        logger.debug(f"API Response Headers: {redact_mapping(api_response.headers)}")
         
-        if api_response.text:
-            logger.debug(f"First 500 chars of API response: {api_response.text[:500]}")
+        logger.debug("API response body omitted; length=%s", len(api_response.text or ""))
         
         if api_response.status_code == 200:
             logger.info("Successfully retrieved conversation data from API")
@@ -220,22 +218,22 @@ def get_conversation_html(url, session, headers):
             
             except json.JSONDecodeError:
                 logger.error("Failed to parse API response as JSON")
-                logger.debug(f"Response content: {api_response.text[:500]}...")
+                logger.debug("Invalid JSON response body omitted")
         else:
             logger.warning(f"API request failed with status {api_response.status_code}")
             if api_response.status_code == 401:
                 logger.error("Authentication failed. Make sure you have valid cookies.")
-                logger.debug(f"Response on 401: {api_response.text[:500]}")
+                logger.debug("401 response body omitted")
             elif api_response.status_code == 403:
                 logger.error("Access forbidden. OpenAI might be blocking the request.")
-                logger.debug(f"Response on 403: {api_response.text[:500]}")
+                logger.debug("403 response body omitted")
             elif api_response.status_code == 404:
                 logger.error("Conversation not found. It might have been deleted or you don't have access to it.")
-                logger.debug(f"Response on 404: {api_response.text[:500]}")
+                logger.debug("404 response body omitted")
             else:
                 # For other error codes
                 logger.error(f"Unexpected status code: {api_response.status_code}")
-                logger.debug(f"Response: {api_response.text[:500]}")
+                logger.debug("Unexpected response body omitted")
     
     except Exception as e:
         logger.error(f"Error while accessing ChatGPT API: {e}")
@@ -256,7 +254,7 @@ def get_conversation_html(url, session, headers):
         })
         
         logger.debug(f"Alternate API URL: {alternate_api_url}")
-        logger.debug(f"Simplified headers: {simplified_headers}")
+        logger.debug(f"Simplified headers: {redact_mapping(simplified_headers)}")
         
         alt_response = session.get(alternate_api_url, headers=simplified_headers, timeout=30)
         logger.debug(f"Alternate API Response Status: {alt_response.status_code}")
@@ -265,17 +263,17 @@ def get_conversation_html(url, session, headers):
             logger.info("Successfully retrieved conversation data from alternate API")
             try:
                 alt_data = alt_response.json()
-                html = f"<!DOCTYPE html>\n<html><head><title>ChatGPT Conversation</title></head><body>\n"
+                html = "<!DOCTYPE html>\n<html><head><title>ChatGPT Conversation</title></head><body>\n"
                 html += f"<h1>ChatGPT Conversation ({conversation_id})</h1>\n"
                 html += f"<pre>{json.dumps(alt_data, indent=2)}</pre>\n"
                 html += "</body></html>"
                 return html
             except Exception as e:
                 logger.error(f"Error processing alternate API response: {e}")
-                logger.debug(f"Response: {alt_response.text[:500]}")
+                logger.debug("Alternate response body omitted")
         else:
             logger.warning(f"Alternate API request failed with status {alt_response.status_code}")
-            logger.debug(f"Response: {alt_response.text[:500] if alt_response.text else 'No response body'}")
+            logger.debug("Alternate response body omitted; length=%s", len(alt_response.text or ""))
     except Exception as e:
         logger.error(f"Error accessing alternate API: {e}")
         import traceback
@@ -340,9 +338,9 @@ def get_conversation_html(url, session, headers):
                     try:
                         conversation_data = token_response.json()
                         # Build a basic HTML for the conversation
-                        html = f"<!DOCTYPE html>\n<html><head><title>ChatGPT Conversation</title></head><body>\n"
+                        html = "<!DOCTYPE html>\n<html><head><title>ChatGPT Conversation</title></head><body>\n"
                         html += f"<h1>ChatGPT Conversation ({conversation_id})</h1>\n"
-                        html += f"<div>Retrieved using access token method</div>\n"
+                        html += "<div>Retrieved using access token method</div>\n"
                         html += f"<pre>{json.dumps(conversation_data, indent=2)}</pre>\n"
                         html += "</body></html>"
                         return html
