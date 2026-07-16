@@ -5,7 +5,7 @@ from logging.handlers import RotatingFileHandler
 from html2md.utils.redaction import RedactingFilter
 
 try:
-    from pythonjsonlogger import jsonlogger
+    from pythonjsonlogger import json as jsonlogger
 
     HAS_JSON_LOGGER = True
 except ImportError:
