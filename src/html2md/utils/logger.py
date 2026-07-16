@@ -63,6 +63,14 @@ def setup_logging(console_output=True, debug_file=None):
 
         console_handler.setFormatter(console_formatter)
         logger.addHandler(console_handler)
+    else:
+        # Even with console output disabled (the CLI default, keeping stdout
+        # clean for piped markdown), genuine errors must never be silent:
+        # surface ERROR and above on stderr.
+        error_handler = logging.StreamHandler()
+        error_handler.setLevel(logging.ERROR)
+        error_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+        logger.addHandler(error_handler)
 
     # File handler with log rotation
     file_handler = RotatingFileHandler(LOG_FILE, maxBytes=5_000_000, backupCount=3)
