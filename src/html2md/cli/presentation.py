@@ -18,6 +18,8 @@ from rich.text import Text
 from rich.theme import Theme
 from rich.tree import Tree
 
+from html2md import __version__
+
 HTML2MD_THEME = Theme(
     {
         "info": "cyan",
@@ -75,7 +77,7 @@ def show_welcome_banner(console: Console) -> None:
     system = platform.system()
     release = platform.release()
     version_info = Table.grid(padding=(0, 1))
-    version_info.add_row("Version:", "0.1.0")
+    version_info.add_row("Version:", __version__)
     version_info.add_row("Python:", platform.python_version())
     version_info.add_row("System:", f"{system} {release}")
     content = Group(

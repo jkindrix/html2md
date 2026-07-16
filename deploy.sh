@@ -1,62 +1,53 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Colors for terminal output
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
+dry_run=false
+if [[ "${1:-}" == "--dry-run" ]]; then
+    dry_run=true
+elif [[ $# -gt 0 ]]; then
+    echo "Usage: $0 [--dry-run]" >&2
+    exit 2
+fi
 
-echo -e "${YELLOW}====== html2md Deployment Script ======${NC}"
-
-# Check if we're in the right directory
-if [ ! -f "pyproject.toml" ]; then
-    echo -e "${RED}Error: This script must be run from the html2md project root directory${NC}"
+if [[ ! -f pyproject.toml ]]; then
+    echo "Error: run this script from the project root." >&2
     exit 1
 fi
 
-# Step 1: Run tests
-echo -e "\n${YELLOW}Running tests...${NC}"
-if python -m pytest; then
-    echo -e "${GREEN}✅ Tests passed${NC}"
+echo "Running release gates..."
+poetry check
+poetry run ruff check src/html2md tests/config
+poetry run black --check src/html2md tests/config
+poetry run mypy src/html2md tests/config
+poetry run pytest src/html2md/tests tests/config
+
+echo "Building distributions..."
+rm -rf dist
+poetry build
+expected_version="$(poetry version --short)"
+
+if [[ "$dry_run" == true ]]; then
+    smoke_dir="$(mktemp -d)"
+    trap 'rm -rf "$smoke_dir"' EXIT
+    python -m venv "$smoke_dir/venv"
+    "$smoke_dir/venv/bin/python" -m pip install --quiet dist/*.whl
+    html2md_command="$smoke_dir/venv/bin/html2md"
+    python_command="$smoke_dir/venv/bin/python"
 else
-    echo -e "${RED}❌ Tests failed. Fix before deploying.${NC}"
+    command -v pipx >/dev/null || {
+        echo "Error: pipx is required for deployment." >&2
+        exit 1
+    }
+    pipx install . --force
+    html2md_command="$(command -v html2md)"
+    python_command="python"
+fi
+
+installed_version="$($html2md_command --version)"
+module_version="$($python_command -m html2md --version)"
+if [[ "$installed_version" != "$expected_version" || "$module_version" != "$expected_version" ]]; then
+    echo "Version mismatch: expected $expected_version, command=$installed_version, module=$module_version" >&2
     exit 1
 fi
 
-# Step 2: Build with Poetry
-echo -e "\n${YELLOW}Building package...${NC}"
-if poetry build; then
-    echo -e "${GREEN}✅ Package built successfully${NC}"
-else
-    echo -e "${RED}❌ Build failed${NC}"
-    exit 1
-fi
-
-# Step 3: Install with pipx
-echo -e "\n${YELLOW}Installing globally with pipx...${NC}"
-if pipx install . --force; then
-    echo -e "${GREEN}✅ Package installed globally${NC}"
-else
-    echo -e "${RED}❌ Global installation failed${NC}"
-    exit 1
-fi
-
-# Step 4: Verify installation
-echo -e "\n${YELLOW}Verifying installation...${NC}"
-if which html2md > /dev/null; then
-    echo -e "${GREEN}✅ Verification successful! html2md is available.${NC}"
-
-    # Get version info
-    VERSION=$(html2md --version 2>/dev/null || echo "Unknown")
-
-    echo -e "\n${GREEN}Deployment complete!${NC}"
-    echo -e "Version: ${VERSION}"
-    echo -e "You can now use ${YELLOW}html2md${NC} from anywhere."
-    echo -e "Example: ${YELLOW}html2md batch urls.txt --output-dir output${NC}"
-else
-    echo -e "${RED}❌ Verification failed. The commands are not available on PATH.${NC}"
-    exit 1
-fi
-
-echo -e "\n${YELLOW}====== Deployment Complete ======${NC}"
+echo "Deployment verification complete: html2md $expected_version"

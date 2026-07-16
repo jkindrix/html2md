@@ -31,6 +31,7 @@ from html2md.markdown.batch_processor import process_markdown_links
 from html2md.markdown.crawler import crawl_website
 from html2md.cli.runtime import build_header_config
 from html2md.cli.state_commands import state_app
+from html2md import __version__
 from html2md.cli.conversion_service import ConversionResult, convert_source
 from html2md.cli.config_commands import config_app
 from html2md.cli.presentation import (
@@ -1240,6 +1241,13 @@ def crawl_command(
     )
 
 
+def version_callback(value: bool) -> None:
+    """Print distribution metadata before command validation."""
+    if value:
+        typer.echo(__version__)
+        raise typer.Exit()
+
+
 @app.callback()
 def main(
     log_level: LogLevel = typer.Option(
@@ -1249,8 +1257,16 @@ def main(
         None, "--debug-log", help="Write debug logs to specified file."
     ),
     banner: bool = typer.Option(False, "--banner", help="Display the welcome banner."),
+    version: bool = typer.Option(
+        False,
+        "--version",
+        help="Show the installed html2md version and exit.",
+        is_eager=True,
+        callback=version_callback,
+    ),
 ):
     """Main entry point for the application."""
+    del version
     set_log_level(log_level, debug_log)
 
     # Show welcome banner if explicitly requested

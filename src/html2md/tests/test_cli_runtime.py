@@ -1,11 +1,22 @@
 import os
 import subprocess
 import sys
+from importlib.metadata import version
 from pathlib import Path
 
+from typer.testing import CliRunner
+
+from html2md import __version__
 from html2md.cli import cli
 from html2md.cli.runtime import build_header_config
 from html2md.config.loader import DEFAULT_CONFIG
+
+
+def test_cli_version_uses_installed_distribution_metadata():
+    result = CliRunner().invoke(cli.app, ["--version"])
+
+    assert result.exit_code == 0
+    assert result.output.strip() == version("html2md") == __version__
 
 
 def test_cli_import_does_not_read_or_validate_user_config(tmp_path):

@@ -10,11 +10,17 @@ An automated deployment script is provided to simplify the process:
 ./deploy.sh
 ```
 
+Validate the complete release path without changing the global environment:
+
+```bash
+./deploy.sh --dry-run
+```
+
 This script will:
-1. Run all tests to ensure everything works correctly
+1. Run metadata, lint, format, type, and test gates
 2. Build the package using Poetry
-3. Install the package globally using pipx
-4. Verify the installation by checking command availability
+3. Install the package globally using pipx (or into a temporary environment in dry-run mode)
+4. Verify command, module, and package-metadata versions agree
 
 ## Manual Deployment
 
@@ -44,7 +50,8 @@ The following commands should now be available:
 
 ```bash
 html2md --help
-html2md --help
+html2md --version
+python -m html2md --version
 ```
 
 ## Usage after Deployment
