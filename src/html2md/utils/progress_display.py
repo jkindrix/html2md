@@ -6,10 +6,9 @@ based on rate limits and concurrent request statistics.
 """
 
 import time
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Dict, Optional, Any
 from rich.console import Console
-from rich.live import Live
 from rich.panel import Panel
 from rich.progress import (
     Progress, SpinnerColumn, TextColumn, BarColumn, 
@@ -206,12 +205,7 @@ class CrawlProgress:
         elapsed_str = str(timedelta(seconds=int(elapsed)))
         content.add_row("Time Elapsed:", elapsed_str)
         
-        # Effective concurrency
-        if self.polite_mode:
-            content.add_row("Concurrency:", "1 (Polite Mode)")
-        else:
-            max_concurrent = stats.get('max_concurrent', 'N/A')
-            content.add_row("Concurrency:", f"{stats.get('currently_active', 0)}/{max_concurrent}")
+        content.add_row("Active Request:", f"{stats.get('currently_active', 0)}/1")
         
         # Error rate
         total_completed = stats.get('total_completed', 0)
@@ -284,15 +278,13 @@ class CrawlProgress:
 
 
 def estimate_crawl_time(total_urls: int, rate_limit: Optional[int] = None,
-                       max_concurrent: int = 2, 
                        avg_response_time: float = 1.0) -> float:
     """
-    Estimate crawl time based on rate limits and concurrency.
+    Estimate crawl time for the sequential crawler.
     
     Args:
         total_urls: Total number of URLs to crawl
         rate_limit: Requests per minute limit (None for no limit)
-        max_concurrent: Maximum concurrent connections
         avg_response_time: Average response time per request in seconds
         
     Returns:
@@ -302,14 +294,12 @@ def estimate_crawl_time(total_urls: int, rate_limit: Optional[int] = None,
         # Rate limited scenario
         time_by_rate_limit = (total_urls / rate_limit) * 60
         
-        # Concurrent scenario (assuming perfect parallelization)
-        time_by_concurrency = (total_urls / max_concurrent) * avg_response_time
+        time_by_requests = total_urls * avg_response_time
         
         # Return the larger constraint
-        return max(time_by_rate_limit, time_by_concurrency)
+        return max(time_by_rate_limit, time_by_requests)
     else:
-        # Only limited by concurrency
-        return (total_urls / max_concurrent) * avg_response_time
+        return total_urls * avg_response_time
 
 
 def format_eta(seconds: float) -> str:

@@ -71,11 +71,11 @@ Historical baseline observations at that commit:
 
 Current remediation evidence for H2M-030 through H2M-032 supersedes those test-health observations:
 
-- `poetry run pytest src/html2md/tests tests/config` passes with **311 passed, 11 skipped, and 26 warnings**. The skips and all project-owned warnings are isolated to the dead async stack tracked by H2M-047; one dependency deprecation warning remains external.
+- `poetry run pytest src/html2md/tests tests/config` passes with **308 passed and 1 external dependency warning**. The unused async stack and its skipped/warning-producing tests have been removed.
 - The previously failing state modules pass both alone and in the canonical suite: **22 passed**.
 - Converter, cookie-loader, request-handler, and trimmer modules now contain behavior and error-path tests; no core placeholder test remains empty.
 - Ten real subprocess tests cover local and URL conversion, batch, crawl, state listing/resume, gzip, redirects, HTTP 404/429/500 failures, robots denial, output traversal containment, and failure exit behavior. Signal interruption/resume subprocess coverage is maintained separately in the committed signal suite.
-- Production-only statement coverage is **61.08%** (4,753 statements; 1,850 missed), with an enforced 59% non-regression floor and a documented 75% stabilization target. Package-internal tests are excluded from the denominator.
+- Production-only statement coverage is **63.24%** (4,328 statements; 1,591 missed), with an enforced 59% non-regression floor and a documented 75% stabilization target. Package-internal tests are excluded from the denominator.
 - CI definitions now run the locked suite and coverage gate on Python 3.11–3.13 and build/smoke-test the wheel. Ruff, Black, and mypy remain explicitly non-blocking debt reports pending H2M-052–054, so H2M-033 is not yet complete.
 - Extension static regressions cover HTML salvage, unsupported control removal, packaged scripts, unique controls, least privilege, and preservation of user-authored product words and fenced code. An unpacked-Chromium suite covers popup startup/settings, full-page/article/selection extraction, conversion, preview, clipboard, download, granted API permissions, and denied host access.
 - Chrome extension runtime coverage remains absent and is tracked by H2M-046.

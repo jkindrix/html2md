@@ -54,7 +54,6 @@ def crawl_website(
     header_config=None,
     concurrent_config=None,
     polite_mode=False,
-    max_concurrent=None,
     show_progress=True,
     trim=True,
     progress_callback=None,
@@ -155,7 +154,6 @@ def crawl_website(
             "images_dir": images_dir,
             "verify_ssl": verify_ssl,
             "polite_mode": polite_mode,
-            "max_concurrent": max_concurrent,
             "enable_checkpoints": enable_checkpoints,
             "checkpoint_interval": checkpoint_interval,
             "checkpoint_page_count": checkpoint_page_count
@@ -203,7 +201,7 @@ def crawl_website(
     
     # Initialize concurrent limiter
     concurrent_limiter = None
-    if concurrent_config or polite_mode or max_concurrent is not None:
+    if concurrent_config or polite_mode:
         # Build concurrent config
         if not concurrent_config:
             concurrent_config = ConcurrentConfig()
@@ -211,14 +209,8 @@ def crawl_website(
         # Apply polite mode
         if polite_mode:
             concurrent_config.polite_mode = True
-            concurrent_config.max_concurrent_per_domain = 1
             concurrent_config.polite_delay_multiplier = 2.0
-            update_progress("Polite mode enabled: 1 concurrent connection per domain", start_url, "info")
-        
-        # Apply max concurrent override
-        if max_concurrent is not None:
-            concurrent_config.max_concurrent_per_domain = max_concurrent
-            update_progress(f"Max concurrent connections: {max_concurrent} per domain", start_url, "info")
+            update_progress("Polite mode enabled: slower sequential request policy", start_url, "info")
         
         concurrent_limiter = ConcurrentLimiter(concurrent_config)
     else:

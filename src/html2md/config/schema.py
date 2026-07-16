@@ -12,8 +12,6 @@ NoneType = type(None)
 
 
 VALUE_TYPES: dict[ConfigPath, tuple[type, ...]] = {
-    ("concurrent", "max_concurrent_per_domain"): (int,),
-    ("concurrent", "max_total_concurrent"): (int,),
     ("concurrent", "connection_timeout"): (int,),
     ("concurrent", "backoff_strategy"): (str,),
     ("concurrent", "initial_backoff"): (float,),
@@ -21,7 +19,6 @@ VALUE_TYPES: dict[ConfigPath, tuple[type, ...]] = {
     ("concurrent", "backoff_multiplier"): (float,),
     ("concurrent", "error_threshold"): (int,),
     ("concurrent", "respect_retry_after"): (bool,),
-    ("concurrent", "polite_concurrent_limit"): (int,),
     ("concurrent", "polite_delay_multiplier"): (float,),
     ("logging", "level"): (str,),
     ("oauth", "CLIENT_ID"): (str,),
@@ -58,7 +55,6 @@ VALUE_TYPES: dict[ConfigPath, tuple[type, ...]] = {
     ("cli_defaults", "crawl", "user_agent_contact"): (str, NoneType),
     ("cli_defaults", "crawl", "simulate_browser"): (bool,),
     ("cli_defaults", "crawl", "polite"): (bool,),
-    ("cli_defaults", "crawl", "max_concurrent"): (int, NoneType),
     ("cli_defaults", "crawl", "show_progress"): (bool,),
     ("cli_defaults", "crawl", "trim"): (bool,),
     ("cli_defaults", "crawl", "visualize"): (bool,),

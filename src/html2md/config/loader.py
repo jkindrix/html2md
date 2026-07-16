@@ -23,8 +23,6 @@ DEFAULT_CONFIG = {
         # }
     },
     "concurrent": {
-        "max_concurrent_per_domain": 2,
-        "max_total_concurrent": 10,
         "connection_timeout": 30,
         "backoff_strategy": "exponential",  # none, linear, exponential, fibonacci
         "initial_backoff": 1.0,
@@ -32,7 +30,6 @@ DEFAULT_CONFIG = {
         "backoff_multiplier": 2.0,
         "error_threshold": 3,
         "respect_retry_after": True,
-        "polite_concurrent_limit": 1,
         "polite_delay_multiplier": 2.0
     },
     "logging": {"level": "WARNING"},
@@ -76,7 +73,6 @@ DEFAULT_CONFIG = {
             "user_agent_contact": None,
             "simulate_browser": False,
             "polite": False,
-            "max_concurrent": None,
             "show_progress": True,
             "trim": True,
             "visualize": False,

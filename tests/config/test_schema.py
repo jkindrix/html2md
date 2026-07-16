@@ -34,7 +34,6 @@ def test_optional_values_round_trip_without_default_type_inference():
         "cli_defaults": {
             "crawl": {
                 "rate_limit": 30,
-                "max_concurrent": 4,
                 "user_agent_contact": "https://example.com/bot",
             },
             "convert": {"browser": "firefox"},
@@ -46,20 +45,19 @@ def test_optional_values_round_trip_without_default_type_inference():
     assert errors == ()
     assert merged["headers"]["contact_email"] == "crawler@example.com"
     assert merged["cli_defaults"]["crawl"]["rate_limit"] == 30
-    assert merged["cli_defaults"]["crawl"]["max_concurrent"] == 4
     assert merged["cli_defaults"]["convert"]["browser"] == "firefox"
 
 
 def test_numeric_coercion_is_narrow_and_deterministic():
     supplied = {
-        "concurrent": {"max_total_concurrent": 12.0, "initial_backoff": 2},
+        "concurrent": {"error_threshold": 12.0, "initial_backoff": 2},
         "cli_defaults": {"crawl": {"delay": 3}},
     }
 
     merged, _ = validate_and_merge(supplied, DEFAULT_CONFIG, strict=True)
 
-    assert merged["concurrent"]["max_total_concurrent"] == 12
-    assert type(merged["concurrent"]["max_total_concurrent"]) is int
+    assert merged["concurrent"]["error_threshold"] == 12
+    assert type(merged["concurrent"]["error_threshold"]) is int
     assert merged["concurrent"]["initial_backoff"] == 2.0
     assert merged["cli_defaults"]["crawl"]["delay"] == 3.0
 
@@ -67,7 +65,7 @@ def test_numeric_coercion_is_narrow_and_deterministic():
 @pytest.mark.parametrize(
     "supplied, path",
     [
-        ({"concurrent": {"max_total_concurrent": 1.5}}, "concurrent.max_total_concurrent"),
+        ({"concurrent": {"error_threshold": 1.5}}, "concurrent.error_threshold"),
         ({"cli_defaults": {"crawl": {"rate_limit": "30"}}}, "cli_defaults.crawl.rate_limit"),
         ({"cli_defaults": {"crawl": {"delay": True}}}, "cli_defaults.crawl.delay"),
         ({"logging": {"level": "VERBOSE"}}, "logging.level"),

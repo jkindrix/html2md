@@ -1,16 +1,10 @@
-"""
-Concurrent request limiter for synchronous crawling.
-
-This module provides concurrent connection limits and progressive backoff
-without requiring async libraries, integrating with the existing synchronous crawler.
-"""
+"""Sequential crawler request accounting and progressive backoff policy."""
 
 import logging
 import threading
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
 from enum import Enum
 from typing import Dict, Optional, Set, Tuple, Deque, Any
 from urllib.parse import urlparse
@@ -42,11 +36,7 @@ class DomainState:
 
 @dataclass
 class ConcurrentConfig:
-    """Configuration for concurrent request control."""
-    
-    # Connection limits
-    max_concurrent_per_domain: int = 2
-    max_total_concurrent: int = 10
+    """Configuration retained for request accounting and backoff policy."""
     
     # Backoff configuration
     backoff_strategy: BackoffStrategy = BackoffStrategy.EXPONENTIAL
@@ -61,7 +51,6 @@ class ConcurrentConfig:
     
     # Polite mode settings
     polite_mode: bool = False
-    polite_concurrent_limit: int = 1
     polite_delay_multiplier: float = 2.0
     
     # Progress tracking
@@ -70,10 +59,11 @@ class ConcurrentConfig:
 
 class ConcurrentLimiter:
     """
-    Manages concurrent requests with per-domain limits and backoff.
-    
-    This is a synchronous implementation that tracks concurrent connections
-    and implements progressive backoff for errors.
+    Tracks the single synchronous crawler request and domain backoff state.
+
+    The crawler is deliberately sequential. A single re-entrant lock protects
+    every state transition so future threaded callers cannot introduce lock-order
+    inversion while the compatibility configuration is retired.
     """
     
     def __init__(self, config: Optional[ConcurrentConfig] = None):
@@ -81,8 +71,7 @@ class ConcurrentLimiter:
         self.domain_states: Dict[str, DomainState] = defaultdict(DomainState)
         self.active_domains: Set[str] = set()
         self.global_active: int = 0
-        self._lock = threading.Lock()
-        self._domain_locks: Dict[str, threading.Lock] = defaultdict(threading.Lock)
+        self._lock = threading.RLock()
         self._pause_event = threading.Event()
         self._pause_event.set()  # Not paused by default
         
@@ -94,9 +83,7 @@ class ConcurrentLimiter:
         
         # Apply polite mode adjustments
         if self.config.polite_mode:
-            self.config.max_concurrent_per_domain = self.config.polite_concurrent_limit
-            self.config.max_total_concurrent = max(5, self.config.polite_concurrent_limit * 3)
-            logger.info(f"Polite mode enabled: max {self.config.polite_concurrent_limit} concurrent per domain")
+            logger.info("Polite mode enabled for sequential request policy")
     
     def get_domain(self, url: str) -> str:
         """Extract domain from URL."""
@@ -111,7 +98,7 @@ class ConcurrentLimiter:
         """
         domain = self.get_domain(url)
         
-        with self._domain_locks[domain]:
+        with self._lock:
             state = self.domain_states[domain]
             
             # Check if paused
@@ -124,20 +111,8 @@ class ConcurrentLimiter:
                 logger.debug(f"Domain {domain} in backoff for {wait_time:.1f}s")
                 return False, wait_time
             
-            # Check concurrent limits
-            max_concurrent = (self.config.polite_concurrent_limit 
-                            if self.config.polite_mode 
-                            else self.config.max_concurrent_per_domain)
-            
-            if state.active_connections >= max_concurrent:
-                logger.debug(f"Domain {domain} at concurrent limit ({state.active_connections}/{max_concurrent})")
+            if state.active_connections or self.global_active:
                 return False, None
-            
-            # Check global concurrent limit
-            with self._lock:
-                if self.global_active >= self.config.max_total_concurrent:
-                    logger.debug(f"Global concurrent limit reached ({self.global_active}/{self.config.max_total_concurrent})")
-                    return False, None
             
             return True, None
     
@@ -168,15 +143,10 @@ class ConcurrentLimiter:
         
         # Acquire the slot
         with self._lock:
-            with self._domain_locks[domain]:
+            with self._lock:
                 # Double-check availability
                 state = self.domain_states[domain]
-                max_concurrent = (self.config.polite_concurrent_limit 
-                                if self.config.polite_mode 
-                                else self.config.max_concurrent_per_domain)
-                
-                if (state.active_connections < max_concurrent and 
-                    self.global_active < self.config.max_total_concurrent):
+                if state.active_connections == 0 and self.global_active == 0:
                     state.active_connections += 1
                     self.global_active += 1
                     self.active_domains.add(domain)
@@ -193,7 +163,7 @@ class ConcurrentLimiter:
         domain = self.get_domain(url)
         
         with self._lock:
-            with self._domain_locks[domain]:
+            with self._lock:
                 state = self.domain_states[domain]
                 
                 # Update connection count
@@ -324,12 +294,11 @@ class ConcurrentLimiter:
             'eta_seconds': eta_seconds,
             'queued_requests': queued,
             'is_paused': not self._pause_event.is_set(),
-            'max_concurrent': self.config.max_concurrent_per_domain
         }
     
     def get_domain_stats(self, domain: str) -> Dict[str, Any]:
         """Get statistics for a specific domain."""
-        with self._domain_locks[domain]:
+        with self._lock:
             state = self.domain_states.get(domain)
             if not state:
                 return {}
@@ -355,7 +324,7 @@ class ConcurrentLimiter:
     
     def reset_domain(self, domain: str):
         """Reset error state for a domain."""
-        with self._domain_locks[domain]:
+        with self._lock:
             if domain in self.domain_states:
                 state = self.domain_states[domain]
                 state.consecutive_errors = 0

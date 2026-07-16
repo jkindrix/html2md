@@ -1179,12 +1179,7 @@ def crawl_command(
     polite: bool = typer.Option(
         get_cli_default("crawl", "polite", False),
         "--polite",
-        help="Enable polite mode with conservative crawling defaults (1 concurrent connection, slower delays).",
-    ),
-    max_concurrent: Optional[int] = typer.Option(
-        get_cli_default("crawl", "max_concurrent", None),
-        "--max-concurrent",
-        help="Maximum concurrent connections per domain (default: 2, polite mode: 1).",
+        help="Enable conservative sequential crawling with slower adaptive delays.",
     ),
     show_progress: bool = typer.Option(
         get_cli_default("crawl", "show_progress", True),
@@ -1362,15 +1357,12 @@ def crawl_command(
                     backoff_strategy = BackoffStrategy.FIBONACCI
                 
                 concurrent_config = ConcurrentConfig(
-                    max_concurrent_per_domain=concurrent_settings.get("max_concurrent_per_domain", 2),
-                    max_total_concurrent=concurrent_settings.get("max_total_concurrent", 10),
                     backoff_strategy=backoff_strategy,
                     initial_backoff=concurrent_settings.get("initial_backoff", 1.0),
                     max_backoff=concurrent_settings.get("max_backoff", 300.0),
                     backoff_multiplier=concurrent_settings.get("backoff_multiplier", 2.0),
                     error_threshold_for_backoff=concurrent_settings.get("error_threshold", 3),
                     retry_after_respect=concurrent_settings.get("respect_retry_after", True),
-                    polite_concurrent_limit=concurrent_settings.get("polite_concurrent_limit", 1),
                     polite_delay_multiplier=concurrent_settings.get("polite_delay_multiplier", 2.0)
                 )
                 
@@ -1389,7 +1381,6 @@ def crawl_command(
                         header_config=header_config,
                         concurrent_config=concurrent_config,
                         polite_mode=polite,
-                        max_concurrent=max_concurrent,
                         show_progress=show_progress,
                         trim=trim,
                         progress_callback=progress_callback,
