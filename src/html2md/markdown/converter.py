@@ -1,8 +1,6 @@
 import logging
 import os
 from pathlib import Path
-from typing import Optional
-
 import requests
 from markdownify import markdownify as md
 
@@ -99,38 +97,12 @@ def html_to_markdown(url, session=None, headers=None, trim=False, oauth_email=No
             raw_content = response.content
             logger.debug(f"First 100 bytes of raw content: {raw_content[:100]}")
             
-            # Check if we got proper HTML content
-            if html_content.startswith('<!DOCTYPE') or html_content.startswith('<html'):
+            # Requests decodes every advertised Content-Encoding when the
+            # corresponding decoder is installed. Brotli is a runtime
+            # dependency, so no byte-prefix guessing or double-decompression
+            # should happen here.
+            if html_content.lstrip().lower().startswith(("<!doctype", "<html")):
                 logger.debug("Content appears to be valid HTML")
-            else:
-                # Check if content might be compressed but wasn't decompressed properly
-                # This can happen if the server sends compressed content without proper headers
-                is_likely_brotli = raw_content[:2] in [b'\x1b\x3f', b'\x1b\x4f', b'\x1b\x5f', b'\x1b\x6f']
-                is_likely_gzip = raw_content[:2] == b'\x1f\x8b'
-                
-                if is_likely_gzip:
-                    logger.warning("Content appears to be gzipped but wasn't decompressed. Attempting manual decompression.")
-                    try:
-                        import gzip
-                        decompressed = gzip.decompress(raw_content)
-                        html_content = decompressed.decode(response.encoding or 'utf-8')
-                        logger.info("Successfully decompressed gzip content manually")
-                    except Exception as e:
-                        logger.error(f"Manual gzip decompression failed: {e}")
-                        return None
-                elif is_likely_brotli:
-                    logger.warning("Content appears to be brotli compressed but wasn't decompressed. Attempting manual decompression.")
-                    try:
-                        import brotli
-                        decompressed = brotli.decompress(raw_content)
-                        html_content = decompressed.decode(response.encoding or 'utf-8')
-                        logger.info("Successfully decompressed brotli content manually")
-                    except ImportError:
-                        logger.error("Brotli compression detected but brotli module not installed. Install with: pip install brotli")
-                        return None
-                    except Exception as e:
-                        logger.error(f"Manual brotli decompression failed: {e}")
-                        return None
             
             # Log response details
             logger.info(f"Received {len(html_content)} bytes of HTML from {url}.")

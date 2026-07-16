@@ -3,7 +3,7 @@
 import json
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -35,21 +35,20 @@ class TestStateIntegration:
         </html>
         """
 
+    @patch('html2md.markdown.crawler.html_to_markdown', return_value="# Test Content")
     @patch('html2md.markdown.crawler.fetch_html')
-    @patch('html2md.network.request_handler.fetch_html')
-    def test_crawler_with_state_manager(self, mock_fetch1, mock_fetch2, temp_dirs, mock_html_response):
+    def test_crawler_with_state_manager(self, mock_fetch, mock_convert, temp_dirs, mock_html_response):
         """Test crawler with state manager enabled."""
         state_dir, output_dir = temp_dirs
 
         # Mock the HTML fetch
-        mock_fetch1.return_value = mock_html_response
-        mock_fetch2.return_value = mock_html_response
+        mock_fetch.return_value = mock_html_response
 
         # Create state manager
         state_manager = StateManager(state_dir=state_dir)
 
         # Run crawler with state management
-        processed_count, url_mapping, crawl_id = crawl_website(
+        result = crawl_website(
             start_url="https://example.com",
             output_dir=str(output_dir),
             max_pages=1,
@@ -60,39 +59,39 @@ class TestStateIntegration:
         )
 
         # Verify crawl completed
-        assert processed_count >= 1
-        assert crawl_id is not None
-        assert len(url_mapping) >= 1
+        assert result.success is True
+        assert result.processed_count >= 1
+        assert result.crawl_id is not None
+        assert len(result.url_mapping) >= 1
 
         # Verify state was saved
-        state_file = state_dir / f"{crawl_id}.json"
+        state_file = state_dir / f"{result.crawl_id}.json"
         assert state_file.exists()
 
         # Verify state contents
         with open(state_file, 'r') as f:
             state_data = json.load(f)
 
-        assert state_data['crawl_id'] == crawl_id
+        assert state_data['crawl_id'] == result.crawl_id
         assert state_data['start_url'] == "https://example.com"
         assert state_data['output_dir'] == str(output_dir)
         assert len(state_data['checkpoints']) >= 1
         assert state_data['progress']['statistics']['urls_processed'] >= 1
 
+    @patch('html2md.markdown.crawler.html_to_markdown', return_value="# Test Content")
     @patch('html2md.markdown.crawler.fetch_html')
-    @patch('html2md.network.request_handler.fetch_html')
-    def test_crawler_resume_functionality(self, mock_fetch1, mock_fetch2, temp_dirs, mock_html_response):
+    def test_crawler_resume_functionality(self, mock_fetch, mock_convert, temp_dirs, mock_html_response):
         """Test resuming a crawl from saved state."""
         state_dir, output_dir = temp_dirs
 
         # Mock the HTML fetch
-        mock_fetch1.return_value = mock_html_response
-        mock_fetch2.return_value = mock_html_response
+        mock_fetch.return_value = mock_html_response
 
         # Create state manager
         state_manager = StateManager(state_dir=state_dir)
 
         # Start a crawl but interrupt it early
-        processed_count1, url_mapping1, crawl_id = crawl_website(
+        initial_result = crawl_website(
             start_url="https://example.com",
             output_dir=str(output_dir),
             max_pages=1,
@@ -102,30 +101,69 @@ class TestStateIntegration:
         )
 
         # Verify initial crawl
-        assert crawl_id is not None
-        assert processed_count1 >= 1
+        assert initial_result.crawl_id is not None
+        assert initial_result.processed_count >= 1
 
-        # Resume the crawl
-        processed_count2, url_mapping2, resumed_crawl_id = crawl_website(
+        # Resume through a new manager, as a new CLI process would.
+        resuming_manager = StateManager(state_dir=state_dir)
+        resumed_result = crawl_website(
             start_url="https://example.com",  # Will be overridden by state
             output_dir=str(output_dir),
-            state_manager=state_manager,
-            resume_crawl_id=crawl_id,
+            state_manager=resuming_manager,
+            resume_crawl_id=initial_result.crawl_id,
             enable_checkpoints=True
         )
 
         # Verify resume worked
-        assert resumed_crawl_id == crawl_id
-        assert processed_count2 >= processed_count1
+        assert resumed_result.success is True
+        assert resumed_result.crawl_id == initial_result.crawl_id
+        assert resumed_result.processed_count >= initial_result.processed_count
 
         # Verify state was updated
-        state_file = state_dir / f"{crawl_id}.json"
+        state_file = state_dir / f"{initial_result.crawl_id}.json"
         assert state_file.exists()
 
         with open(state_file, 'r') as f:
             final_state = json.load(f)
 
-        assert final_state['progress']['statistics']['urls_processed'] >= processed_count1
+        assert final_state['progress']['statistics']['urls_processed'] >= initial_result.processed_count
+
+    @patch('html2md.markdown.crawler.html_to_markdown', return_value="# Resumed")
+    @patch('html2md.markdown.crawler.fetch_html')
+    def test_resume_page_budget_counts_only_prior_successes(
+        self, mock_fetch, mock_convert, temp_dirs, mock_html_response
+    ):
+        """Prior failures must not consume the resumed crawl's success budget."""
+        state_dir, output_dir = temp_dirs
+        mock_fetch.return_value = mock_html_response
+
+        manager = StateManager(state_dir=state_dir)
+        state = manager.create_new_state(
+            start_url="https://example.com",
+            output_dir=str(output_dir),
+            config={},
+        )
+        existing_output = output_dir / "existing.md"
+        existing_output.write_text("# Existing", encoding="utf-8")
+        state.urls_visited["https://example.com/existing"] = str(existing_output)
+        state.urls_failed["https://example.com/failed"] = "fixture failure"
+        state.urls_queued = [("https://example.com/resumed", 1)]
+        state.statistics.urls_processed = 2
+        state.statistics.urls_failed = 1
+        manager.save_state()
+
+        result = crawl_website(
+            start_url="https://ignored.example",
+            output_dir=str(output_dir),
+            max_pages=2,
+            respect_robots=False,
+            state_manager=StateManager(state_dir=state_dir),
+            resume_crawl_id=state.crawl_id,
+        )
+
+        assert result.success is True
+        assert result.processed_count == 2
+        assert "https://example.com/resumed" in result.url_mapping
 
     def test_state_manager_cli_integration(self, temp_dirs):
         """Test state manager CLI commands."""
@@ -146,7 +184,7 @@ class TestStateIntegration:
         assert crawls[0]['start_url'] == "https://example.com"
 
         # Test export/import
-        export_file = state_dir / "exported.json"
+        export_file = state_dir / "exported.state-export"
         state_manager.export_state(crawl_state.crawl_id, export_file)
         assert export_file.exists()
 
@@ -238,8 +276,6 @@ class TestStateIntegration:
             output_dir=str(output_dir),
             config={}
         )
-
-        initial_checkpoints = len(crawl_state.checkpoints)
 
         # Simulate signal handling
         import signal

@@ -5,12 +5,11 @@ import os
 import tempfile
 import time
 from pathlib import Path
-import uuid
 
 import pytest
 
 from html2md.utils.state_manager import (
-    CrawlState, CrawlStatistics, CheckpointInfo, StateManager
+    CrawlState, CrawlStatistics, StateManager
 )
 
 
@@ -91,6 +90,20 @@ class TestCrawlState:
         assert state2.start_url == state.start_url
         assert len(state2.urls_queued) == 1
         assert state2.urls_visited["https://example.com"] == "/tmp/output/index.md"
+
+    def test_state_serialization_normalizes_paths(self, tmp_path):
+        """Path values at persistence boundaries become JSON-safe strings."""
+        state = CrawlState(
+            start_url="https://example.com",
+            output_dir=tmp_path / "output",
+            config={"nested": {"state_dir": tmp_path / "states"}},
+        )
+
+        data = state.to_dict()
+
+        assert data["output_dir"] == str(tmp_path / "output")
+        assert data["config"]["nested"]["state_dir"] == str(tmp_path / "states")
+        json.dumps(data)
 
 
 class TestStateManager:

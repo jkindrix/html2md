@@ -5,9 +5,7 @@ Special handler for accessing ChatGPT content.
 import json
 import logging
 import re
-from urllib.parse import urlparse, parse_qs
-
-import requests
+from urllib.parse import urlparse
 
 logger = logging.getLogger("chatgpt_handler")
 
@@ -358,20 +356,7 @@ def get_conversation_html(url, session, headers):
         logger.debug(f"Traceback: {traceback.format_exc()}")
     
     logger.error("All approaches to retrieve ChatGPT conversation content failed")
-    # Return a diagnostic HTML page instead of None
-    html = f"<!DOCTYPE html>\n<html><head><title>ChatGPT Error</title></head><body>\n"
-    html += f"<h1>Error: Unable to retrieve ChatGPT conversation</h1>\n"
-    html += f"<h2>Conversation ID: {conversation_id}</h2>\n"
-    html += f"<p>All attempts to retrieve the conversation content failed. Possible reasons:</p>\n"
-    html += f"<ul>\n"
-    html += f"<li>Authentication cookies are missing or expired</li>\n"
-    html += f"<li>The conversation may be inaccessible or deleted</li>\n"
-    html += f"<li>Your access to this conversation may be restricted</li>\n"
-    html += f"<li>ChatGPT's API structure may have changed</li>\n"
-    html += f"</ul>\n"
-    html += f"<p>Try exporting fresh cookies and using the --cookie-json option again.</p>\n"
-    html += f"</body></html>"
-    return html
+    return None
 
 
 def is_chatgpt_url(url):

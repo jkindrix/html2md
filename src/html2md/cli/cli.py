@@ -1261,12 +1261,14 @@ def crawl_command(
 
     # Set up progress display for crawling
     processed_total = 0
+    failed_total = 0
     total_urls_processed = 0
     url_to_file_mappings = {}
 
     for start_url in start_urls:
         if not is_url(start_url):
             console.print(f"[bold red]❌ Invalid URL: {start_url}[/bold red]")
+            failed_total += 1
             continue
 
         console.print(f"\n[bold blue]Starting crawl from:[/bold blue] {start_url}")
@@ -1377,7 +1379,7 @@ def crawl_command(
                 # This could be passed to the crawler for domain-specific configuration
                 
                 # Crawl the website
-                processed_count, url_mapping = crawl_website(
+                result = crawl_website(
                     start_url,
                     output_dir,
                     follow_option=follow_option,
@@ -1398,18 +1400,25 @@ def crawl_command(
                     verify_ssl=not insecure,
                 )
 
+                if not result.success:
+                    failed_total += 1
+                    progress.update(task, description=f"❌ {result.error}")
+                    console.print(f"[bold red]Crawl failed: {result.error}[/bold red]")
+                    continue
+
                 # Update totals
                 processed_total += 1
-                total_urls_processed += processed_count
-                url_to_file_mappings.update(url_mapping)
+                total_urls_processed += result.processed_count
+                url_to_file_mappings.update(result.url_mapping)
 
                 # Set completed state
                 progress.update(
                     task,
-                    description=f"✅ Completed crawling {start_url} - Processed {processed_count} pages",
+                    description=f"✅ Completed crawling {start_url} - Processed {result.processed_count} pages",
                 )
 
             except Exception as e:
+                failed_total += 1
                 logger.error(f"Error during recursive crawling of {start_url}: {e}")
                 progress.update(task, description=f"❌ Error: {str(e)}")
                 console.print(
@@ -1525,7 +1534,12 @@ def crawl_command(
                     f"\n[bold green]Total files created: {file_count}[/bold green]"
                 )
 
-    # Final success message
+    if failed_total:
+        console.print(
+            f"\n[bold red]Crawling failed for {failed_total}/{len(start_urls)} starting URLs.[/bold red]"
+        )
+        raise typer.Exit(1)
+
     console.print(
         f"\n[success]Website crawling complete! Output saved to [directory]{output_dir}[/directory][/success]"
     )
@@ -1610,7 +1624,7 @@ def resume_crawl(
     
     if not crawl_state:
         console.print(f"[red]Crawl {crawl_id} not found.[/red]")
-        return
+        raise typer.Exit(1)
     
     # Use provided output dir or original
     if output_dir:
@@ -1623,19 +1637,35 @@ def resume_crawl(
     
     # Resume the crawl
     try:
-        processed_count, url_mapping, final_crawl_id = crawl_website(
+        resume_options = dict(crawl_state.config)
+        for explicit_option in (
+            "start_url",
+            "output_dir",
+            "state_manager",
+            "resume_crawl_id",
+        ):
+            resume_options.pop(explicit_option, None)
+
+        result = crawl_website(
             start_url=crawl_state.start_url,
             output_dir=crawl_state.output_dir,
             state_manager=state_manager,
             resume_crawl_id=crawl_id,
-            **crawl_state.config
+            **resume_options,
         )
-        
-        console.print(f"[green]✓ Crawl resumed successfully![/green]")
-        console.print(f"[blue]Final count:[/blue] {processed_count} URLs processed")
-        
+
+        if not result.success:
+            console.print(f"[red]Crawl resume failed: {result.error}[/red]")
+            raise typer.Exit(1)
+
+        console.print("[green]✓ Crawl resumed successfully![/green]")
+        console.print(f"[blue]Final count:[/blue] {result.processed_count} URLs processed")
+
+    except typer.Exit:
+        raise
     except Exception as e:
         console.print(f"[red]Error resuming crawl: {e}[/red]")
+        raise typer.Exit(1)
 
 
 @state_app.command(name="clean")

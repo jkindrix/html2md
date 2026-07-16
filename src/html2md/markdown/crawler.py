@@ -4,7 +4,8 @@ import re
 import time
 import random
 from collections import deque
-from urllib.parse import urlparse
+from dataclasses import dataclass, field
+from typing import Dict, Optional
 
 from html2md.cookies.session_manager import get_session
 from html2md.markdown.converter import html_to_markdown
@@ -13,7 +14,7 @@ from html2md.network.request_handler import fetch_html
 from html2md.network.robots_parser import RobotsChecker
 from html2md.network.rate_limiter import GlobalRateLimiter, RateLimitConfig
 from html2md.network.header_manager import HeaderManager, HeaderConfig
-from html2md.network.concurrent_limiter import ConcurrentLimiter, ConcurrentConfig, BackoffStrategy
+from html2md.network.concurrent_limiter import ConcurrentLimiter, ConcurrentConfig
 from html2md.utils.state_manager import StateManager
 from html2md.utils.parser import (
     extract_links_from_html,
@@ -23,6 +24,18 @@ from html2md.utils.parser import (
 
 # Setup logger
 logger = logging.getLogger("html2md")
+
+
+@dataclass(frozen=True)
+class CrawlResult:
+    """Stable result contract for every crawl outcome."""
+
+    processed_count: int = 0
+    url_mapping: Dict[str, str] = field(default_factory=dict)
+    crawl_id: Optional[str] = None
+    success: bool = True
+    failed_count: int = 0
+    error: Optional[str] = None
 
 
 
@@ -112,7 +125,7 @@ def crawl_website(
         checkpoint_page_count (int, optional): Checkpoint after this many pages. Defaults to 100.
 
     Returns:
-        tuple: (processed_urls_count, url_to_file_mapping, crawl_id)
+        CrawlResult: Typed result for successful and unsuccessful outcomes.
     """
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
@@ -126,20 +139,25 @@ def crawl_website(
         state_manager.checkpoint_interval = checkpoint_interval
         state_manager.checkpoint_page_count = checkpoint_page_count
     
+    # Helper function to update progress. It must exist before resume handling.
+    def update_progress(message, url=None, status=None):
+        logger.info(message)
+        if progress_callback:
+            progress_callback(message, url, status)
+
     # Initialize crawl state
     crawl_state = None
     if resume_crawl_id:
         # Resume existing crawl
         crawl_state = state_manager.load_state(resume_crawl_id)
         if crawl_state:
-            update_progress(f"Resuming crawl {resume_crawl_id}", start_url, "info")
             # Restore state
             start_url = crawl_state.start_url
             output_dir = crawl_state.output_dir
             url_to_file_mapping = crawl_state.urls_visited.copy()
             visited_urls = set(crawl_state.urls_visited.keys()) | set(crawl_state.urls_failed.keys())
             queue = deque(crawl_state.urls_queued)
-            processed_urls_count = crawl_state.statistics.urls_processed
+            processed_urls_count = len(crawl_state.urls_visited)
         else:
             update_progress(f"Could not resume crawl {resume_crawl_id}, starting new crawl", start_url, "warning")
     
@@ -173,12 +191,8 @@ def crawl_website(
         # Initialize queue in state
         state_manager.add_urls_to_queue([(start_url, 0)])
 
-    # Helper function to update progress
-    def update_progress(message, url=None, status=None):
-        logger.info(message)
-        if progress_callback:
-            progress_callback(message, url, status)
-    
+    failed_urls_count = 0
+
     # Now update progress for resume case
     if resume_crawl_id and crawl_state:
         update_progress(f"Resuming crawl {resume_crawl_id}", start_url, "info")
@@ -230,7 +244,11 @@ def crawl_website(
         # Check if start URL is allowed
         if not robots_checker.can_fetch(start_url):
             update_progress(f"Starting URL is disallowed by robots.txt: {start_url}", start_url, "blocked")
-            return 0, {}
+            return CrawlResult(
+                crawl_id=crawl_state.crawl_id if crawl_state else None,
+                success=False,
+                error=f"Starting URL is disallowed by robots.txt: {start_url}",
+            )
         
         # Get crawl-delay from robots.txt
         robots_delay = robots_checker.get_crawl_delay(start_url)
@@ -302,6 +320,11 @@ def crawl_website(
                     if not can_proceed:
                         update_progress(f"Rate limit still exceeded for {url}", url, "blocked")
                         concurrent_limiter.release_slot(url, success=False)
+                        failed_urls_count += 1
+                        if enable_checkpoints:
+                            state_manager.update_progress(
+                                url, False, error_message="Rate limit remained exceeded"
+                            )
                         continue
             
             # Record request start for rate limiting
@@ -327,6 +350,11 @@ def crawl_website(
 
             if not html_content:
                 update_progress(f"Failed to fetch content from {url}", url, "failed")
+                failed_urls_count += 1
+                if enable_checkpoints:
+                    state_manager.update_progress(
+                        url, False, error_message="Failed to fetch content"
+                    )
                 continue
 
             # Create directory structure for the URL
@@ -404,8 +432,14 @@ def crawl_website(
 
             else:
                 update_progress(f"Failed to convert HTML from {url}", url, "failed")
+                failed_urls_count += 1
+                if enable_checkpoints:
+                    state_manager.update_progress(
+                        url, False, error_message="Failed to convert HTML"
+                    )
 
         except Exception as e:
+            failed_urls_count += 1
             # Record failed request for rate limiting
             if rate_limiter:
                 rate_limiter.record_request_end(url, request_start_time, False)
@@ -495,4 +529,19 @@ def crawl_website(
     if enable_checkpoints and crawl_state:
         state_manager.save_checkpoint("completion", "Crawl completed successfully")
     
-    return processed_urls_count, url_to_file_mapping, crawl_state.crawl_id if crawl_state else None
+    success = processed_urls_count > 0 and failed_urls_count == 0
+    if failed_urls_count:
+        error = f"Crawl completed with {failed_urls_count} failed URLs"
+    elif not processed_urls_count:
+        error = "Crawl completed without producing any pages"
+    else:
+        error = None
+
+    return CrawlResult(
+        processed_count=processed_urls_count,
+        url_mapping=url_to_file_mapping,
+        crawl_id=crawl_state.crawl_id if crawl_state else None,
+        success=success,
+        failed_count=failed_urls_count,
+        error=error,
+    )

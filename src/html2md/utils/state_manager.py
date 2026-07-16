@@ -6,21 +6,28 @@ enabling interruption and resumption of long-running crawl operations.
 """
 
 import json
-import os
 import signal
 import time
 import uuid
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple, Any, Callable
+from typing import Dict, List, Optional, Tuple, Any, Callable
 import logging
-import tempfile
 import shutil
 
-from html2md.utils.logger import setup_logging
-
 logger = logging.getLogger(__name__)
+
+
+def _json_safe(value: Any) -> Any:
+    """Normalize supported state values to JSON-compatible primitives."""
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(item) for item in value]
+    return value
 
 
 @dataclass
@@ -93,12 +100,12 @@ class CrawlState:
             "created_at": self.created_at,
             "last_checkpoint": self.last_checkpoint,
             "start_url": self.start_url,
-            "output_dir": self.output_dir,
-            "config": self.config,
+            "output_dir": str(self.output_dir),
+            "config": _json_safe(self.config),
             "progress": {
-                "urls_queued": self.urls_queued,
-                "urls_visited": self.urls_visited,
-                "urls_failed": self.urls_failed,
+                "urls_queued": _json_safe(self.urls_queued),
+                "urls_visited": _json_safe(self.urls_visited),
+                "urls_failed": _json_safe(self.urls_failed),
                 "statistics": self.statistics.to_dict()
             },
             "checkpoints": [cp.to_dict() for cp in self.checkpoints]
@@ -113,7 +120,7 @@ class CrawlState:
             created_at=data.get("created_at", datetime.now().isoformat()),
             last_checkpoint=data.get("last_checkpoint", datetime.now().isoformat()),
             start_url=data.get("start_url", ""),
-            output_dir=data.get("output_dir", ""),
+            output_dir=str(data.get("output_dir", "")),
             config=data.get("config", {})
         )
         
@@ -189,8 +196,8 @@ class StateManager:
         """
         self.current_state = CrawlState(
             start_url=start_url,
-            output_dir=output_dir,
-            config=config
+            output_dir=str(output_dir),
+            config=_json_safe(config)
         )
         
         # Save initial state
