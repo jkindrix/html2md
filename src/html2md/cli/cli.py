@@ -47,6 +47,7 @@ from html2md.markdown.batch_processor import process_markdown_links
 from html2md.markdown.converter import html_to_markdown, local_html_to_markdown
 from html2md.markdown.crawler import crawl_website
 from html2md.cli.runtime import build_header_config
+from html2md.cli.state_commands import state_app
 from html2md.utils.logger import setup_logging
 from html2md.utils.parser import is_url
 from html2md.utils.state_manager import StateManager
@@ -127,13 +128,6 @@ config_app = typer.Typer(
     help="Manage html2md configuration settings.",
     add_completion=False,
 )
-
-# Create state management subcommand app
-state_app = typer.Typer(
-    help="Manage crawl state and resume interrupted crawls.",
-    add_completion=False,
-)
-
 
 # Create a custom class for rich progress display with estimated time
 class EnhancedProgress(Progress):
@@ -1538,187 +1532,6 @@ def show_config():
     syntax = Syntax(json_str, "json", theme="monokai", line_numbers=True)
 
     console.print(Panel(syntax, title="Current Configuration", border_style="green"))
-
-
-# State management commands
-@state_app.command(name="list")
-def list_states():
-    """List all resumable crawl states."""
-    state_manager = StateManager()
-    crawls = state_manager.list_resumable_crawls()
-    
-    if not crawls:
-        console.print("[yellow]No resumable crawls found.[/yellow]")
-        return
-    
-    table = Table(title="Resumable Crawls", show_header=True, header_style="bold blue")
-    table.add_column("ID", style="cyan", width=8)
-    table.add_column("URL", style="green")
-    table.add_column("Created", style="yellow")
-    table.add_column("Last Checkpoint", style="yellow")
-    table.add_column("Progress", style="magenta")
-    
-    for crawl in crawls:
-        progress = f"{crawl['urls_processed']}/{crawl['urls_processed'] + crawl['urls_queued']}"
-        table.add_row(
-            crawl['crawl_id'][:8],
-            crawl['start_url'],
-            crawl['created_at'][:19],
-            crawl['last_checkpoint'][:19],
-            progress
-        )
-    
-    console.print(table)
-
-
-@state_app.command(name="resume")
-def resume_crawl(
-    crawl_id: str = typer.Argument(..., help="ID of the crawl to resume"),
-    output_dir: Optional[str] = typer.Option(None, "--output-dir", "-o", help="Override output directory")
-):
-    """Resume an interrupted crawl."""
-    state_manager = StateManager()
-    crawl_state = state_manager.load_state(crawl_id)
-    
-    if not crawl_state:
-        console.print(f"[red]Crawl {crawl_id} not found.[/red]")
-        raise typer.Exit(1)
-    
-    # Use provided output dir or original
-    if output_dir:
-        crawl_state.output_dir = output_dir
-    
-    console.print(f"[green]Resuming crawl {crawl_id}[/green]")
-    console.print(f"[blue]URL:[/blue] {crawl_state.start_url}")
-    console.print(f"[blue]Output:[/blue] {crawl_state.output_dir}")
-    console.print(f"[blue]Progress:[/blue] {crawl_state.statistics.urls_processed} URLs processed")
-    
-    # Resume the crawl
-    try:
-        resume_options = dict(crawl_state.config)
-        for explicit_option in (
-            "start_url",
-            "output_dir",
-            "state_manager",
-            "resume_crawl_id",
-        ):
-            resume_options.pop(explicit_option, None)
-
-        with state_manager.signal_handling():
-            result = crawl_website(
-                start_url=crawl_state.start_url,
-                output_dir=crawl_state.output_dir,
-                state_manager=state_manager,
-                resume_crawl_id=crawl_id,
-                **resume_options,
-            )
-
-        if not result.success:
-            console.print(f"[red]Crawl resume failed: {result.error}[/red]")
-            raise typer.Exit(1)
-
-        console.print("[green]✓ Crawl resumed successfully![/green]")
-        console.print(f"[blue]Final count:[/blue] {result.processed_count} URLs processed")
-
-    except typer.Exit:
-        raise
-    except Exception as e:
-        console.print(f"[red]Error resuming crawl: {e}[/red]")
-        raise typer.Exit(1)
-
-
-@state_app.command(name="clean")
-def clean_states(
-    days: int = typer.Option(30, "--days", "-d", help="Remove states older than N days"),
-    force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation")
-):
-    """Clean up old crawl states."""
-    state_manager = StateManager()
-    
-    if not force:
-        confirm = Confirm.ask(f"Remove crawl states older than {days} days?")
-        if not confirm:
-            console.print("[yellow]Cancelled.[/yellow]")
-            return
-    
-    cleaned = state_manager.clean_old_states(days)
-    console.print(f"[green]Cleaned {cleaned} old state files.[/green]")
-
-
-@state_app.command(name="export")
-def export_state(
-    crawl_id: str = typer.Argument(..., help="ID of the crawl to export"),
-    output_file: Path = typer.Argument(..., help="Output file for exported state")
-):
-    """Export a crawl state to a file."""
-    state_manager = StateManager()
-    
-    try:
-        state_manager.export_state(crawl_id, output_file)
-        console.print(f"[green]✓ State exported to {output_file}[/green]")
-    except Exception as e:
-        console.print(f"[red]Error exporting state: {e}[/red]")
-
-
-@state_app.command(name="import")
-def import_state(
-    input_file: Path = typer.Argument(..., help="State file to import")
-):
-    """Import a crawl state from a file."""
-    state_manager = StateManager()
-    
-    try:
-        new_crawl_id = state_manager.import_state(input_file)
-        console.print(f"[green]✓ State imported with ID: {new_crawl_id}[/green]")
-    except Exception as e:
-        console.print(f"[red]Error importing state: {e}[/red]")
-
-
-@state_app.command(name="info")
-def show_state_info(
-    crawl_id: str = typer.Argument(..., help="ID of the crawl to show info for")
-):
-    """Show detailed information about a crawl state."""
-    state_manager = StateManager()
-    crawl_state = state_manager.load_state(crawl_id)
-    
-    if not crawl_state:
-        console.print(f"[red]Crawl {crawl_id} not found.[/red]")
-        return
-    
-    # Create info table
-    info_table = Table(title=f"Crawl State: {crawl_id}", show_header=False)
-    info_table.add_column("Property", style="cyan", width=20)
-    info_table.add_column("Value", style="green")
-    
-    info_table.add_row("ID", crawl_state.crawl_id)
-    info_table.add_row("Start URL", crawl_state.start_url)
-    info_table.add_row("Output Dir", crawl_state.output_dir)
-    info_table.add_row("Created", crawl_state.created_at)
-    info_table.add_row("Last Checkpoint", crawl_state.last_checkpoint)
-    info_table.add_row("URLs Processed", str(crawl_state.statistics.urls_processed))
-    info_table.add_row("URLs Failed", str(crawl_state.statistics.urls_failed))
-    info_table.add_row("URLs Queued", str(len(crawl_state.urls_queued)))
-    info_table.add_row("Checkpoints", str(len(crawl_state.checkpoints)))
-    
-    console.print(info_table)
-    
-    # Show recent checkpoints
-    if crawl_state.checkpoints:
-        console.print("\n[bold blue]Recent Checkpoints:[/bold blue]")
-        checkpoint_table = Table(show_header=True, header_style="bold blue")
-        checkpoint_table.add_column("Time", style="yellow")
-        checkpoint_table.add_column("Trigger", style="cyan")
-        checkpoint_table.add_column("Message", style="green")
-        
-        for checkpoint in crawl_state.checkpoints[-5:]:  # Last 5 checkpoints
-            checkpoint_table.add_row(
-                checkpoint.timestamp[:19],
-                checkpoint.trigger,
-                checkpoint.message or "No message"
-            )
-        
-        console.print(checkpoint_table)
 
 
 @config_app.command(name="path")
