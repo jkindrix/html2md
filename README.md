@@ -166,6 +166,7 @@ html2md batch "docs/*.md" --output-dir output
 - `--enhanced-headers/--basic-headers`: Use enhanced headers with User-Agent identification and compression support (default: enhanced)
 - `--user-agent-contact EMAIL_OR_URL`: Contact email or URL to include in User-Agent header for crawler identification
 - `--simulate-browser`: Use browser-like headers instead of identifying as html2md crawler
+- `--insecure, --no-verify-ssl`: Disable SSL certificate verification. Only use with hosts you trust (e.g. internal servers with self-signed certificates)
 
 ### Batch Command Options
 
@@ -175,6 +176,7 @@ html2md batch "docs/*.md" --output-dir output
 - `--visualize`: Display a visual representation of the output directory structure
 - `--report FILE`: Generate a detailed Markdown report of the process
 - `--quiet`: Reduce output verbosity, showing only essential information
+- `--insecure, --no-verify-ssl`: Disable SSL certificate verification. Only use with hosts you trust (e.g. internal servers with self-signed certificates)
 
 ### Crawl Command Options
 
@@ -187,6 +189,7 @@ html2md batch "docs/*.md" --output-dir output
 - `--enhanced-headers/--basic-headers`: Use enhanced headers with User-Agent identification and compression support (default: enhanced)
 - `--user-agent-contact EMAIL_OR_URL`: Contact email or URL to include in User-Agent header for crawler identification
 - `--simulate-browser`: Use browser-like headers instead of identifying as html2md crawler
+- `--insecure, --no-verify-ssl`: Disable SSL certificate verification. Only use with hosts you trust (e.g. internal servers with self-signed certificates)
 
 ## UI Features
 
@@ -287,6 +290,25 @@ html2md convert https://example.com --basic-headers
 - **Enhanced headers** (default): Identifies as html2md crawler, includes compression support, conditional requests, and optional contact info
 - **Browser simulation**: Mimics a real browser to bypass basic crawler detection
 - **Basic headers**: Simple User-Agent only, for minimal footprint
+
+### Internal Servers with Self-Signed Certificates
+
+Internal or development servers often present certificates that fail
+verification (self-signed, or issued for a different hostname). By default
+html2md refuses to connect and reports the certificate error. When you trust
+the host and cannot fix its certificate, skip verification explicitly:
+
+```bash
+# Skip SSL certificate verification (curl-style flag)
+html2md convert https://internal-server.example/docs.html --insecure
+
+# Equivalent long form; also available on crawl and batch
+html2md crawl https://internal-server.example --no-verify-ssl
+```
+
+**Warning:** Disabling verification exposes the connection to
+man-in-the-middle attacks. Only use these flags for hosts you control or
+trust, and prefer fixing the server's certificate when possible.
 
 ### Batch Processing Documentation Links
 
