@@ -6,6 +6,7 @@ authors = ["Justin Kindrix <jkindrix@gmail.com>"]
 license = "MIT"
 readme = "README.md"
 packages = [{ include = "html2md", from = "src" }]
+exclude = ["src/html2md/html2md", "src/html2md/tests"]
 classifiers = ["Development Status :: 3 - Alpha"]
 
 [tool.poetry.dependencies]
