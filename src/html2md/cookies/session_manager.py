@@ -13,8 +13,8 @@ import requests
 
 # Optional dependencies for browser cookie extraction
 try:
-    from Crypto.Cipher import AES
-    from Crypto.Protocol.KDF import PBKDF2
+    from Cryptodome.Cipher import AES
+    from Cryptodome.Protocol.KDF import PBKDF2
 
     HAS_CRYPTO = True
 except ImportError:

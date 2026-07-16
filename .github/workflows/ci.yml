@@ -61,10 +61,9 @@ jobs:
           "$RUNNER_TEMP/wheel-smoke/bin/html2md" --help
           "$RUNNER_TEMP/wheel-smoke/bin/python" -m html2md --help
 
-  quality-debt:
-    name: Quality debt report (non-blocking)
+  quality:
+    name: Static quality gates
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -75,10 +74,8 @@ jobs:
       - name: Install locked dependencies
         run: poetry install --with dev --sync
       - name: Ruff
-        run: poetry run ruff check src tests
+        run: poetry run ruff check src/html2md tests/config
       - name: Black
-        if: always()
-        run: poetry run black --check src tests
+        run: poetry run black --check src/html2md tests/config
       - name: Mypy
-        if: always()
-        run: poetry run mypy src/html2md
+        run: poetry run mypy src/html2md tests/config
