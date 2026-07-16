@@ -105,7 +105,7 @@ html2md-extension/
 
 ## License
 
-MIT License - see the LICENSE file for details.
+Copyright (c) 2025-2026 Justin Kindrix. Distributed under the [MIT License](../LICENSE).
 
 ## Credits
 

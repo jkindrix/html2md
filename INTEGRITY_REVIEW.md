@@ -43,7 +43,7 @@ Feature expansion is frozen while the project repairs and verifies its primary w
 - URL-derived output paths are not fully contained beneath the selected output root.
 - Debug logging can expose cookie and session-token values.
 - Several Chrome extension modes use APIs unavailable in Manifest V3 service workers or otherwise fail at runtime.
-- The repository lacks a complete license grant despite declaring MIT in metadata.
+- The project now carries its declared MIT grant; required third-party notices for vendored extension code remain a release blocker.
 
 ## Test and quality status
 

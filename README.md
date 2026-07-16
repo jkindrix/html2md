@@ -431,4 +431,4 @@ Concurrent modifications to the configuration file from multiple `html2md` proce
 
 ## License
 
-MIT
+Copyright (c) 2025-2026 Justin Kindrix. Distributed under the [MIT License](./LICENSE).
