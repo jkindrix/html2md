@@ -1,11 +1,12 @@
 [tool.poetry]
 name = "html2md"
-version = "1.0.0"
+version = "0.1.0"
 description = "A Python package to convert web pages to markdown"
 authors = ["Justin Kindrix <jkindrix@gmail.com>"]
 license = "MIT"
 readme = "README.md"
 packages = [{ include = "html2md", from = "src" }]
+classifiers = ["Development Status :: 3 - Alpha"]
 
 [tool.poetry.dependencies]
 python = ">=3.11,<4.0"
@@ -35,7 +36,11 @@ aiohttp = "^3.9.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "*"
+pytest-cov = "^6.1.1"
 pre-commit = "*"
+black = "25.1.0"
+mypy = "1.15.0"
+ruff = "0.11.2"
 types-requests = "^2.32.0.20250328"
 
 [tool.poetry.scripts]

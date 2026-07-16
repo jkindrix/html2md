@@ -151,7 +151,7 @@ def show_welcome_banner():
 
     # Create version information
     version_info = Table.grid(padding=(0, 1))
-    version_info.add_row("Version:", "1.0.0")
+    version_info.add_row("Version:", "0.1.0")
     version_info.add_row("Python:", SYSTEM_INFO["python"])
     version_info.add_row("System:", f"{SYSTEM_INFO['system']} {SYSTEM_INFO['release']}")
 

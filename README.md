@@ -2,6 +2,19 @@
 
 A command-line utility for converting HTML content to Markdown.
 
+> [!WARNING]
+> This repository is an **alpha-stage, pre-1.0 project under active stabilization**. URL conversion, crawling, state resume, and several Chrome extension modes have known release-blocking defects. It is not currently recommended for unattended or production use. See [Project status](#project-status) before relying on it.
+
+## Project status
+
+The current development version is **0.1.0 (alpha)**. Feature work is temporarily frozen while the primary fetch, convert, crawl, persistence, and extension paths are repaired and covered by end-to-end tests.
+
+- No stable package or extension release has been declared.
+- Python 3.11 is the current verified development baseline.
+- Python 3.12 and 3.13 are compatibility targets, not supported claims, until the CI matrix is implemented.
+- Passing unit tests do not currently imply that every documented workflow works end to end.
+- The current measured status and known blockers are maintained in [`INTEGRITY_REVIEW.md`](./INTEGRITY_REVIEW.md).
+
 ## Features
 
 - Convert HTML from URLs to Markdown
@@ -18,7 +31,7 @@ A command-line utility for converting HTML content to Markdown.
 
 ### Prerequisites
 
-- Python 3.11 or higher
+- Python 3.11 (current verified development baseline)
 - pip or Poetry package manager
 
 ### Install with Poetry (Recommended)
@@ -64,6 +77,31 @@ poetry install --with dev
 # With pip
 pip install -r requirements-dev.txt
 ```
+
+### Canonical development verification
+
+The Poetry workflow is the canonical clean-checkout verification path during stabilization. Run these commands from the repository root:
+
+```bash
+# Resolve exactly the committed dependency graph and install all development tools
+poetry install --with dev --sync
+
+# Validate project and lock metadata
+poetry check
+
+# Run the committed product test suites
+poetry run pytest src/html2md/tests tests/config
+
+# Measure production-package coverage with the same suite
+poetry run pytest src/html2md/tests tests/config --cov=html2md --cov-report=term-missing
+
+# Static quality baselines (currently expected to expose tracked remediation work)
+poetry run ruff check src tests
+poetry run black --check src tests
+poetry run mypy src/html2md
+```
+
+Record the commit, Python version, Poetry version, and exact command whenever publishing a result. A check is not considered green merely because unrelated files or failing suites were omitted. CI enforcement is tracked separately and has not yet been delivered.
 
 ## Usage
 
