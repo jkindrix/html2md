@@ -22,6 +22,8 @@ The current development version is **0.1.0 (alpha)**. Feature work is temporaril
 - Configuration, OAuth token, and crawl-state files are atomically replaced with `0600` files inside `0700` directories on POSIX systems.
 - Windows does not implement POSIX mode bits; private files rely on the current account's directory ACLs and Python's exclusive temporary-file creation.
 - Diagnostic logging redacts credential-bearing headers and token-like values. Response bodies and cookie values are intentionally omitted even at debug level.
+- `--download-images` accepts only HTTP(S) images whose DNS results and every redirect target are public addresses. It verifies both the response MIME type and file signature, excludes active formats such as SVG, and enforces 10 MiB per-image and 50 MiB per-conversion limits.
+- For local HTML, `--download-images` may copy regular image files only from the HTML file's own directory tree. Parent traversal, symlink escapes, and `file:` images discovered in remote pages are rejected.
 
 ## Features
 

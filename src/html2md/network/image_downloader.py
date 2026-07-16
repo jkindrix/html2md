@@ -1,288 +1,398 @@
-"""Image downloading functionality for html2md."""
+"""Policy-enforced image acquisition for HTML conversion."""
 
+from __future__ import annotations
+
+import hashlib
+import ipaddress
+import logging
 import os
 import re
+import socket
+import tempfile
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
-from urllib.parse import urljoin, urlparse, unquote
+from typing import Dict, List, Optional
+from urllib.parse import unquote, urljoin, urlparse
+
 import requests
-from requests import Session
 from bs4 import BeautifulSoup
-from rich.console import Console
+from requests import Response, Session
 from rich.progress import Progress, TaskID
 
-import logging
+from html2md.utils.path_safety import contained_output_file, contained_path
 
 logger = logging.getLogger("html2md")
-from ..errors import Html2MdError
 
-console = Console()
+
+class UnsafeImageSource(ValueError):
+    """Raised when an image source violates the acquisition policy."""
 
 
 class ImageDownloader:
-    """Handles downloading and organizing images from web pages."""
-    
-    SUPPORTED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico', '.bmp'}
+    """Download public web images and copy explicitly rooted local images."""
+
+    ALLOWED_REMOTE_SCHEMES = {"http", "https"}
+    REDIRECT_STATUSES = {301, 302, 303, 307, 308}
+    MIME_EXTENSIONS = {
+        "image/jpeg": ".jpg",
+        "image/png": ".png",
+        "image/gif": ".gif",
+        "image/webp": ".webp",
+        "image/bmp": ".bmp",
+        "image/x-icon": ".ico",
+        "image/vnd.microsoft.icon": ".ico",
+        "image/avif": ".avif",
+    }
     MAX_FILENAME_LENGTH = 200
-    
-    def __init__(self, session: Optional[Session] = None, images_dir: str = "images"):
-        """Initialize the image downloader.
-        
-        Args:
-            session: Requests session to use for downloads
-            images_dir: Directory name for storing images (relative to output)
-        """
+
+    def __init__(
+        self,
+        session: Optional[Session] = None,
+        images_dir: str = "images",
+        *,
+        local_root: Optional[Path] = None,
+        max_file_bytes: int = 10 * 1024 * 1024,
+        max_total_bytes: int = 50 * 1024 * 1024,
+        max_redirects: int = 5,
+        timeout: int = 30,
+    ):
+        """Initialize with explicit local and remote acquisition limits."""
+        if max_file_bytes <= 0 or max_total_bytes <= 0:
+            raise ValueError("Image byte limits must be positive")
+        if max_redirects < 0:
+            raise ValueError("max_redirects cannot be negative")
+
         self.session = session or requests.Session()
         self.images_dir = images_dir
-        self.downloaded_images: Dict[str, str] = {}  # Map original URL to local path
-        
+        self.local_root = Path(local_root).resolve() if local_root is not None else None
+        self.max_file_bytes = max_file_bytes
+        self.max_total_bytes = max_total_bytes
+        self.max_redirects = max_redirects
+        self.timeout = timeout
+        self.total_downloaded_bytes = 0
+        self.downloaded_images: Dict[str, str] = {}
+
     def extract_image_urls(self, html_content: str, base_url: str) -> List[str]:
-        """Extract all image URLs from HTML content.
-        
-        Args:
-            html_content: HTML content to parse
-            base_url: Base URL for resolving relative links
-            
-        Returns:
-            List of absolute image URLs
-        """
-        soup = BeautifulSoup(html_content, 'html.parser')
+        """Extract absolute image URLs from image and inline-style attributes."""
+        soup = BeautifulSoup(html_content, "html.parser")
         image_urls = []
-        
-        # Find all img tags
-        for img in soup.find_all('img'):
-            src = img.get('src', '').strip()
+
+        for img in soup.find_all("img"):
+            src = img.get("src", "").strip()
             if src:
-                absolute_url = urljoin(base_url, src)
-                image_urls.append(absolute_url)
-                
-            # Also check srcset for responsive images
-            srcset = img.get('srcset', '')
-            if srcset:
-                # Parse srcset format: "url1 1x, url2 2x"
-                for part in srcset.split(','):
-                    url_part = part.strip().split()[0] if part.strip() else ''
-                    if url_part:
-                        absolute_url = urljoin(base_url, url_part)
-                        image_urls.append(absolute_url)
-        
-        # Find images in CSS background-image properties
-        style_pattern = re.compile(r'background-image:\s*url\(["\']?([^"\'()]+)["\']?\)', re.IGNORECASE)
+                image_urls.append(urljoin(base_url, src))
+
+            srcset = img.get("srcset", "")
+            for part in srcset.split(",") if srcset else ():
+                url_part = part.strip().split()[0] if part.strip() else ""
+                if url_part:
+                    image_urls.append(urljoin(base_url, url_part))
+
+        style_pattern = re.compile(
+            r"background-image:\s*url\([\"']?([^\"'()]+)[\"']?\)", re.IGNORECASE
+        )
         for element in soup.find_all(style=True):
-            style = element.get('style', '')
-            for match in style_pattern.finditer(style):
-                url = match.group(1)
-                absolute_url = urljoin(base_url, url)
-                image_urls.append(absolute_url)
-        
-        # Remove duplicates while preserving order
-        seen = set()
-        unique_urls = []
-        for url in image_urls:
-            if url not in seen:
-                seen.add(url)
-                unique_urls.append(url)
-                
-        return unique_urls
-    
-    def _generate_filename(self, url: str, content_type: Optional[str] = None) -> str:
-        """Generate a safe filename from URL and content type.
-        
-        Args:
-            url: Image URL
-            content_type: Content-Type header value
-            
-        Returns:
-            Safe filename for the image
-        """
-        # Parse URL
-        parsed = urlparse(url)
-        path = unquote(parsed.path)
-        
-        # Extract filename from path
-        filename = os.path.basename(path)
-        
-        # If no filename or it's just an extension, use domain + path hash
-        if not filename or filename.startswith('.'):
-            import hashlib
-            url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
-            filename = f"{parsed.netloc}_{url_hash}"
-        
-        # Ensure proper extension
-        name, ext = os.path.splitext(filename)
-        
-        # Try to determine extension from content type if not present
-        if not ext and content_type:
-            mime_to_ext = {
-                'image/jpeg': '.jpg',
-                'image/png': '.png',
-                'image/gif': '.gif',
-                'image/webp': '.webp',
-                'image/svg+xml': '.svg',
-                'image/x-icon': '.ico',
-                'image/bmp': '.bmp'
-            }
-            ext = mime_to_ext.get(content_type.split(';')[0].strip(), '')
-        
-        # Default to .jpg if no extension
-        if not ext:
-            ext = '.jpg'
-            
-        # Ensure extension is supported
-        if ext.lower() not in self.SUPPORTED_EXTENSIONS:
-            ext = '.jpg'
-            
-        # Combine and sanitize
-        filename = name + ext
-        filename = re.sub(r'[^\w\-_\.]', '_', filename)
-        
-        # Truncate if too long
-        if len(filename) > self.MAX_FILENAME_LENGTH:
-            name, ext = os.path.splitext(filename)
-            max_name_length = self.MAX_FILENAME_LENGTH - len(ext)
-            filename = name[:max_name_length] + ext
-            
-        return filename
-    
-    def download_image(self, url: str, output_dir: Path) -> Optional[Path]:
-        """Download a single image.
-        
-        Args:
-            url: Image URL to download
-            output_dir: Directory to save the image
-            
-        Returns:
-            Path to downloaded image or None if failed
-        """
+            for match in style_pattern.finditer(element.get("style", "")):
+                image_urls.append(urljoin(base_url, match.group(1)))
+
+        return list(dict.fromkeys(image_urls))
+
+    @staticmethod
+    def _content_type(value: str) -> str:
+        return value.split(";", 1)[0].strip().lower()
+
+    @staticmethod
+    def _detected_mime(prefix: bytes) -> Optional[str]:
+        if prefix.startswith(b"\xff\xd8\xff"):
+            return "image/jpeg"
+        if prefix.startswith(b"\x89PNG\r\n\x1a\n"):
+            return "image/png"
+        if prefix.startswith((b"GIF87a", b"GIF89a")):
+            return "image/gif"
+        if prefix.startswith(b"RIFF") and prefix[8:12] == b"WEBP":
+            return "image/webp"
+        if prefix.startswith(b"BM"):
+            return "image/bmp"
+        if prefix.startswith(b"\x00\x00\x01\x00"):
+            return "image/x-icon"
+        if prefix[4:8] == b"ftyp" and prefix[8:12] in {b"avif", b"avis"}:
+            return "image/avif"
+        return None
+
+    @classmethod
+    def _verify_image(cls, path: Path, declared_type: Optional[str] = None) -> str:
+        with path.open("rb") as image_file:
+            detected = cls._detected_mime(image_file.read(32))
+        if detected is None:
+            raise UnsafeImageSource("Content does not match a supported image format")
+
+        if declared_type:
+            declared = cls._content_type(declared_type)
+            if declared not in cls.MIME_EXTENSIONS:
+                raise UnsafeImageSource(f"Unsupported image Content-Type: {declared or 'missing'}")
+            if cls.MIME_EXTENSIONS[declared] != cls.MIME_EXTENSIONS[detected]:
+                raise UnsafeImageSource(
+                    f"Image Content-Type {declared} does not match detected {detected}"
+                )
+        return detected
+
+    @staticmethod
+    def _validate_public_host(hostname: Optional[str], port: Optional[int]) -> None:
+        if not hostname:
+            raise UnsafeImageSource("Remote image URL has no host")
         try:
-            # Skip if already downloaded
-            if url in self.downloaded_images:
-                return Path(self.downloaded_images[url])
-                
-            # Make request
-            response = self.session.get(url, timeout=30, stream=True)
-            response.raise_for_status()
-            
-            # Get content type
-            content_type = response.headers.get('Content-Type', '')
-            
-            # Generate filename
-            filename = self._generate_filename(url, content_type)
-            
-            # Create images directory
-            images_path = output_dir / self.images_dir
-            images_path.mkdir(parents=True, exist_ok=True)
-            
-            # Handle filename conflicts
-            file_path = images_path / filename
-            counter = 1
-            while file_path.exists():
-                name, ext = os.path.splitext(filename)
-                file_path = images_path / f"{name}_{counter}{ext}"
-                counter += 1
-            
-            # Download and save
-            with open(file_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-            
-            # Store mapping
-            relative_path = f"{self.images_dir}/{file_path.name}"
+            addresses = socket.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
+        except socket.gaierror as error:
+            raise UnsafeImageSource(f"Image host cannot be resolved: {hostname}") from error
+        if not addresses:
+            raise UnsafeImageSource(f"Image host has no addresses: {hostname}")
+
+        for address in addresses:
+            raw_address = str(address[4][0]).split("%", 1)[0]
+            try:
+                parsed_address = ipaddress.ip_address(raw_address)
+            except ValueError as error:
+                raise UnsafeImageSource(f"Invalid resolved image address: {raw_address}") from error
+            if not parsed_address.is_global:
+                raise UnsafeImageSource(
+                    f"Image host resolves to a non-public address: {raw_address}"
+                )
+
+    @classmethod
+    def _validate_remote_url(cls, url: str) -> None:
+        parsed = urlparse(url)
+        if parsed.scheme.lower() not in cls.ALLOWED_REMOTE_SCHEMES:
+            raise UnsafeImageSource(f"Unsupported remote image scheme: {parsed.scheme or 'missing'}")
+        if parsed.username is not None or parsed.password is not None:
+            raise UnsafeImageSource("Image URLs containing credentials are not allowed")
+        try:
+            port = parsed.port
+        except ValueError as error:
+            raise UnsafeImageSource("Image URL contains an invalid port") from error
+        cls._validate_public_host(parsed.hostname, port)
+
+    def _request_remote(self, url: str) -> tuple[Response, str]:
+        current_url = url
+        for redirect_count in range(self.max_redirects + 1):
+            self._validate_remote_url(current_url)
+            response = self.session.get(
+                current_url,
+                timeout=self.timeout,
+                stream=True,
+                allow_redirects=False,
+            )
+            if response.status_code not in self.REDIRECT_STATUSES:
+                try:
+                    response.raise_for_status()
+                except BaseException:
+                    response.close()
+                    raise
+                return response, current_url
+
+            location = response.headers.get("Location")
+            response.close()
+            if not location:
+                raise UnsafeImageSource("Image redirect has no Location header")
+            if redirect_count == self.max_redirects:
+                raise UnsafeImageSource("Image redirect limit exceeded")
+            current_url = urljoin(current_url, location)
+        raise UnsafeImageSource("Image redirect limit exceeded")
+
+    def _destination(self, output_dir: Path, url: str, mime_type: str) -> Path:
+        output_root = Path(output_dir).resolve()
+        images_path = contained_path(output_root, self.images_dir)
+        images_path.mkdir(parents=True, exist_ok=True)
+        # Recheck after creation to catch a concurrently substituted symlink.
+        images_path = contained_path(output_root, images_path)
+
+        parsed = urlparse(url)
+        raw_filename = os.path.basename(unquote(parsed.path))
+        name = os.path.splitext(raw_filename)[0] if raw_filename else ""
+        if not name or name.startswith("."):
+            name = f"image_{hashlib.sha256(url.encode()).hexdigest()[:12]}"
+        name = re.sub(r"[^\w\-]", "_", name).strip("._") or "image"
+        extension = self.MIME_EXTENSIONS[mime_type]
+        name = name[: self.MAX_FILENAME_LENGTH - len(extension)]
+        filename = f"{name}{extension}"
+
+        destination = contained_output_file(output_root, self.images_dir, filename)
+        counter = 1
+        while destination.exists():
+            suffix = f"_{counter}"
+            truncated = name[: self.MAX_FILENAME_LENGTH - len(extension) - len(suffix)]
+            destination = contained_output_file(
+                output_root, self.images_dir, f"{truncated}{suffix}{extension}"
+            )
+            counter += 1
+        return destination
+
+    def _stage_chunks(self, chunks, output_dir: Path) -> tuple[Path, int]:
+        output_root = Path(output_dir).resolve()
+        output_root.mkdir(parents=True, exist_ok=True)
+        temporary = tempfile.NamedTemporaryFile(
+            mode="wb", prefix=".html2md-image-", dir=output_root, delete=False
+        )
+        staged_path = Path(temporary.name)
+        byte_count = 0
+        try:
+            with temporary:
+                for chunk in chunks:
+                    if not chunk:
+                        continue
+                    byte_count += len(chunk)
+                    if byte_count > self.max_file_bytes:
+                        raise UnsafeImageSource("Image exceeds the per-file byte limit")
+                    if self.total_downloaded_bytes + byte_count > self.max_total_bytes:
+                        raise UnsafeImageSource("Images exceed the aggregate byte limit")
+                    temporary.write(chunk)
+                temporary.flush()
+                os.fsync(temporary.fileno())
+            return staged_path, byte_count
+        except BaseException:
+            staged_path.unlink(missing_ok=True)
+            raise
+
+    def _acquire_remote(self, url: str, output_dir: Path) -> Path:
+        response, final_url = self._request_remote(url)
+        staged_path: Optional[Path] = None
+        try:
+            declared_type = response.headers.get("Content-Type", "")
+            if self._content_type(declared_type) not in self.MIME_EXTENSIONS:
+                raise UnsafeImageSource(
+                    f"Unsupported image Content-Type: {self._content_type(declared_type) or 'missing'}"
+                )
+            content_length = response.headers.get("Content-Length")
+            if content_length:
+                try:
+                    stated_size = int(content_length)
+                except ValueError as error:
+                    raise UnsafeImageSource("Invalid image Content-Length") from error
+                if stated_size < 0 or stated_size > self.max_file_bytes:
+                    raise UnsafeImageSource("Image exceeds the per-file byte limit")
+                if self.total_downloaded_bytes + stated_size > self.max_total_bytes:
+                    raise UnsafeImageSource("Images exceed the aggregate byte limit")
+
+            staged_path, byte_count = self._stage_chunks(
+                response.iter_content(chunk_size=8192), output_dir
+            )
+            mime_type = self._verify_image(staged_path, declared_type)
+            destination = self._destination(output_dir, final_url, mime_type)
+            os.replace(staged_path, destination)
+            staged_path = None
+            self.total_downloaded_bytes += byte_count
+            return destination
+        finally:
+            response.close()
+            if staged_path is not None:
+                staged_path.unlink(missing_ok=True)
+
+    def _acquire_local(self, url: str, output_dir: Path) -> Path:
+        if self.local_root is None:
+            raise UnsafeImageSource("Local images are disabled for this conversion")
+        parsed = urlparse(url)
+        if parsed.netloc not in {"", "localhost"}:
+            raise UnsafeImageSource("Remote file URL authorities are not allowed")
+        source = Path(unquote(parsed.path)).resolve(strict=True)
+        try:
+            source.relative_to(self.local_root)
+        except ValueError as error:
+            raise UnsafeImageSource("Local image escapes the HTML document directory") from error
+        if not source.is_file():
+            raise UnsafeImageSource("Local image source is not a regular file")
+
+        with source.open("rb") as source_file:
+            staged_path, byte_count = self._stage_chunks(
+                iter(lambda: source_file.read(8192), b""), output_dir
+            )
+        try:
+            mime_type = self._verify_image(staged_path)
+            destination = self._destination(output_dir, url, mime_type)
+            os.replace(staged_path, destination)
+            self.total_downloaded_bytes += byte_count
+            return destination
+        finally:
+            staged_path.unlink(missing_ok=True)
+
+    def download_image(self, url: str, output_dir: Path) -> Optional[Path]:
+        """Acquire one image if it satisfies the configured source policy."""
+        if url in self.downloaded_images:
+            return Path(output_dir).resolve() / self.downloaded_images[url]
+
+        try:
+            scheme = urlparse(url).scheme.lower()
+            if scheme == "file":
+                destination = self._acquire_local(url, output_dir)
+            elif scheme in self.ALLOWED_REMOTE_SCHEMES:
+                destination = self._acquire_remote(url, output_dir)
+            else:
+                raise UnsafeImageSource(f"Unsupported image scheme: {scheme or 'missing'}")
+
+            relative_path = destination.relative_to(Path(output_dir).resolve()).as_posix()
             self.downloaded_images[url] = relative_path
-            
-            logger.debug(f"Downloaded image: {url} -> {relative_path}")
-            return file_path
-            
-        except Exception as e:
-            logger.error(f"Failed to download image {url}: {str(e)}")
+            logger.debug("Acquired image: %s -> %s", url, relative_path)
+            return destination
+        except (
+            OSError,
+            RuntimeError,
+            requests.RequestException,
+            UnsafeImageSource,
+            ValueError,
+        ) as error:
+            logger.warning("Skipped image %s: %s", url, error)
             return None
-    
-    def download_images(self, image_urls: List[str], output_dir: Path, 
-                       progress: Optional[Progress] = None, 
-                       task: Optional[TaskID] = None) -> Dict[str, str]:
-        """Download multiple images.
-        
-        Args:
-            image_urls: List of image URLs to download
-            output_dir: Directory to save images
-            progress: Optional progress bar
-            task: Optional task ID for progress updates
-            
-        Returns:
-            Mapping of original URLs to local paths
-        """
+
+    def download_images(
+        self,
+        image_urls: List[str],
+        output_dir: Path,
+        progress: Optional[Progress] = None,
+        task: Optional[TaskID] = None,
+    ) -> Dict[str, str]:
+        """Acquire multiple images within one aggregate byte budget."""
         results = {}
         total = len(image_urls)
-        
-        for i, url in enumerate(image_urls):
-            if progress and task:
-                progress.update(task, advance=1, description=f"Downloading images... [{i+1}/{total}]")
-                
+        for index, url in enumerate(image_urls):
+            if progress and task is not None:
+                progress.update(
+                    task,
+                    advance=1,
+                    description=f"Downloading images... [{index + 1}/{total}]",
+                )
             local_path = self.download_image(url, output_dir)
             if local_path:
-                results[url] = str(local_path.relative_to(output_dir))
-                
+                results[url] = local_path.relative_to(Path(output_dir).resolve()).as_posix()
         return results
-    
-    def rewrite_image_urls(self, markdown_content: str, url_mapping: Dict[str, str]) -> str:
-        """Rewrite image URLs in markdown to point to local files.
-        
-        Args:
-            markdown_content: Markdown content with image references
-            url_mapping: Mapping of original URLs to local paths
-            
-        Returns:
-            Markdown content with rewritten image URLs
-        """
-        # Pattern for markdown images: ![alt](url)
-        image_pattern = re.compile(r'!\[([^\]]*)\]\(([^)]+)\)')
-        
+
+    def rewrite_image_urls(
+        self,
+        markdown_content: str,
+        url_mapping: Dict[str, str],
+        base_url: Optional[str] = None,
+    ) -> str:
+        """Rewrite exact downloaded image references to their local paths."""
+        image_pattern = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
+
         def replace_url(match):
-            alt_text = match.group(1)
-            url = match.group(2)
-            
-            # Check if we have a local version
-            if url in url_mapping:
-                local_path = url_mapping[url]
-                return f'![{alt_text}]({local_path})'
-            
-            # Check if it's a full URL that we might have downloaded
-            for original_url, local_path in url_mapping.items():
-                if url == original_url or url.endswith(original_url.split('/')[-1]):
-                    return f'![{alt_text}]({local_path})'
-                    
-            return match.group(0)  # Return unchanged if not found
-        
+            alt_text, url = match.groups()
+            local_path = url_mapping.get(url)
+            if local_path is None and base_url is not None:
+                local_path = url_mapping.get(urljoin(base_url, url))
+            return f"![{alt_text}]({local_path})" if local_path else match.group(0)
+
         return image_pattern.sub(replace_url, markdown_content)
-    
-    def process_markdown_with_images(self, markdown_content: str, html_content: str, 
-                                   base_url: str, output_dir: Path,
-                                   progress: Optional[Progress] = None) -> str:
-        """Process markdown content, downloading and rewriting image URLs.
-        
-        Args:
-            markdown_content: Converted markdown content
-            html_content: Original HTML content
-            base_url: Base URL of the page
-            output_dir: Directory for output
-            progress: Optional progress bar
-            
-        Returns:
-            Markdown content with local image references
-        """
-        # Extract image URLs from HTML
+
+    def process_markdown_with_images(
+        self,
+        markdown_content: str,
+        html_content: str,
+        base_url: str,
+        output_dir: Path,
+        progress: Optional[Progress] = None,
+    ) -> str:
+        """Acquire discovered images and rewrite successful exact references."""
         image_urls = self.extract_image_urls(html_content, base_url)
-        
         if not image_urls:
             return markdown_content
-            
-        # Download images
-        task = None
-        if progress:
-            task = progress.add_task("Downloading images...", total=len(image_urls))
-            
+
+        task = progress.add_task("Downloading images...", total=len(image_urls)) if progress else None
         url_mapping = self.download_images(image_urls, output_dir, progress, task)
-        
-        # Rewrite URLs in markdown
-        return self.rewrite_image_urls(markdown_content, url_mapping)
+        return self.rewrite_image_urls(markdown_content, url_mapping, base_url)

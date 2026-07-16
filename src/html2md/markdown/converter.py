@@ -225,10 +225,12 @@ def local_html_to_markdown(file_path, trim=False, download_images=False, output_
         # Download images if requested
         if download_images and output_dir:
             logger.info(f"Downloading images from local file {file_path}")
-            # For local files, we'll use the file path as a dummy base URL
-            base_url = f"file://{os.path.abspath(os.path.dirname(file_path))}"
+            source_path = Path(file_path).resolve()
+            base_url = source_path.as_uri()
             image_downloader = ImageDownloader(
-                session=get_session(verify_ssl=verify_ssl), images_dir=images_dir
+                session=get_session(verify_ssl=verify_ssl),
+                images_dir=images_dir,
+                local_root=source_path.parent,
             )
             formatted_markdown = image_downloader.process_markdown_with_images(
                 formatted_markdown, html_content, base_url, Path(output_dir)
