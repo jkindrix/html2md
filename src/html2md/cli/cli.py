@@ -13,22 +13,18 @@ from pathlib import Path
 from typing import Callable, List, Optional
 
 import typer
-from rich.console import Console, Group
+from rich.console import Console
 from rich.layout import Layout
 from rich.panel import Panel
 from rich.progress import (
     BarColumn,
-    MofNCompleteColumn,
     Progress,
     SpinnerColumn,
     TaskID,
     TextColumn,
-    TimeElapsedColumn,
 )
 from rich.table import Table
 from rich.text import Text
-from rich.theme import Theme
-from rich.tree import Tree
 
 from html2md.config.loader import load_config, save_config
 from html2md.markdown.batch_processor import process_markdown_links
@@ -37,62 +33,22 @@ from html2md.cli.runtime import build_header_config
 from html2md.cli.state_commands import state_app
 from html2md.cli.conversion_service import ConversionResult, convert_source
 from html2md.cli.config_commands import config_app
+from html2md.cli.presentation import (
+    HTML2MD_THEME,
+    STATUS_EMOJI,
+    EnhancedProgress,
+    display_directory_tree,
+    show_welcome_banner,
+)
 from html2md.utils.logger import setup_logging
 from html2md.utils.parser import is_url
 from html2md.utils.state_manager import StateManager
-
-# Create a custom theme with enhanced colors
-html2md_theme = Theme(
-    {
-        "info": "cyan",
-        "warning": "yellow",
-        "error": "bold red",
-        "success": "bold green",
-        "command": "bold magenta",
-        "url": "underline blue",
-        "filename": "bold cyan",
-        "directory": "bold blue",
-        "count": "bold yellow",
-        "header": "bold white on blue",
-        "subheader": "bold cyan",
-    }
-)
 
 # Configure logger to use a file instead of stdout
 logger = setup_logging(console_output=False)
 
 # Create Rich console with the custom theme
-console = Console(theme=html2md_theme)
-
-# Define system information
-SYSTEM_INFO = {
-    "system": platform.system(),
-    "release": platform.release(),
-    "version": platform.version(),
-    "python": platform.python_version(),
-}
-
-# Define emojis for different statuses
-STATUS_EMOJI = {
-    "success": "✅",
-    "error": "❌",
-    "warning": "⚠️",
-    "info": "ℹ️",
-    "processing": "🔄",
-    "download": "📥",
-    "upload": "📤",
-    "config": "⚙️",
-    "markdown": "📝",
-    "html": "🌐",
-    "batch": "📚",
-    "convert": "🔄",
-    "crawl": "🕸️",
-    "file": "📄",
-    "directory": "📁",
-    "link": "🔗",
-    "queued": "⏳",
-    "visited": "👁️",
-}
+console = Console(theme=HTML2MD_THEME)
 
 # Create Typer app
 app = typer.Typer(
@@ -111,78 +67,6 @@ def get_cli_default(command: str, option: str, default_value=None):
         return command_defaults.get(option, default_value)
 
     return resolve_default
-
-# Create a custom class for rich progress display with estimated time
-class EnhancedProgress(Progress):
-    """Enhanced progress display with custom styling and additional columns."""
-
-    def __init__(self):
-        super().__init__(
-            SpinnerColumn(),
-            TextColumn("[bold blue]{task.description}[/bold blue]"),
-            BarColumn(bar_width=40, style="cyan", complete_style="green"),
-            MofNCompleteColumn(),
-            TextColumn("•"),
-            TimeElapsedColumn(),
-        )
-
-
-def show_welcome_banner():
-    """Display a beautiful welcome banner with system information."""
-    title = Text("HTML2MD", style="bold white on blue")
-    subtitle = Text("Convert HTML to Markdown with Style", style="italic cyan")
-
-    # Create version information
-    version_info = Table.grid(padding=(0, 1))
-    version_info.add_row("Version:", "0.1.0")
-    version_info.add_row("Python:", SYSTEM_INFO["python"])
-    version_info.add_row("System:", f"{SYSTEM_INFO['system']} {SYSTEM_INFO['release']}")
-
-    # Create a help hint
-    help_text = Text("\nUse --help with any command for more information", style="dim")
-
-    # Combine all elements
-    banner_content = Group(title, subtitle, Text(), version_info, help_text)
-    banner = Panel(
-        banner_content,
-        border_style="blue",
-        padding=(1, 2),
-        title="Welcome to HTML2MD",
-        subtitle="https://github.com/jkindrix/html2md",
-    )
-
-    console.print(banner)
-
-
-def display_directory_tree(path, max_depth=3):
-    """Display a directory structure as a rich tree."""
-    root = Tree(f"📁 {path}", style="bold blue")
-
-    def add_directory(tree, path, depth=0):
-        if depth >= max_depth:
-            tree.add("...")
-            return
-
-        for item in sorted(os.listdir(path)):
-            item_path = os.path.join(path, item)
-            if os.path.isdir(item_path):
-                branch = tree.add(f"📁 {item}", style="bold blue")
-                if depth < max_depth - 1:
-                    add_directory(branch, item_path, depth + 1)
-            else:
-                icon = "📄"
-                if item.endswith(".md"):
-                    icon = "📝"
-                elif item.endswith(".html"):
-                    icon = "🌐"
-                tree.add(f"{icon} {item}", style="green")
-
-    try:
-        add_directory(root, path)
-        return root
-    except Exception as e:
-        return Text(f"Error displaying directory tree: {str(e)}", style="bold red")
-
 
 # Add config app as a subcommand
 app.add_typer(config_app, name="config")
@@ -1330,7 +1214,7 @@ def main(
 
     # Show welcome banner if explicitly requested
     if banner:
-        show_welcome_banner()
+        show_welcome_banner(console)
 
 
 def detect_color_support():
@@ -1383,7 +1267,7 @@ def entry_point():
 
     # Update console with detected color system
     global console
-    console = Console(theme=html2md_theme, color_system=color_system)
+    console = Console(theme=HTML2MD_THEME, color_system=color_system)
 
     # Run the app
     try:
