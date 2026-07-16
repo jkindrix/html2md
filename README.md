@@ -1,447 +1,236 @@
 # html2md
 
-A command-line utility for converting HTML content to Markdown.
+`html2md` converts local HTML, web pages, link collections, and crawlable sites
+to Markdown. It includes a Python CLI and an unpacked Chrome extension.
 
-> [!WARNING]
-> This repository is an **alpha-stage, pre-1.0 project under active stabilization**. URL conversion, crawling, state resume, and several Chrome extension modes have known release-blocking defects. It is not currently recommended for unattended or production use. See [Project status](#project-status) before relying on it.
+> [!IMPORTANT]
+> This is an alpha-stage, pre-1.0 project. The primary workflows are covered by
+> end-to-end tests, but no stable package or extension release has been
+> published. Review the limitations and security boundaries before using it on
+> sensitive or unattended workloads.
 
-## Project status
+## Status and support
 
-The current development version is **0.1.0 (alpha)**. Feature work is temporarily frozen while the primary fetch, convert, crawl, persistence, and extension paths are repaired and covered by end-to-end tests.
+- Development version: `0.1.0`
+- Tested Python versions: 3.11, 3.12, and 3.13
+- Planned PyPI distribution: `html2md-cli`
+- Installed command and Python import: `html2md`
+- Required gates: tests and production coverage, Ruff, Black, mypy, wheel smoke,
+  extension runtime tests, Bandit, and dependency audit
+- No public release or stable API compatibility promise yet
 
-- No stable package or extension release has been declared.
-- Python 3.11 is the current verified development baseline.
-- Python 3.12 and 3.13 are compatibility targets, not supported claims, until the CI matrix is implemented.
-- Passing unit tests do not currently imply that every documented workflow works end to end.
-- Historical review and planning records are archived under [`docs/internal/`](./docs/internal/README.md).
-
-### Security boundaries
-
-- Generated crawl and batch paths are resolved beneath the selected output root; encoded traversal segments and symlink escapes are rejected or sanitized.
-- Browser cookie databases are copied only into unpredictable, owner-private temporary directories and removed after success, failure, or an interrupt.
-- Configuration, OAuth token, and crawl-state files are atomically replaced with `0600` files inside `0700` directories on POSIX systems.
-- Windows does not implement POSIX mode bits; private files rely on the current account's directory ACLs and Python's exclusive temporary-file creation.
-- Diagnostic logging redacts credential-bearing headers and token-like values. Response bodies and cookie values are intentionally omitted even at debug level.
-- ChatGPT retrieval may reuse explicitly selected browser cookies; html2md does not accept account passwords or submit credentials to private sign-in endpoints.
-- `--download-images` accepts only HTTP(S) images whose DNS results and every redirect target are public addresses. It verifies both the response MIME type and file signature, excludes active formats such as SVG, and enforces 10 MiB per-image and 50 MiB per-conversion limits.
-- For local HTML, `--download-images` may copy regular image files only from the HTML file's own directory tree. Parent traversal, symlink escapes, and `file:` images discovered in remote pages are rejected.
-
-## Features
-
-- Convert HTML from URLs to Markdown
-- Convert HTML from local files to Markdown
-- Support for cookie-based authentication
-- Domain-specific content trimming
-- Batch processing of markdown files containing links
-- Recursive website crawling with link following
-- Modular output with preserved link structure
-- Beautiful UI with progress indicators
-- Chrome extension for instant web page conversion
+The primary tested paths are local conversion, URL conversion, batch link
+processing, sequential crawling, interruption/resume, configuration recovery,
+and the extension's full-page/article/selection conversion modes.
 
 ## Installation
 
-### Prerequisites
-
-- Python 3.11 (current verified development baseline)
-- pip or Poetry package manager
-
-### Install with Poetry (Recommended)
+No PyPI release has been declared. Install from source during stabilization:
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/html2md.git
-cd html2md
-
-# Install dependencies and project
-poetry install
-
-# Activate the virtual environment
-poetry shell
-```
-
-### Install with pip
-
-The planned PyPI distribution name is `html2md-cli`; the installed command and
-Python import remain `html2md`. No public release has been declared yet, so use
-the source installation below during stabilization. Registry availability must
-be checked again immediately before the first publication.
-
-```bash
-# Clone the repository
 git clone https://github.com/jkindrix/html2md.git
 cd html2md
-
-# Create a virtual environment (recommended)
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Install the project in development mode
-pip install -e .
-```
-
-### Development Installation
-
-For development with testing and linting tools:
-
-```bash
-# With Poetry
-poetry install --with dev
-
-# With pip
-pip install -r requirements-dev.txt
-```
-
-### Canonical development verification
-
-The Poetry workflow is the canonical clean-checkout verification path during stabilization. Run these commands from the repository root:
-
-```bash
-# Resolve exactly the committed dependency graph and install all development tools
 poetry install --with dev --sync
+poetry run html2md --help
+```
 
-# Validate project and lock metadata
+For an isolated non-development installation from a local checkout:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+python -m pip install .
+html2md --version
+```
+
+The distribution name differs because `html2md` is already occupied on PyPI.
+The `html2md-cli` name must be checked again immediately before publication.
+
+## Quick start
+
+Convert a URL or local HTML file:
+
+```bash
+html2md convert https://example.com --output example.md
+html2md convert page.html --output page.md
+```
+
+Process Markdown files or plain URL lists and rewrite links between successful
+local outputs:
+
+```bash
+html2md batch links.md urls.txt --output-dir documentation
+```
+
+Crawl sequentially with robots.txt enabled by default:
+
+```bash
+html2md crawl https://docs.example.com \
+  --output-dir documentation \
+  --max-depth 3 \
+  --max-pages 100 \
+  --rate-limit 30
+```
+
+Inspect and resume crawl state:
+
+```bash
+html2md state list
+html2md state info CRAWL_ID
+html2md state resume CRAWL_ID
+```
+
+Run `html2md COMMAND --help` for the complete, configuration-aware option list.
+
+## Commands
+
+| Command | Purpose |
+|---|---|
+| `convert` | Convert one or more URLs or local HTML files. |
+| `batch` | Extract links from input files, convert them, and rewrite successful local links. |
+| `crawl` | Recursively fetch and convert pages using a sequential, robots-aware policy. |
+| `config` | Inspect, validate, back up, restore, and change configuration. |
+| `state` | List, inspect, export, import, clean, and resume crawl state. |
+
+Global options include `--log-level` (default `WARNING`), `--debug-log`,
+`--banner`, and metadata-backed `--version`.
+
+### Conversion
+
+Useful options include:
+
+- `--trim/--no-trim` for domain-specific trimming rules;
+- `--output/-o` to write a file instead of stdout;
+- `--browser-cookies` or `--cookie-json` for authenticated pages;
+- `--enhanced-headers/--basic-headers`, `--user-agent-contact`, and
+  `--simulate-browser` for request identity;
+- `--download-images` with a configurable `--images-dir`;
+- `--insecure` only for trusted hosts with invalid certificates; and
+- `--fancy` for decorated progress output.
+
+Automatic browser database extraction is implemented for Chrome and Firefox.
+Edge and Safari are accepted configuration values but do not currently have a
+complete extraction backend on every platform. Exported cookie JSON is the most
+portable explicit authentication path. Password submission is not supported.
+
+### Batch output
+
+Batch mode supports preserved paths, flattened domain output, a single flat
+directory, hierarchical domain folders, optional visualization, quiet output,
+and a Markdown report. Only successfully written files enter the local-link
+mapping; failed URLs remain remote links.
+
+### Crawl policy
+
+Crawls are intentionally sequential. Available controls include:
+
+- `--follow` (`domain-only`, `host-only`, `subdomain`, or a regular expression);
+- `--max-depth`, `--max-pages`, and jittered `--delay`;
+- `--respect-robots/--ignore-robots`;
+- requests-per-minute `--rate-limit` with adaptive delay and a circuit breaker;
+- `--polite` for a more conservative delay policy;
+- progress, trimming, output layout, visualization, and quiet-mode switches.
+
+`Ctrl+C` or termination checkpoints the active crawl and then preserves normal
+signal behavior. Deferred URLs remain queued instead of being silently lost.
+
+## Configuration and state
+
+Configuration is stored beneath the user's platform-appropriate `.html2md`
+directory. Writes are validated, atomic, backed up, and recoverable. Run:
+
+```bash
+html2md config show
+html2md config path
+html2md config show-options
+html2md config add-domain --domain example.com
+html2md config set-cli-default crawl max_pages 250
+html2md config backup
+html2md config list-backups
+```
+
+CLI defaults are typed and loaded at invocation time. Optional values accept
+`null`; invalid updates fail without replacing the existing file. Concurrent
+configuration changes from separate processes use last-write-wins semantics,
+so serialize configuration commands in automation.
+
+Crawl state supports `list`, `resume`, `clean`, `export`, `import`, and `info`.
+State and token files use restrictive permissions on POSIX systems.
+
+## Chrome extension
+
+Load `extension/` as an unpacked Manifest V3 extension in Chrome or Chromium.
+The supported workflow operates on the active tab and provides:
+
+- full-page, main-article, and current-selection conversion;
+- preview, clipboard copy, and Markdown download;
+- theme and conversion settings; and
+- structural cleanup that preserves user-authored text and fenced code.
+
+The extension uses `activeTab`, `scripting`, `storage`, `downloads`, and
+`clipboardWrite`; it does not request persistent access to every site. URL-list,
+batch, native CLI integration, background service-worker conversion, context
+menus, and keyboard shortcuts are not supported.
+
+See [`extension/README.md`](./extension/README.md) for installation and testing.
+
+## Security boundaries
+
+- Crawl and batch outputs are contained beneath the selected output root;
+  traversal and symlink escapes are rejected or sanitized.
+- Browser cookie databases are copied into unpredictable owner-private
+  temporary directories and removed after success, failure, or interruption.
+- Configuration, OAuth tokens, and crawl states are atomically replaced using
+  `0600` files in `0700` directories on POSIX systems.
+- Diagnostic logs redact credential-bearing headers, cookie values, and
+  token-like data.
+- Remote image downloads allow only HTTP(S), reject private-network and unsafe
+  redirect targets, verify MIME type and file signature, reject active SVG, and
+  enforce 10 MiB per-image and 50 MiB per-conversion limits.
+- Local image copying is restricted to regular files beneath the source HTML
+  directory; parent traversal and symlink escapes are rejected.
+- `--insecure` disables TLS verification and should be used only for hosts you
+  control. It exposes the connection to interception.
+
+Windows relies on the current account's directory ACLs because POSIX mode bits
+are unavailable there.
+
+## Known limitations
+
+- Conversion uses `markdownify` and optional per-domain trimming; it does not
+  provide general main-content extraction or boilerplate removal.
+- JavaScript-rendered pages are not rendered by the CLI.
+- Metadata extraction and relative-URL canonicalization are limited.
+- Crawling is sequential; removed concurrency options are not advertised.
+- Browser cookie decryption varies across browser and operating-system versions.
+- The extension must be installed unpacked; no Web Store release exists.
+
+## Development
+
+Run the canonical local gates from a clean checkout:
+
+```bash
+poetry install --with dev --sync
 poetry check
-
-# Run the committed product test suites
-poetry run pytest src/html2md/tests tests/config
-
-# Measure production-package coverage with the same suite
-poetry run coverage erase
-poetry run pytest src/html2md/tests tests/config --cov=html2md --cov-report=term-missing:skip-covered
-
-# Required static quality gates
-poetry run ruff check src/html2md tests/config
-poetry run black --check src/html2md tests/config
-poetry run mypy src/html2md tests/config
+poetry run pre-commit run --all-files
+poetry run pre-commit run --all-files --hook-stage pre-push
+node --test extension/tests/*.test.js
+node extension/tests/chromium-smoke.js
+./deploy.sh --dry-run
 ```
 
-Record the commit, Python version, Poetry version, and exact command whenever publishing a result. A check is not considered green merely because unrelated files or failing suites were omitted. See [the coverage baseline](docs/coverage.md) for the denominator, current gaps, enforced floor, and planned target.
-
-CI runs the locked test and coverage suite on Python 3.11, 3.12, and 3.13, builds and smoke-tests the wheel, and requires Ruff, Black, and mypy to pass. Pre-commit runs formatting, lint, typing, security, and dependency checks; pre-push also runs the canonical test scope locally.
-
-## Usage
-
-html2md features a beautiful UI with progress bars and rich formatting
-
-### Basic Usage
-
-Convert a single URL to Markdown:
-
-```bash
-html2md convert https://example.com
-```
-
-Convert a local HTML file to Markdown:
-
-```bash
-html2md convert path/to/local/file.html
-```
-
-Save the output to a file:
-
-```bash
-html2md convert https://example.com --output result.md
-```
-
-### Batch Processing
-
-Process markdown files containing links and create a modular output structure:
-
-```bash
-html2md batch path/to/link-collection.md --output-dir docs
-```
-
-Process multiple files at once:
-
-```bash
-html2md batch file1.md file2.md --output-dir docs
-```
-
-Use glob patterns to process multiple files:
-
-```bash
-html2md batch "docs/*.md" --output-dir output
-```
-
-## Command Line Options
-
-### Global Options
-
-- `--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}`: Set logging level (default: INFO)
-
-### Convert Command Options
-
-- `--trim/--no-trim`: Enable/disable trimming based on domain-specific rules
-- `--output FILE, -o FILE`: Specify output file to save converted markdown
-- `--no-cookies`: Disable loading cookies from the browser
-- `--browser-cookies`: Use cookies from the local browser to authenticate with websites
-- `--browser {chrome,firefox,edge,safari}`: Specify which browser to extract cookies from (default: chrome)
-- `--cookie-path PATH`: Path to browser cookies database file (helps with Windows/WSL)
-- `--cookie-json PATH`: Path to JSON file with exported cookies (from browser developer tools)
-- `--local`: Force treating sources as local files even if they look like URLs
-- `--enhanced-headers/--basic-headers`: Use enhanced headers with User-Agent identification and compression support (default: enhanced)
-- `--user-agent-contact EMAIL_OR_URL`: Contact email or URL to include in User-Agent header for crawler identification
-- `--simulate-browser`: Use browser-like headers instead of identifying as html2md crawler
-- `--insecure, --no-verify-ssl`: Disable SSL certificate verification. Only use with hosts you trust (e.g. internal servers with self-signed certificates)
-
-### Batch Command Options
-
-- `--output-dir DIR, -o DIR`: Directory to save the output files and folders (default: "output")
-- `--trim/--no-trim`: Enable/disable trimming based on domain-specific rules
-- `--flatten`: Output files directly to domain directories (e.g., 'docs.github.com/')
-- `--visualize`: Display a visual representation of the output directory structure
-- `--report FILE`: Generate a detailed Markdown report of the process
-- `--quiet`: Reduce output verbosity, showing only essential information
-- `--insecure, --no-verify-ssl`: Disable SSL certificate verification. Only use with hosts you trust (e.g. internal servers with self-signed certificates)
-
-### Crawl Command Options
-
-- `--output-dir DIR, -o DIR`: Directory to save the output files and folders (default: "output")
-- `--follow`: How to follow links. Options: 'domain-only', 'host-only', 'subdomain', or a regex pattern (default: domain-only)
-- `--max-depth`: Maximum link depth to follow (default: 3)
-- `--max-pages`: Maximum number of pages to crawl (default: 100)
-- `--trim/--no-trim`: Enable/disable trimming based on domain-specific rules
-- `--flatten`: Output files directly to domain directories (e.g., 'docs.github.com/')
-- `--enhanced-headers/--basic-headers`: Use enhanced headers with User-Agent identification and compression support (default: enhanced)
-- `--user-agent-contact EMAIL_OR_URL`: Contact email or URL to include in User-Agent header for crawler identification
-- `--simulate-browser`: Use browser-like headers instead of identifying as html2md crawler
-- `--insecure, --no-verify-ssl`: Disable SSL certificate verification. Only use with hosts you trust (e.g. internal servers with self-signed certificates)
-
-## UI Features
-
-The UI includes these enhancements:
-
-- Beautiful colored output with adaptive theme and syntax highlighting
-- Progress spinners and bars with time estimates for long-running operations
-- Detailed status updates with rich emoji indicators during batch processing
-- Interactive directory tree visualization in `--visualize` mode
-- Summary tables and panels showing detailed operation results
-- File and directory counts with intelligent display limits
-- Rich formatting with semantic styling for better readability
-- Terminal capability detection for optimal rendering in any environment
-- Detailed error handling with debug mode support
-- Silent logging (logs go to files, not the console)
-
-## Configuration Management
-
-html2md includes configuration management as subcommands:
-
-```bash
-html2md config [command]
-```
-
-### Available Configuration Commands
-
-- `config show`: Display the current configuration
-- `config path`: Show the path to the configuration file
-- `config set`: Set a configuration value
-- `config get`: Get a configuration value
-- `config delete`: Delete a configuration value
-- `config add-domain`: Interactive wizard to add domain-specific configuration
-- `config list-domains`: List all configured domains with their settings
-- `config reset`: Reset the configuration to default values
-- `config set-cli-default`: Set a typed command default or restore it with `--reset`
-
-Known settings are validated against an explicit schema. Optional values accept
-`null`, integer and floating-point settings are parsed distinctly, and invalid
-updates fail without replacing the existing configuration file.
-
-### Example: Adding Domain-Specific Trimming Rules
-
-```bash
-# Add domain-specific rules interactively
-html2md config add-domain
-
-# List all configured domains
-html2md config list-domains
-
-# Set a specific configuration value
-html2md config set domains.example.com.footer_marker "Copyright"
-```
-
-## Examples
-
-### Converting a URL with Authentication
-
-If you need to access a site that requires authentication, html2md can use your browser cookies:
-
-```bash
-# Use cookies from your default Chrome browser
-html2md convert https://private-site.com/protected-page --browser-cookies
-
-# Use cookies from Firefox instead
-html2md convert https://private-site.com/protected-page --browser-cookies --browser firefox
-
-# Use cookies from Microsoft Edge
-html2md convert https://private-site.com/protected-page --browser-cookies --browser edge
-
-# Specify path to cookies database (useful in WSL)
-html2md convert https://private-site.com/protected-page --browser-cookies --cookie-path "/path/to/cookies/database"
-
-# Use exported cookies JSON file (most reliable method)
-# 1. In Chrome/Firefox, open DevTools (F12)
-# 2. Go to Application/Storage tab, then Cookies
-# 3. Right-click and Export as JSON
-# 4. Save the file and use it with html2md:
-html2md convert https://private-site.com/protected-page --browser-cookies --cookie-json "cookies.json"
-```
-
-### Customizing HTTP Headers
-
-html2md provides flexible header customization for different use cases:
-
-```bash
-# Use enhanced headers with proper crawler identification (default)
-html2md convert https://example.com --enhanced-headers
-
-# Include contact information in User-Agent for responsible crawling
-html2md convert https://example.com --user-agent-contact "admin@example.com"
-
-# Use browser-like headers to avoid crawler detection
-html2md convert https://example.com --simulate-browser
-
-# Combine browser simulation with authentication
-html2md convert https://example.com --simulate-browser --browser-cookies
-
-# Use basic headers (minimal User-Agent)
-html2md convert https://example.com --basic-headers
-```
-
-**Header Modes:**
-- **Enhanced headers** (default): Identifies as html2md crawler, includes compression support, conditional requests, and optional contact info
-- **Browser simulation**: Mimics a real browser to bypass basic crawler detection
-- **Basic headers**: Simple User-Agent only, for minimal footprint
-
-### Internal Servers with Self-Signed Certificates
-
-Internal or development servers often present certificates that fail
-verification (self-signed, or issued for a different hostname). By default
-html2md refuses to connect and reports the certificate error. When you trust
-the host and cannot fix its certificate, skip verification explicitly:
-
-```bash
-# Skip SSL certificate verification (curl-style flag)
-html2md convert https://internal-server.example/docs.html --insecure
-
-# Equivalent long form; also available on crawl and batch
-html2md crawl https://internal-server.example --no-verify-ssl
-```
-
-**Warning:** Disabling verification exposes the connection to
-man-in-the-middle attacks. Only use these flags for hosts you control or
-trust, and prefer fixing the server's certificate when possible.
-
-### Batch Processing Documentation Links
-
-Create a structured documentation site from a collection of markdown links with a beautiful progress display:
-
-```bash
-html2md batch incomplete-docs/*.txt --output-dir documentation
-```
-
-For a simpler output structure, use the flatten option:
-
-```bash
-html2md batch urls.txt --output-dir documentation --flatten
-```
-
-For a rich visual display of the results:
-
-```bash
-html2md batch urls.txt --output-dir documentation --visualize
-```
-
-Or generate a markdown report file along with the output:
-
-```bash
-html2md batch urls.txt --output-dir documentation --report processing-report.md
-```
-
-This will:
-1. Extract all URLs from the provided files (including plain URL lists)
-2. Convert each URL's HTML content to markdown
-3. Save the files in a structured directory layout
-4. Update links between files to maintain correct references
-5. Provide beautiful visuals and detailed status updates throughout
-
-All with intuitive progress indicators and intelligent terminal adaptations!
-
-### Recursive Website Crawling
-
-Recursively crawl a website, converting each page to markdown:
-
-```bash
-html2md crawl https://docs.example.com/ --output-dir documentation
-```
-
-Crawl a website but only follow links to the same domain:
-
-```bash
-html2md crawl https://docs.example.com/ --follow domain-only
-```
-
-Crawl a website including its subdomains:
-
-```bash
-html2md crawl https://docs.example.com/ --follow subdomain
-```
-
-Crawl with a custom regex pattern to follow only specific links:
-
-```bash
-html2md crawl https://docs.example.com/ --follow "^https://docs\.example\.com/api/.*"
-```
-
-Set crawling limits for depth and number of pages:
-
-```bash
-html2md crawl https://docs.example.com/ --max-depth 5 --max-pages 500
-```
-
-Crawl with various options combined:
-
-```bash
-html2md crawl https://docs.example.com/ --follow subdomain --max-depth 4 --max-pages 200 --output-dir docs --flatten
-```
-
-This will:
-1. Recursively crawl the website starting from the URL
-2. Follow links according to the specified pattern
-3. Convert each page to markdown up to the specified depth and page limit
-4. Save files in a structured directory layout
-5. Rewrite all links between pages to maintain working references
-6. Provide beautiful visuals and detailed status updates throughout
-
-## Chrome Extension
-
-HTML2MD comes with a Chrome extension for instant conversion of web pages to Markdown:
-
-- Convert any web page with one click
-- Multiple conversion modes (full page, selection, main article)
-- Copy to clipboard, download or preview in the extension
-- Dark mode support and customizable settings
-- Context menu integration and keyboard shortcuts
-
-Check out the [extension directory](./extension) for installation instructions.
-
-## Known Limitations
-
-### Concurrent Configuration Access
-
-Concurrent modifications to the configuration file from multiple `html2md` processes are not supported and may result in the "last-write-wins" scenario, where one change may be silently overwritten.
-
-**What this means:**
-- If you run two `html2md config set` commands simultaneously from different terminals, one change may be lost
-- Single-process operations (normal usage) are fully protected with thread-safety locks
-- Atomic write operations prevent file corruption even in concurrent scenarios
-
-**Recommendation:**
-- Avoid running multiple `html2md config` commands at the exact same time
-- For automated scripts, ensure config operations happen sequentially
+Coverage uses the production package as its denominator and enforces the floor
+documented in [`docs/coverage.md`](./docs/coverage.md).
+
+## Project documentation
+
+- [`CHANGELOG.md`](./CHANGELOG.md): user-visible changes and changelog policy
+- [`docs/releasing.md`](./docs/releasing.md): reproducible release checklist
+- [`docs/deployment.md`](./docs/deployment.md): local deployment details
+- [`docs/configuration-example.md`](./docs/configuration-example.md): configuration example
+- [`docs/internal/`](./docs/internal/README.md): historical planning and review records
 
 ## License
 
-Copyright (c) 2025-2026 Justin Kindrix. Distributed under the [MIT License](./LICENSE).
+Copyright (c) 2025-2026 Justin Kindrix. Distributed under the
+[MIT License](./LICENSE).
