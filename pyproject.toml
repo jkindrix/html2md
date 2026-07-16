@@ -60,6 +60,10 @@ show_missing = true
 skip_covered = true
 omit = ["*/html2md/tests/*"]
 
+[[tool.mypy.overrides]]
+module = ["brotli", "google_auth_oauthlib.*", "markdownify"]
+ignore_missing_imports = true
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

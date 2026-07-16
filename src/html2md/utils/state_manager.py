@@ -183,8 +183,8 @@ class StateManager:
         if self._previous_signal_handlers:
             return False
 
-        previous = {
-            signum: signal.getsignal(signum)
+        previous: Dict[int, Any] = {
+            int(signum): signal.getsignal(signum)
             for signum in (signal.SIGINT, signal.SIGTERM)
         }
         try:

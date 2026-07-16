@@ -56,7 +56,7 @@ class HeaderManager:
 
     def __init__(self, config: Optional[HeaderConfig] = None):
         self.config = config or HeaderConfig()
-        self._cached_base_headers = None
+        self._cached_base_headers: Optional[Dict[str, str]] = None
         self._last_modified_cache: Dict[str, str] = {}
 
     def get_headers(

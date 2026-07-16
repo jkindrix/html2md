@@ -104,9 +104,9 @@ class RobotsChecker:
 
         # Group consecutive User-agent fields and apply the product-token group
         # in preference to the wildcard group.
-        groups = []
-        agents = []
-        directives = []
+        groups: list[tuple[list[str], list[tuple[str, str]]]] = []
+        agents: list[str] = []
+        directives: list[tuple[str, str]] = []
         seen_directive = False
 
         def finish_group():
@@ -171,13 +171,13 @@ class RobotsChecker:
                 and 400 <= fetch_result.status_code < 500
             ):
                 # RFC 9309: an unavailable robots.txt permits access.
-                parser.allow_all = True
+                setattr(parser, "allow_all", True)
             elif content is not None:
                 parser.parse(content.split("\n"))
             else:
                 # RFC 9309: unreachable or 5xx robots.txt is temporarily unavailable;
                 # crawlers must assume complete disallow.
-                parser.disallow_all = True
+                setattr(parser, "disallow_all", True)
 
             crawl_delay = self._parse_crawl_delay(content) if content else None
             self._cache[robots_url] = (parser, crawl_delay, time.time())

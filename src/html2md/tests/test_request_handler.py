@@ -10,7 +10,7 @@ from html2md.network.request_handler import FetchResult, fetch_html
 
 
 class ContractHandler(BaseHTTPRequestHandler):
-    counts = {}
+    counts: dict[str, int] = {}
 
     def do_GET(self):
         self.counts[self.path] = self.counts.get(self.path, 0) + 1

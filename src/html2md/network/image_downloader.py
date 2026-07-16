@@ -14,7 +14,7 @@ from typing import Dict, List, Optional
 from urllib.parse import unquote, urljoin, urlparse
 
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from requests import Response, Session
 from rich.progress import Progress, TaskID
 
@@ -77,11 +77,13 @@ class ImageDownloader:
         image_urls = []
 
         for img in soup.find_all("img"):
-            src = img.get("src", "").strip()
+            if not isinstance(img, Tag):
+                continue
+            src = self._attribute_text(img, "src").strip()
             if src:
                 image_urls.append(urljoin(base_url, src))
 
-            srcset = img.get("srcset", "")
+            srcset = self._attribute_text(img, "srcset")
             for part in srcset.split(",") if srcset else ():
                 url_part = part.strip().split()[0] if part.strip() else ""
                 if url_part:
@@ -91,10 +93,22 @@ class ImageDownloader:
             r"background-image:\s*url\([\"']?([^\"'()]+)[\"']?\)", re.IGNORECASE
         )
         for element in soup.find_all(style=True):
-            for match in style_pattern.finditer(element.get("style", "")):
+            if not isinstance(element, Tag):
+                continue
+            for match in style_pattern.finditer(self._attribute_text(element, "style")):
                 image_urls.append(urljoin(base_url, match.group(1)))
 
         return list(dict.fromkeys(image_urls))
+
+    @staticmethod
+    def _attribute_text(tag: Tag, name: str) -> str:
+        """Normalize a Beautiful Soup attribute to text."""
+        value = tag.attrs.get(name)
+        if value is None:
+            return ""
+        if isinstance(value, (list, tuple)):
+            return " ".join(str(part) for part in value)
+        return str(value)
 
     @staticmethod
     def _content_type(value: str) -> str:

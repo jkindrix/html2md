@@ -63,7 +63,7 @@ class SlidingWindowCounter:
 
     def __init__(self, window_size_seconds: int = 60):
         self.window_size = window_size_seconds
-        self.requests = deque()
+        self.requests: deque[float] = deque()
         self.lock = threading.Lock()
 
     def add_request(self, timestamp: Optional[float] = None) -> None:
@@ -98,7 +98,7 @@ class CircuitBreaker:
         self.config = config
         self.state = CircuitState.CLOSED
         self.failure_count = 0
-        self.last_failure_time = 0
+        self.last_failure_time = 0.0
         self.test_request_count = 0
         self.lock = threading.Lock()
 
@@ -166,8 +166,10 @@ class DomainRateLimiter:
         self.counter = SlidingWindowCounter()
         self.circuit_breaker = CircuitBreaker(config)
         self.stats = RateLimitStats()
-        self.last_request_time = 0
-        self.response_times = deque(maxlen=100)  # Keep last 100 response times
+        self.last_request_time = 0.0
+        self.response_times: deque[float] = deque(
+            maxlen=100
+        )  # Keep last 100 response times
         self.lock = threading.Lock()
 
     def can_make_request(self) -> Tuple[bool, float]:

@@ -36,15 +36,15 @@ class CrawlProgress:
         self.show_progress = show_progress
         self.polite_mode = polite_mode
         self.start_time = time.time()
-        self._last_update = 0
+        self._last_update = 0.0
         self._update_interval = 0.5  # Update display every 500ms
 
         # Progress tracking
         self.total_urls = 0
         self.completed_urls = 0
         self.failed_urls = 0
-        self.domains_active = set()
-        self.domains_backoff = {}
+        self.domains_active: set[str] = set()
+        self.domains_backoff: Dict[str, float] = {}
 
         # Initialize progress display
         if self.show_progress:
