@@ -4,7 +4,6 @@ Unit tests for configuration backup manager.
 
 import json
 import time
-from pathlib import Path
 
 import pytest
 

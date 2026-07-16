@@ -27,14 +27,12 @@ def trim_markdown(markdown_content, url):
     footer_index = -1  # Default value
 
     # Handle path-specific rules if available
-    path_matched = False
     if "path_rules" in domain_rules:
         for rule_path, rule in domain_rules["path_rules"].items():
             if path.startswith(rule_path):
                 logging.info(
                     f"Applying path-based trimming rule for {domain}{rule_path}: {rule}"
                 )
-                path_matched = True
                 if "h1_occurrence" in rule:
                     h1_index = find_nth_occurrence(
                         markdown_content, "# ", rule["h1_occurrence"]

@@ -12,10 +12,10 @@ This module provides:
 import logging
 import time
 import threading
-from collections import defaultdict, deque
-from dataclasses import dataclass, field
+from collections import deque
+from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Optional, Tuple, List
+from typing import Dict, Optional, Tuple
 from urllib.parse import urlparse
 
 logger = logging.getLogger("html2md")

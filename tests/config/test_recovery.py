@@ -3,7 +3,6 @@ Unit tests for configuration recovery handler.
 """
 
 import json
-from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -242,7 +241,7 @@ class TestConfigRecoveryHandler:
         handler.is_interactive = False
 
         error = json.JSONDecodeError("test error", "doc", 0)
-        result = handler.handle_corrupt_config(error)
+        handler.handle_corrupt_config(error)
 
         # Check corrupt file was saved
         corrupt_path = config_file.with_suffix('.json.corrupt')

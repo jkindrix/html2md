@@ -4,8 +4,6 @@ Unit tests for atomic configuration writer.
 
 import json
 import os
-import tempfile
-from pathlib import Path
 
 import pytest
 
