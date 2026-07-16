@@ -46,7 +46,7 @@ from html2md.cookies.session_manager import get_session, apply_browser_cookies
 from html2md.markdown.batch_processor import process_markdown_links
 from html2md.markdown.converter import html_to_markdown, local_html_to_markdown
 from html2md.markdown.crawler import crawl_website
-from html2md.network.header_manager import HeaderConfig
+from html2md.cli.runtime import build_header_config
 from html2md.utils.logger import setup_logging
 from html2md.utils.parser import is_url
 from html2md.utils.state_manager import StateManager
@@ -112,11 +112,15 @@ app = typer.Typer(
 
 
 def get_cli_default(command: str, option: str, default_value=None):
-    """Get CLI default value from config or use provided default."""
-    config = load_config()
-    cli_defaults = config.get("cli_defaults", {})
-    command_defaults = cli_defaults.get(command, {})
-    return command_defaults.get(option, default_value)
+    """Return a Click-compatible factory that reads config at invocation time."""
+
+    def resolve_default():
+        config = load_config()
+        cli_defaults = config.get("cli_defaults", {})
+        command_defaults = cli_defaults.get(command, {})
+        return command_defaults.get(option, default_value)
+
+    return resolve_default
 
 # Create config subcommand app
 config_app = typer.Typer(
@@ -268,23 +272,11 @@ def process_single_with_progress(
         # Process as URL
         # Build header configuration from CLI options and config
         config = load_config()
-        header_settings = config.get("headers", {})
-        
-        header_config = HeaderConfig(
-            use_enhanced_user_agent=enhanced_headers,
-            contact_email=user_agent_contact if "@" in (user_agent_contact or "") else None,
-            contact_url=user_agent_contact if user_agent_contact and "@" not in user_agent_contact else None,
-            user_agent_name=header_settings.get("user_agent_name", "html2md"),
-            user_agent_version=header_settings.get("user_agent_version", "1.0"),
-            enable_compression=header_settings.get("enable_compression", True),
-            compression_methods=header_settings.get("compression_methods", "gzip, deflate, br"),
-            enable_conditional_requests=header_settings.get("enable_conditional_requests", True),
+        header_config = build_header_config(
+            config,
+            enhanced_headers=enhanced_headers,
+            user_agent_contact=user_agent_contact,
             simulate_browser=simulate_browser,
-            browser_type=header_settings.get("browser_type", "chrome"),
-            respect_caching=header_settings.get("respect_caching", True),
-            include_accept_language=header_settings.get("include_accept_language", True),
-            preferred_language=header_settings.get("preferred_language", "en-US,en;q=0.9"),
-            custom_headers=header_settings.get("custom_headers", {})
         )
         
         from html2md.network.header_manager import HeaderManager
@@ -480,23 +472,11 @@ def process_single_quiet(
         # Process as URL
         # Build header configuration from CLI options and config
         config = load_config()
-        header_settings = config.get("headers", {})
-        
-        header_config = HeaderConfig(
-            use_enhanced_user_agent=enhanced_headers,
-            contact_email=user_agent_contact if "@" in (user_agent_contact or "") else None,
-            contact_url=user_agent_contact if user_agent_contact and "@" not in user_agent_contact else None,
-            user_agent_name=header_settings.get("user_agent_name", "html2md"),
-            user_agent_version=header_settings.get("user_agent_version", "1.0"),
-            enable_compression=header_settings.get("enable_compression", True),
-            compression_methods=header_settings.get("compression_methods", "gzip, deflate, br"),
-            enable_conditional_requests=header_settings.get("enable_conditional_requests", True),
+        header_config = build_header_config(
+            config,
+            enhanced_headers=enhanced_headers,
+            user_agent_contact=user_agent_contact,
             simulate_browser=simulate_browser,
-            browser_type=header_settings.get("browser_type", "chrome"),
-            respect_caching=header_settings.get("respect_caching", True),
-            include_accept_language=header_settings.get("include_accept_language", True),
-            preferred_language=header_settings.get("preferred_language", "en-US,en;q=0.9"),
-            custom_headers=header_settings.get("custom_headers", {})
         )
         
         from html2md.network.header_manager import HeaderManager
@@ -619,10 +599,10 @@ def convert_command(
         None, "--output", "-o", help="Output file to save converted markdown."
     ),
     no_cookies: bool = typer.Option(
-        get_cli_default("convert", "no_cookies", False), "--no-cookies", help="Disable loading cookies from the browser."
+        get_cli_default("convert", "no_cookies", False), "--no-cookies/--cookies", help="Disable loading cookies from the browser."
     ),
     browser_cookies: bool = typer.Option(
-        get_cli_default("convert", "browser_cookies", False), "--browser-cookies", help="Use cookies from the local browser to authenticate with websites."
+        get_cli_default("convert", "browser_cookies", False), "--browser-cookies/--no-browser-cookies", help="Use cookies from the local browser to authenticate with websites."
     ),
     browser: Optional[Browser] = typer.Option(
         get_cli_default("convert", "browser", None), "--browser", help="Specify which browser to extract cookies from (default: chrome)."
@@ -635,7 +615,7 @@ def convert_command(
     ),
     local: bool = typer.Option(
         get_cli_default("convert", "local", False),
-        "--local",
+        "--local/--auto-detect",
         help="Force treating sources as local files even if they look like URLs.",
     ),
     enhanced_headers: bool = typer.Option(
@@ -650,19 +630,19 @@ def convert_command(
     ),
     simulate_browser: bool = typer.Option(
         get_cli_default("convert", "simulate_browser", False),
-        "--simulate-browser",
+        "--simulate-browser/--identify-crawler",
         help="Use browser-like headers instead of identifying as html2md crawler.",
     ),
     insecure: bool = typer.Option(
         get_cli_default("convert", "insecure", False),
-        "--insecure",
+        "--insecure/--secure",
         "--no-verify-ssl",
         help="Disable SSL certificate verification. Only use with hosts you trust "
         "(e.g. internal servers with self-signed certificates).",
     ),
     download_images: bool = typer.Option(
         get_cli_default("convert", "download_images", False),
-        "--download-images",
+        "--download-images/--no-download-images",
         help="Download images from the webpage and store them locally.",
     ),
     images_dir: str = typer.Option(
@@ -677,7 +657,7 @@ def convert_command(
         None, "--debug-log", help="Write debug logs to specified file."
     ),
     fancy: bool = typer.Option(
-        get_cli_default("convert", "fancy", False), "--fancy", help="Enable fancy output with progress bars and decorations."
+        get_cli_default("convert", "fancy", False), "--fancy/--plain", help="Enable fancy output with progress bars and decorations."
     ),
 ):
     """Convert HTML content from URLs or local files to Markdown."""
@@ -797,22 +777,22 @@ def batch_command(
     ),
     flatten_output: bool = typer.Option(
         get_cli_default("batch", "flatten", False),
-        "--flatten",
+        "--flatten/--preserve-paths",
         help="Output files directly to domain directories (e.g., 'docs.github.com/')",
     ),
     flatten_all: bool = typer.Option(
         get_cli_default("batch", "flatten_all", False),
-        "--flatten-all",
+        "--flatten-all/--no-flatten-all",
         help="Output all files to a single directory, ignoring domain structure",
     ),
     hierarchical: bool = typer.Option(
         get_cli_default("batch", "hierarchical", False),
-        "--hierarchical",
+        "--hierarchical/--flat-domains",
         help="Create hierarchical domain folders (e.g., com/jetbrains/www)",
     ),
     visualize: bool = typer.Option(
         get_cli_default("batch", "visualize", False),
-        "--visualize",
+        "--visualize/--no-visualize",
         help="Display a visual representation of the output directory structure.",
     ),
     report: Optional[Path] = typer.Option(
@@ -822,14 +802,14 @@ def batch_command(
     ),
     insecure: bool = typer.Option(
         get_cli_default("batch", "insecure", False),
-        "--insecure",
+        "--insecure/--secure",
         "--no-verify-ssl",
         help="Disable SSL certificate verification. Only use with hosts you trust "
         "(e.g. internal servers with self-signed certificates).",
     ),
     quiet: bool = typer.Option(
         get_cli_default("batch", "quiet", False),
-        "--quiet",
+        "--quiet/--progress-output",
         help="Reduce output verbosity, showing only essential information.",
     ),
     log_level: LogLevel = typer.Option(
@@ -1166,19 +1146,19 @@ def crawl_command(
     ),
     simulate_browser: bool = typer.Option(
         get_cli_default("crawl", "simulate_browser", False),
-        "--simulate-browser",
+        "--simulate-browser/--identify-crawler",
         help="Use browser-like headers instead of identifying as html2md crawler.",
     ),
     insecure: bool = typer.Option(
         get_cli_default("crawl", "insecure", False),
-        "--insecure",
+        "--insecure/--secure",
         "--no-verify-ssl",
         help="Disable SSL certificate verification. Only use with hosts you trust "
         "(e.g. internal servers with self-signed certificates).",
     ),
     polite: bool = typer.Option(
         get_cli_default("crawl", "polite", False),
-        "--polite",
+        "--polite/--standard-policy",
         help="Enable conservative sequential crawling with slower adaptive delays.",
     ),
     show_progress: bool = typer.Option(
@@ -1193,22 +1173,22 @@ def crawl_command(
     ),
     flatten_output: bool = typer.Option(
         get_cli_default("crawl", "flatten", False),
-        "--flatten",
+        "--flatten/--preserve-paths",
         help="Output files directly to domain directories (e.g., 'docs.github.com/')",
     ),
     hierarchical: bool = typer.Option(
         get_cli_default("crawl", "hierarchical", False),
-        "--hierarchical",
+        "--hierarchical/--flat-domains",
         help="Create hierarchical domain folders (e.g., com/jetbrains/www)",
     ),
     visualize: bool = typer.Option(
         get_cli_default("crawl", "visualize", False),
-        "--visualize",
+        "--visualize/--no-visualize",
         help="Display a visual representation of the output directory structure.",
     ),
     quiet: bool = typer.Option(
         get_cli_default("crawl", "quiet", False),
-        "--quiet",
+        "--quiet/--progress-output",
         help="Reduce output verbosity, showing only essential information.",
     ),
     log_level: LogLevel = typer.Option(
@@ -1323,23 +1303,11 @@ def crawl_command(
             try:
                 # Build header configuration from CLI options and config
                 config = load_config()
-                header_settings = config.get("headers", {})
-                
-                header_config = HeaderConfig(
-                    use_enhanced_user_agent=enhanced_headers,
-                    contact_email=user_agent_contact if "@" in (user_agent_contact or "") else None,
-                    contact_url=user_agent_contact if user_agent_contact and "@" not in user_agent_contact else None,
-                    user_agent_name=header_settings.get("user_agent_name", "html2md"),
-                    user_agent_version=header_settings.get("user_agent_version", "1.0"),
-                    enable_compression=header_settings.get("enable_compression", True),
-                    compression_methods=header_settings.get("compression_methods", "gzip, deflate, br"),
-                    enable_conditional_requests=header_settings.get("enable_conditional_requests", True),
+                header_config = build_header_config(
+                    config,
+                    enhanced_headers=enhanced_headers,
+                    user_agent_contact=user_agent_contact,
                     simulate_browser=simulate_browser,
-                    browser_type=header_settings.get("browser_type", "chrome"),
-                    respect_caching=header_settings.get("respect_caching", True),
-                    include_accept_language=header_settings.get("include_accept_language", True),
-                    preferred_language=header_settings.get("preferred_language", "en-US,en;q=0.9"),
-                    custom_headers=header_settings.get("custom_headers", {})
                 )
                 
                 # Build concurrent configuration from CLI options and config
