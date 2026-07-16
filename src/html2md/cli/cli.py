@@ -255,6 +255,7 @@ def process_single_with_progress(
     enhanced_headers: bool = True,
     user_agent_contact: Optional[str] = None,
     simulate_browser: bool = False,
+    insecure: bool = False,
     progress: Progress = None,
     task_id: TaskID = None,
 ) -> bool:
@@ -298,15 +299,15 @@ def process_single_with_progress(
             
             # Determine session type based on flags
             if not no_cookies:
-                session = get_session()
-                
+                session = get_session(verify_ssl=not insecure)
+
                 # If browser cookies flag is set, apply browser cookies to session
                 if browser_cookies and session:
                     # Store browser preference in config or use specified one
                     config = load_config()
                     if browser:
                         config.setdefault('browser', {})['preferred'] = browser
-                    
+
                     progress.update(task_id, description=f"Extracting browser cookies for {source}")
                     
                     # Apply browser cookies to session - use JSON file if provided
@@ -334,7 +335,8 @@ def process_single_with_progress(
             markdown_result = html_to_markdown(
                 source, session=session, headers=headers, trim=trim,
                 oauth_email=None, oauth_password=None,
-                download_images=download_images, output_dir=output_dir, images_dir=images_dir
+                download_images=download_images, output_dir=output_dir, images_dir=images_dir,
+                verify_ssl=not insecure
             )
 
             progress.update(task_id, description=f"Converting {source} to markdown")
@@ -416,7 +418,8 @@ def process_single_with_progress(
             markdown_result = local_html_to_markdown(file_path, trim=trim,
                                                     download_images=download_images,
                                                     output_dir=output_dir,
-                                                    images_dir=images_dir)
+                                                    images_dir=images_dir,
+                                                    verify_ssl=not insecure)
 
             progress.update(task_id, description=f"Converting {file_path} to markdown")
 
@@ -469,6 +472,7 @@ def process_single_quiet(
     enhanced_headers: bool = True,
     user_agent_contact: Optional[str] = None,
     simulate_browser: bool = False,
+    insecure: bool = False,
 ) -> bool:
     """Process a single URL or file in quiet mode (just output content)."""
     if is_url(source, local):
@@ -505,15 +509,15 @@ def process_single_quiet(
             
             # Determine session type based on flags
             if not no_cookies:
-                session = get_session()
-                
+                session = get_session(verify_ssl=not insecure)
+
                 # If browser cookies flag is set, apply browser cookies to session
                 if browser_cookies and session:
                     # Store browser preference in config or use specified one
                     config = load_config()
                     if browser:
                         config.setdefault('browser', {})['preferred'] = browser
-                    
+
                     # Apply browser cookies to session - use JSON file if provided
                     if cookie_json:
                         session = apply_browser_cookies(session, source, cookie_json)
@@ -535,7 +539,8 @@ def process_single_quiet(
             markdown_result = html_to_markdown(
                 source, session=session, headers=headers, trim=trim,
                 oauth_email=None, oauth_password=None,
-                download_images=download_images, output_dir=output_dir, images_dir=images_dir
+                download_images=download_images, output_dir=output_dir, images_dir=images_dir,
+                verify_ssl=not insecure
             )
 
             if markdown_result:
@@ -550,13 +555,11 @@ def process_single_quiet(
                     logger.info(f"Successfully processed URL: {source}")
                 return True
             else:
-                if not output:
-                    print(f"Error: Unable to retrieve content from {source}", file=sys.stderr)
+                print(f"Error: Unable to retrieve content from {source}", file=sys.stderr)
                 return False
         except Exception as e:
             logger.error(f"Failed to process URL {source}: {e}")
-            if not output:
-                print(f"Error processing {source}: {str(e)}", file=sys.stderr)
+            print(f"Error processing {source}: {str(e)}", file=sys.stderr)
             return False
     else:
         # Process as local file
@@ -577,7 +580,8 @@ def process_single_quiet(
             markdown_result = local_html_to_markdown(file_path, trim=trim,
                                                     download_images=download_images,
                                                     output_dir=output_dir,
-                                                    images_dir=images_dir)
+                                                    images_dir=images_dir,
+                                                    verify_ssl=not insecure)
 
             if markdown_result:
                 if output:
@@ -590,10 +594,12 @@ def process_single_quiet(
                     print(markdown_result)
                     logger.info(f"Successfully processed local file: {file_path}")
                 return True
+            else:
+                print(f"Error: Unable to convert local file {file_path}", file=sys.stderr)
+                return False
         except Exception as e:
             logger.error(f"Failed to process local file {source}: {e}")
-            if not output:
-                print(f"Error processing {source}: {str(e)}", file=sys.stderr)
+            print(f"Error processing {source}: {str(e)}", file=sys.stderr)
             return False
 
     return False
@@ -646,6 +652,13 @@ def convert_command(
         get_cli_default("convert", "simulate_browser", False),
         "--simulate-browser",
         help="Use browser-like headers instead of identifying as html2md crawler.",
+    ),
+    insecure: bool = typer.Option(
+        get_cli_default("convert", "insecure", False),
+        "--insecure",
+        "--no-verify-ssl",
+        help="Disable SSL certificate verification. Only use with hosts you trust "
+        "(e.g. internal servers with self-signed certificates).",
     ),
     download_images: bool = typer.Option(
         get_cli_default("convert", "download_images", False),
@@ -724,7 +737,8 @@ def convert_command(
                     enhanced_headers=enhanced_headers,
                     user_agent_contact=user_agent_contact,
                     simulate_browser=simulate_browser,
-                    progress=progress, 
+                    insecure=insecure,
+                    progress=progress,
                     task_id=task_id
                 ):
                     successes += 1
@@ -735,10 +749,14 @@ def convert_command(
             console.print(
                 f"\n✨ [bold green]Completed {successes}/{len(sources)} conversions[/bold green]"
             )
+
+        if successes < len(sources):
+            raise typer.Exit(1)
     else:
         # Quiet mode - just output the content
+        successes = 0
         for source in sources:
-            success = process_single_quiet(
+            if process_single_quiet(
                 source=source,
                 trim=trim,
                 output=output,
@@ -753,7 +771,12 @@ def convert_command(
                 enhanced_headers=enhanced_headers,
                 user_agent_contact=user_agent_contact,
                 simulate_browser=simulate_browser,
-            )
+                insecure=insecure,
+            ):
+                successes += 1
+
+        if successes < len(sources):
+            raise typer.Exit(1)
 
 
 @app.command(name="batch")
@@ -796,6 +819,13 @@ def batch_command(
         None,
         "--report",
         help="Generate a detailed Markdown report of the process.",
+    ),
+    insecure: bool = typer.Option(
+        get_cli_default("batch", "insecure", False),
+        "--insecure",
+        "--no-verify-ssl",
+        help="Disable SSL certificate verification. Only use with hosts you trust "
+        "(e.g. internal servers with self-signed certificates).",
     ),
     quiet: bool = typer.Option(
         get_cli_default("batch", "quiet", False),
@@ -918,6 +948,7 @@ def batch_command(
                 flatten_output=flatten_output,
                 flatten_all=flatten_all,
                 hierarchical_domains=hierarchical,
+                verify_ssl=not insecure,
             )
 
             # Set completed state
@@ -1138,6 +1169,13 @@ def crawl_command(
         "--simulate-browser",
         help="Use browser-like headers instead of identifying as html2md crawler.",
     ),
+    insecure: bool = typer.Option(
+        get_cli_default("crawl", "insecure", False),
+        "--insecure",
+        "--no-verify-ssl",
+        help="Disable SSL certificate verification. Only use with hosts you trust "
+        "(e.g. internal servers with self-signed certificates).",
+    ),
     polite: bool = typer.Option(
         get_cli_default("crawl", "polite", False),
         "--polite",
@@ -1357,6 +1395,7 @@ def crawl_command(
                     progress_callback=progress_callback,
                     flatten_output=flatten_output,
                     hierarchical_domains=hierarchical,
+                    verify_ssl=not insecure,
                 )
 
                 # Update totals

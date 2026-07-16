@@ -600,9 +600,51 @@ def get_domain_cookies(url):
 # HTTP Session Management
 # -------------------------------
 
+# Tracks whether the insecure-mode warning has been shown, so multi-URL runs
+# (batch, crawl) warn once instead of once per request/session.
+_insecure_warning_emitted = False
 
-def get_session():
-    """Return a new configured requests session."""
+
+def disable_ssl_verification(session):
+    """
+    Disable SSL certificate verification on a session (opt-in via --insecure).
+
+    Emits a single prominent warning per process and suppresses urllib3's
+    per-request InsecureRequestWarning, since the user has explicitly
+    acknowledged the risk by passing the flag.
+
+    Args:
+        session (requests.Session): Session to modify in place.
+
+    Returns:
+        requests.Session: The same session, with verification disabled.
+    """
+    global _insecure_warning_emitted
+    session.verify = False
+
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    if not _insecure_warning_emitted:
+        logger.warning(
+            "SSL certificate verification is DISABLED (--insecure). "
+            "Connections can be intercepted; only use this with hosts you trust "
+            "(e.g. internal servers with self-signed certificates)."
+        )
+        _insecure_warning_emitted = True
+
+    return session
+
+
+def get_session(verify_ssl=True):
+    """
+    Return a new configured requests session.
+
+    Args:
+        verify_ssl (bool, optional): Whether to verify SSL certificates.
+            Defaults to True. Set to False only for trusted hosts with
+            invalid/self-signed certificates (CLI: --insecure).
+    """
     session = requests.Session()
     session.headers.update(
         {
@@ -614,12 +656,17 @@ def get_session():
             # This allows proper decompression of gzip, deflate, and br (brotli) content
         }
     )
+    if not verify_ssl:
+        disable_ssl_verification(session)
     logger.info("New session initialized with default headers.")
     return session
 
 
 def reset_session(session):
     """Reset the session by closing and creating a new session."""
+    # Preserve the verification setting (bool or CA bundle path) across the reset
+    verify = getattr(session, "verify", True)
+
     try:
         session.close()
         logger.info("Session closed successfully.")
@@ -627,7 +674,8 @@ def reset_session(session):
         logger.warning(f"Error while closing session: {e}")
 
     # Return a new session
-    new_session = get_session()
+    new_session = get_session(verify_ssl=verify is not False)
+    new_session.verify = verify
     logger.info("New session initialized after reset.")
     return new_session
 

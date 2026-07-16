@@ -6,7 +6,7 @@ from typing import Optional
 import requests
 from markdownify import markdownify as md
 
-from html2md.cookies.session_manager import get_session
+from html2md.cookies.session_manager import get_session, disable_ssl_verification
 from html2md.markdown.trimmer import trim_markdown, trim_markdown_local
 from html2md.utils.formatter import format_markdown
 from html2md.network.chatgpt_handler import is_chatgpt_url, get_conversation_html
@@ -20,8 +20,8 @@ logger = logging.getLogger("html2md")
 # This ensures consistent header handling across the application
 
 
-def html_to_markdown(url, session=None, headers=None, trim=False, oauth_email=None, oauth_password=None, 
-                    download_images=False, output_dir=None, images_dir="images"):
+def html_to_markdown(url, session=None, headers=None, trim=False, oauth_email=None, oauth_password=None,
+                    download_images=False, output_dir=None, images_dir="images", verify_ssl=True):
     """
     Fetch HTML and convert to Markdown.
 
@@ -35,12 +35,16 @@ def html_to_markdown(url, session=None, headers=None, trim=False, oauth_email=No
         download_images (bool, optional): Whether to download images from the page.
         output_dir (Path, optional): Output directory for saving images.
         images_dir (str, optional): Subdirectory name for images (default: "images").
+        verify_ssl (bool, optional): Whether to verify SSL certificates. Defaults to True.
+            Applies to the provided session as well as newly created ones.
 
     Returns:
         str or None: Markdown content if successful, None otherwise.
     """
     # Use provided session or initialize a new one
     session = session or get_session()
+    if not verify_ssl:
+        disable_ssl_verification(session)
 
     # Apply custom headers if provided (they will override session defaults)
     if headers:
@@ -140,8 +144,15 @@ def html_to_markdown(url, session=None, headers=None, trim=False, oauth_email=No
         except requests.exceptions.TooManyRedirects:
             logger.error(f"Too many redirects while fetching {url}")
             return None
-        except requests.exceptions.ConnectionError:
-            logger.error(f"Connection error while fetching {url}")
+        except requests.exceptions.SSLError as e:
+            logger.error(
+                f"SSL certificate verification failed for {url}: {e}. "
+                "If you trust this host (e.g. an internal server with a "
+                "self-signed certificate), retry with --insecure."
+            )
+            return None
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"Connection error while fetching {url}: {e}")
             return None
         except requests.exceptions.HTTPError as e:
             status_code = e.response.status_code if hasattr(e, "response") else "unknown"
@@ -185,7 +196,8 @@ def html_to_markdown(url, session=None, headers=None, trim=False, oauth_email=No
     return formatted_markdown
 
 
-def local_html_to_markdown(file_path, trim=False, download_images=False, output_dir=None, images_dir="images"):
+def local_html_to_markdown(file_path, trim=False, download_images=False, output_dir=None, images_dir="images",
+                           verify_ssl=True):
     """
     Convert HTML from a local file to Markdown.
 
@@ -195,6 +207,8 @@ def local_html_to_markdown(file_path, trim=False, download_images=False, output_
         download_images (bool, optional): Whether to download images from the page.
         output_dir (Path, optional): Output directory for saving images.
         images_dir (str, optional): Subdirectory name for images (default: "images").
+        verify_ssl (bool, optional): Whether to verify SSL certificates when
+            downloading remote images referenced by the local file. Defaults to True.
 
     Returns:
         str or None: Markdown content if successful, None otherwise.
@@ -234,7 +248,9 @@ def local_html_to_markdown(file_path, trim=False, download_images=False, output_
             logger.info(f"Downloading images from local file {file_path}")
             # For local files, we'll use the file path as a dummy base URL
             base_url = f"file://{os.path.abspath(os.path.dirname(file_path))}"
-            image_downloader = ImageDownloader(images_dir=images_dir)
+            image_downloader = ImageDownloader(
+                session=get_session(verify_ssl=verify_ssl), images_dir=images_dir
+            )
             formatted_markdown = image_downloader.process_markdown_with_images(
                 formatted_markdown, html_content, base_url, Path(output_dir)
             )

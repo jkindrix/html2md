@@ -133,7 +133,8 @@ def rewrite_links(content, url_mapping, base_output_dir):
 
 def process_markdown_links(
     source_files, output_dir, trim=True, progress_callback=None, flatten_output=False,
-    flatten_all=False, hierarchical_domains=False, download_images=False, images_dir="images"
+    flatten_all=False, hierarchical_domains=False, download_images=False, images_dir="images",
+    verify_ssl=True
 ):
     """
     Process markdown files, extract URLs, and convert each URL to markdown.
@@ -151,6 +152,8 @@ def process_markdown_links(
                                               (e.g., com/jetbrains/www). Defaults to False.
         download_images (bool, optional): Whether to download images from pages.
         images_dir (str, optional): Directory name for images (default: "images").
+        verify_ssl (bool, optional): Whether to verify SSL certificates. Defaults to True.
+            Set to False only for trusted hosts with invalid/self-signed certificates.
 
     Returns:
         int: Number of processed URLs
@@ -223,7 +226,7 @@ def process_markdown_links(
             try:
                 # Create session for the URL
                 update_progress(f"Fetching content from {url}", url, "fetching")
-                session = get_session()
+                session = get_session(verify_ssl=verify_ssl)
                 headers = build_headers(url)
 
                 # Convert HTML to markdown

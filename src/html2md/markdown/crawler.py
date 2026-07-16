@@ -71,6 +71,7 @@ def crawl_website(
     hierarchical_domains=False,
     download_images=False,
     images_dir="images",
+    verify_ssl=True,
     # State management parameters
     state_manager=None,
     resume_crawl_id=None,
@@ -102,6 +103,8 @@ def crawl_website(
                                               (e.g., com/jetbrains/www). Defaults to False.
         download_images (bool, optional): Whether to download images from pages.
         images_dir (str, optional): Directory name for images (default: "images").
+        verify_ssl (bool, optional): Whether to verify SSL certificates. Defaults to True.
+            Set to False only for trusted hosts with invalid/self-signed certificates.
         state_manager (StateManager, optional): State manager for persistence. If None, creates new one.
         resume_crawl_id (str, optional): ID of crawl to resume. If None, starts new crawl.
         enable_checkpoints (bool, optional): Whether to enable checkpointing. Defaults to True.
@@ -154,6 +157,7 @@ def crawl_website(
             "hierarchical_domains": hierarchical_domains,
             "download_images": download_images,
             "images_dir": images_dir,
+            "verify_ssl": verify_ssl,
             "polite_mode": polite_mode,
             "max_concurrent": max_concurrent,
             "enable_checkpoints": enable_checkpoints,
@@ -179,8 +183,8 @@ def crawl_website(
     if resume_crawl_id and crawl_state:
         update_progress(f"Resuming crawl {resume_crawl_id}", start_url, "info")
 
-    # Create session for requests
-    session = get_session()
+    # Create session for requests (shared by robots checks, page fetches, and image downloads)
+    session = get_session(verify_ssl=verify_ssl)
     
     # Initialize header manager
     header_manager = HeaderManager(header_config or HeaderConfig())
