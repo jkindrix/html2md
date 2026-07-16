@@ -12,12 +12,13 @@ to Markdown. It includes a Python CLI and an unpacked Chrome extension.
 ## Status and support
 
 - Development version: `0.1.0`
+- Source alpha release: `v0.1.0`
 - Tested Python versions: 3.11, 3.12, and 3.13
 - Planned PyPI distribution: `html2md-cli`
 - Installed command and Python import: `html2md`
 - Required gates: tests and production coverage, Ruff, Black, mypy, wheel smoke,
   extension runtime tests, Bandit, and dependency audit
-- No public release or stable API compatibility promise yet
+- No PyPI, Web Store, or stable API compatibility promise yet
 
 The primary tested paths are local conversion, URL conversion, batch link
 processing, sequential crawling, interruption/resume, configuration recovery,

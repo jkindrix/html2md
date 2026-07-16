@@ -6,6 +6,10 @@ All notable changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-07-16
+
+First alpha release after the stabilization and integrity remediation cycle.
+
 ### Added
 
 - End-to-end CLI coverage for local, URL, batch, crawl, state, interruption,
@@ -31,4 +35,5 @@ All notable changes are documented here. This project follows
   formats, oversized files, and output-root escapes.
 - The extension uses least-privilege permissions and exposes only tested modes.
 
-No public release has been declared from this repository yet.
+[Unreleased]: https://github.com/jkindrix/html2md/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/jkindrix/html2md/releases/tag/v0.1.0
