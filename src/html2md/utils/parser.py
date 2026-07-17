@@ -3,6 +3,10 @@ import os
 import re
 from urllib.parse import urljoin, urlparse
 
+from bs4 import BeautifulSoup, Tag
+
+from html2md.markdown.markdown_links import scan_inline_links
+
 # Setup logger
 logger = logging.getLogger("html2md")
 
@@ -45,21 +49,31 @@ def extract_urls_from_markdown(markdown_content):
     """
     urls = []
 
-    # Pattern 1: Markdown links [text](url)
-    pattern1 = r"\[.*?\]\((https?://[^\s)]+)\)"
-    urls.extend(re.findall(pattern1, markdown_content))
+    # Structurally scan inline Markdown links, including balanced parentheses.
+    urls.extend(
+        link.destination
+        for link in scan_inline_links(markdown_content)
+        if link.destination.startswith(("http://", "https://"))
+    )
 
     # Pattern 2: Plain URLs starting with http:// or https://
     # Exclude URLs that are already part of markdown links
-    content_without_md_links = re.sub(
-        r"\[.*?\]\(https?://[^\s)]+\)", "", markdown_content
-    )
+    content_without_md_links = markdown_content
+    for link in reversed(scan_inline_links(markdown_content)):
+        content_without_md_links = (
+            content_without_md_links[: link.start]
+            + content_without_md_links[link.end :]
+        )
     pattern2 = r"(https?://[^\s)<>\"']+)"
     urls.extend(re.findall(pattern2, content_without_md_links))
 
-    # Pattern 3: URLs in HTML href attributes
-    pattern3 = r'href=[\'"]?(https?://[^\'"<>\s]+)'
-    urls.extend(re.findall(pattern3, markdown_content))
+    # Embedded HTML is parsed as HTML rather than with an attribute regex.
+    soup = BeautifulSoup(markdown_content, "html.parser")
+    for tag in soup.find_all(href=True):
+        if isinstance(tag, Tag):
+            href = tag.get("href")
+            if isinstance(href, str) and href.startswith(("http://", "https://")):
+                urls.append(href)
 
     # Pattern 4: One URL per line (common in URL list files)
     pattern4 = r"^(https?://[^\s)<>\"']+)$"
@@ -88,19 +102,24 @@ def extract_links_from_html(html_content, base_url):
     Returns:
         list: List of absolute URLs found in the HTML
     """
-    # Use a simple regex to find all href attributes
-    href_pattern = re.compile(r'href=[\'"]([^\'"]+)[\'"]')
-    relative_links = href_pattern.findall(html_content)
+    soup = BeautifulSoup(html_content, "html.parser")
+    document_base = base_url
+    base = soup.find("base", href=True)
+    if isinstance(base, Tag) and isinstance(base.get("href"), str):
+        document_base = urljoin(base_url, str(base.get("href")))
 
     # Convert relative links to absolute URLs and filter out non-HTTP(S) links
     absolute_urls = []
-    for link in relative_links:
+    for tag in soup.find_all(["a", "area"], href=True):
+        if not isinstance(tag, Tag) or not isinstance(tag.get("href"), str):
+            continue
+        link = str(tag.get("href")).strip()
         # Skip javascript:, mailto:, tel: links, anchors, etc.
         if link.startswith(("javascript:", "mailto:", "tel:", "#")):
             continue
 
         # Resolve relative links to absolute URLs
-        absolute_url = urljoin(base_url, link)
+        absolute_url = urljoin(document_base, link)
 
         # Ensure it's an HTTP(S) URL
         if absolute_url.startswith(("http://", "https://")):

@@ -6,15 +6,18 @@ from urllib.parse import urlparse
 
 from html2md.cookies.session_manager import get_session
 from html2md.markdown.content_extractor import ContentMode, validate_content_request
+from html2md.markdown.archive import (
+    ArtifactManifest,
+    ArtifactRecord,
+    ArtifactStore,
+    OutputPlanner,
+    canonical_url_identity,
+)
 from html2md.markdown.link_rewriter import rewrite_archived_files
 from html2md.markdown.pipeline import PagePipeline, acquire_http_page
 from html2md.network.header_manager import HeaderManager
-from html2md.utils.parser import generate_safe_filename, get_urls_from_file
-from html2md.utils.path_safety import (
-    contained_output_file,
-    contained_path,
-    safe_path_segment,
-)
+from html2md.utils.parser import get_urls_from_file
+from html2md.utils.path_safety import contained_path, safe_path_segment
 
 # Setup logger
 logger = logging.getLogger("html2md")
@@ -40,6 +43,7 @@ class BatchResult:
     items: list[BatchItemResult] = field(default_factory=list)
     url_mapping: dict[str, str] = field(default_factory=dict)
     error: str | None = None
+    manifest: ArtifactManifest | None = None
 
     @property
     def processed_count(self) -> int:
@@ -162,6 +166,14 @@ def process_markdown_links(
     # URL to local file mapping for link rewriting
     url_to_file_mapping = {}
     item_results = []
+    manifest = ArtifactManifest()
+    planner = OutputPlanner(
+        output_dir,
+        flatten_domain=flatten_output,
+        flatten_all=flatten_all,
+        hierarchical_domains=hierarchical_domains,
+    )
+    discovered_identities = set()
     header_manager = header_manager or HeaderManager()
     page_pipeline = page_pipeline or PagePipeline()
 
@@ -199,29 +211,18 @@ def process_markdown_links(
         # Process each URL
         for index, url in enumerate(urls):
             # Skip if already processed
-            if url in url_to_file_mapping:
+            identity = canonical_url_identity(url)
+            if identity in discovered_identities:
                 update_progress(
                     f"Skipping already processed URL: {url}", url, "skipped"
                 )
                 continue
+            discovered_identities.add(identity)
 
             # Update progress
             update_progress(
                 f"Processing URL {index+1}/{len(urls)}: {url}", url, "processing"
             )
-
-            # Create directory structure for the URL
-            url_dir = create_directory_structure(
-                output_dir,
-                url,
-                flatten_domain=flatten_output,
-                flatten_all=flatten_all,
-                hierarchical_domains=hierarchical_domains,
-            )
-
-            # Generate a safe filename for the URL
-            safe_filename = generate_safe_filename(url)
-            output_file = str(contained_output_file(output_dir, url_dir, safe_filename))
 
             try:
                 # Create session for the URL
@@ -236,12 +237,27 @@ def process_markdown_links(
                         headers=headers,
                         allow_private_network=allow_private_network,
                     )
+                    existing = manifest.resolve(page.final_url)
+                    if existing is not None:
+                        manifest.register_alias(url, existing)
+                        output_file = str(existing.output_path)
+                        url_to_file_mapping[url] = output_file
+                        item_results.append(
+                            BatchItemResult(url, output_file=output_file)
+                        )
+                        update_progress(
+                            f"Reused archived redirect target: {output_file}",
+                            url,
+                            "skipped",
+                        )
+                        continue
+                    output_path = planner.plan(page.final_url)
                     document = page_pipeline.convert(
                         page,
                         content_mode=content_mode,
                         selector=selector,
                         download_images=download_images,
-                        output_dir=Path(url_dir),
+                        output_dir=output_path.parent,
                         images_dir=images_dir,
                         include_metadata=include_metadata,
                         session=session,
@@ -253,9 +269,25 @@ def process_markdown_links(
 
                 if markdown_content:
                     # Save to file
-                    update_progress(f"Saving markdown to {output_file}", url, "saving")
-                    with open(output_file, "w", encoding="utf-8") as f:
-                        f.write(markdown_content)
+                    canonical_url = document.metadata.canonical_url
+                    existing = (
+                        manifest.resolve(canonical_url) if canonical_url else None
+                    )
+                    if existing is not None:
+                        manifest.register_alias(url, existing)
+                        manifest.register_alias(page.final_url, existing)
+                        output_path = existing.output_path
+                    else:
+                        ArtifactStore.write_text(output_path, markdown_content)
+                        manifest.register(
+                            ArtifactRecord(
+                                requested_url=url,
+                                final_url=page.final_url,
+                                canonical_url=canonical_url,
+                                output_path=output_path,
+                            )
+                        )
+                    output_file = str(output_path)
 
                     # Only durable output files are eligible for local rewriting.
                     url_to_file_mapping[url] = output_file
@@ -274,9 +306,11 @@ def process_markdown_links(
                 update_progress(f"Error processing URL {url}: {str(e)}", url, "error")
 
     # Second pass: Rewrite links in all files to point to local files.
-    rewrite_archived_files(url_to_file_mapping, update_progress)
+    rewrite_archived_files(manifest, update_progress)
 
     processed_count = sum(item.success for item in item_results)
     update_progress(f"Completed processing {processed_count} URLs")
     error = None if item_results else "No URLs were found in the batch inputs"
-    return BatchResult(item_results, url_to_file_mapping, error=error)
+    return BatchResult(
+        item_results, url_to_file_mapping, error=error, manifest=manifest
+    )
