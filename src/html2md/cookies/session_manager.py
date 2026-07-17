@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
+from html2md.network.safe_http import guarded_request
 
 # Optional dependencies for browser cookie extraction
 try:
@@ -909,8 +910,11 @@ def test_google_authentication():
 
     session = get_session()
     try:
-        response = session.get(
-            "https://www.googleapis.com/oauth2/v1/userinfo", timeout=5
+        response = guarded_request(
+            session,
+            "GET",
+            "https://www.googleapis.com/oauth2/v1/userinfo",
+            timeout=5,
         )
         if response.status_code == 200:
             logger.info("Test API call successful.")

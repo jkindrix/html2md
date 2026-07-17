@@ -60,6 +60,7 @@ DEFAULT_CONFIG = {
             "metadata": False,
             "visualize": False,
             "quiet": False,
+            "allow_private_network": False,
         },
         "crawl": {
             "hierarchical": False,
@@ -79,6 +80,7 @@ DEFAULT_CONFIG = {
             "metadata": False,
             "visualize": False,
             "quiet": False,
+            "allow_private_network": False,
         },
         "convert": {
             "browser_cookies": False,
@@ -94,6 +96,7 @@ DEFAULT_CONFIG = {
             "render_js": False,
             "fancy": False,
             "local": False,
+            "allow_private_network": False,
         },
     },
 }

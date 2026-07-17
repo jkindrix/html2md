@@ -117,6 +117,8 @@ Useful options include:
 - `--enhanced-headers/--basic-headers`, `--user-agent-contact`, and
   `--simulate-browser` for request identity;
 - `--download-images` with a configurable `--images-dir`;
+- `--allow-private-network` only for explicitly trusted intranet, loopback, or
+  development destinations;
 - `--insecure` only for trusted hosts with invalid certificates; and
 - `--fancy` for decorated progress output.
 
@@ -136,7 +138,9 @@ mapping; failed URLs remain remote links.
 
 Crawls are intentionally sequential. Available controls include:
 
-- `--follow` (`domain-only`, `host-only`, `subdomain`, or a regular expression);
+- `--follow` (`domain-only` for the same host and port, `host-only` for the
+  exact hostname, `subdomain` for that hostname and dot-delimited descendants,
+  or an explicit regular expression);
 - `--max-depth`, `--max-pages`, and jittered `--delay`;
 - `--respect-robots/--ignore-robots`;
 - requests-per-minute `--rate-limit` with adaptive delay and a circuit breaker;
@@ -196,16 +200,26 @@ See [`extension/README.md`](./extension/README.md) for installation and testing.
   `0600` files in `0700` directories on POSIX systems.
 - Diagnostic logs redact credential-bearing headers, cookie values, and
   token-like data.
-- Remote image downloads allow only HTTP(S), resolve and pin each redirect hop
-  to a validated public address, preserve TLS hostname verification, reject
-  private-network targets, verify MIME type and file signature, reject active
-  SVG, and enforce 10 MiB per-image and 50 MiB per-conversion limits. Image
-  requests intentionally bypass configured and environment proxies because a
-  proxy-controlled DNS lookup would defeat address pinning.
+- Remote pages, crawl targets, robots files, conversation endpoints, and images
+  allow only HTTP(S), resolve each origin once, connect only to validated
+  numeric addresses, and manually revalidate redirects. Private, loopback,
+  link-local, and metadata destinations are blocked by default. Guarded traffic
+  bypasses configured and environment proxies because proxy-side DNS would
+  defeat address pinning.
+- Static page/crawl responses are capped at 10 MiB and robots files at 1 MiB.
+  Image acquisition additionally verifies MIME type and file signature, rejects
+  active SVG, and enforces 10 MiB per-image and 50 MiB per-conversion limits.
+- `--allow-private-network` explicitly relaxes destination classification for
+  trusted internal or development targets; DNS pinning, redirect validation,
+  URL validation, response limits, and TLS verification remain active.
 - Local image copying is restricted to regular files beneath the source HTML
   directory; parent traversal and symlink escapes are rejected.
 - `--insecure` disables TLS verification and should be used only for hosts you
-  control. It exposes the connection to interception.
+  control. It exposes the connection to interception but does not authorize
+  private-network access.
+
+See [`docs/network-security.md`](./docs/network-security.md) for the complete
+outbound request contract and maintainer integration rule.
 
 Windows relies on the current account's directory ACLs because POSIX mode bits
 are unavailable there.

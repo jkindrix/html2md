@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import ipaddress
 import os
-import socket
 from dataclasses import dataclass, field
 from typing import Mapping, Optional
 from urllib.parse import urlsplit
+
+from html2md.network.safe_http import DestinationPolicy, UnsafeNetworkTarget
 
 
 class RenderingUnavailable(RuntimeError):
@@ -28,51 +28,33 @@ class RenderedPage:
 
 @dataclass
 class BrowserRequestPolicy:
-    """Permit explicit-origin traffic and public top-level navigations only."""
+    """Permit traffic only to the explicitly pinned source origin."""
 
     source_url: str
+    allow_private_network: bool = False
     allowed_origins: set[tuple[str, str, Optional[int]]] = field(default_factory=set)
+    pinned_address: str = field(init=False)
 
     def __post_init__(self) -> None:
         origin = self._origin(self.source_url)
         if origin is None:
             raise RenderError("Browser rendering requires an HTTP(S) URL")
+        try:
+            addresses = DestinationPolicy(
+                allow_private=self.allow_private_network
+            ).addresses_for(self.source_url)
+        except UnsafeNetworkTarget as error:
+            raise RenderError(str(error)) from error
+        self.pinned_address = addresses[0]
         self.allowed_origins.add(origin)
 
     @staticmethod
     def _origin(url: str) -> Optional[tuple[str, str, Optional[int]]]:
-        parsed = urlsplit(url)
-        scheme = parsed.scheme.casefold()
-        if scheme not in {"http", "https"} or not parsed.hostname:
+        try:
+            scheme, hostname, port = DestinationPolicy._origin(url)
+        except UnsafeNetworkTarget:
             return None
-        try:
-            port = parsed.port
-        except ValueError as error:
-            raise RenderError("Rendered URL contains an invalid port") from error
-        return scheme, parsed.hostname.casefold(), port
-
-    @staticmethod
-    def _require_public(hostname: str, port: Optional[int]) -> None:
-        try:
-            addresses = socket.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
-        except socket.gaierror as error:
-            raise RenderError(
-                f"Render navigation host cannot resolve: {hostname}"
-            ) from error
-        if not addresses:
-            raise RenderError(f"Render navigation host has no addresses: {hostname}")
-        for address in addresses:
-            raw = str(address[4][0]).split("%", 1)[0]
-            try:
-                parsed = ipaddress.ip_address(raw)
-            except ValueError as error:
-                raise RenderError(
-                    f"Invalid render navigation address: {raw}"
-                ) from error
-            if not parsed.is_global:
-                raise RenderError(
-                    f"Cross-origin render navigation targets a non-public address: {raw}"
-                )
+        return scheme, hostname, port
 
     def permits(self, url: str, *, navigation: bool) -> bool:
         """Return whether a browser request is inside the render boundary."""
@@ -85,13 +67,21 @@ class BrowserRequestPolicy:
         parsed = urlsplit(url)
         if parsed.username is not None or parsed.password is not None:
             return False
-        if origin in self.allowed_origins:
-            return True
-        if not navigation:
-            return False
-        self._require_public(origin[1], origin[2])
-        self.allowed_origins.add(origin)
-        return True
+        del navigation
+        return origin in self.allowed_origins
+
+    def host_resolver_rules(self) -> str:
+        """Map the source hostname to its validated IP and fail all other DNS."""
+        origin = self._origin(self.source_url)
+        if origin is None:  # guarded by __post_init__
+            raise RenderError("Browser rendering requires an HTTP(S) URL")
+        address = self.pinned_address
+        hostname = origin[1]
+        if ":" in hostname:
+            hostname = f"[{hostname}]"
+        if ":" in address:
+            address = f"[{address}]"
+        return f"MAP {hostname} {address}, MAP * ~NOTFOUND"
 
 
 def render_html(
@@ -103,6 +93,7 @@ def render_html(
     settle_ms: int = 500,
     max_html_bytes: int = 10 * 1024 * 1024,
     executable_path: Optional[str] = None,
+    allow_private_network: bool = False,
 ) -> RenderedPage:
     """Render one URL in a fresh non-persistent Chromium context."""
     if timeout_ms <= 0 or not 0 <= settle_ms <= 5_000 or max_html_bytes <= 0:
@@ -117,7 +108,7 @@ def render_html(
             "runtime installed with 'python -m playwright install chromium'."
         ) from error
 
-    policy = BrowserRequestPolicy(url)
+    policy = BrowserRequestPolicy(url, allow_private_network=allow_private_network)
     supplied_headers = dict(headers or {})
     user_agent = supplied_headers.get("User-Agent")
     safe_headers = {
@@ -132,7 +123,12 @@ def render_html(
                 "HTML2MD_CHROMIUM_EXECUTABLE"
             )
             browser = playwright.chromium.launch(
-                headless=True, executable_path=executable_path
+                headless=True,
+                executable_path=executable_path,
+                args=[
+                    f"--host-resolver-rules={policy.host_resolver_rules()}",
+                    "--no-proxy-server",
+                ],
             )
             try:
                 context = browser.new_context(

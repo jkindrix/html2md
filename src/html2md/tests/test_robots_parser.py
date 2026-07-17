@@ -10,6 +10,18 @@ import time
 from html2md.network.robots_parser import RobotsChecker
 
 
+@pytest.fixture(autouse=True)
+def route_fixtures_through_robots_boundary(monkeypatch):
+    def request(session, _method, url, **kwargs):
+        return session.get(
+            url,
+            timeout=kwargs.get("timeout"),
+            headers=kwargs.get("headers"),
+        )
+
+    monkeypatch.setattr("html2md.network.robots_parser.guarded_request", request)
+
+
 class TestRobotsChecker:
     """Test suite for RobotsChecker class."""
 

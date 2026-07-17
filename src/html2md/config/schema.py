@@ -44,6 +44,7 @@ VALUE_TYPES: dict[ConfigPath, tuple[type, ...]] = {
     ("cli_defaults", "batch", "metadata"): (bool,),
     ("cli_defaults", "batch", "visualize"): (bool,),
     ("cli_defaults", "batch", "quiet"): (bool,),
+    ("cli_defaults", "batch", "allow_private_network"): (bool,),
     ("cli_defaults", "crawl", "hierarchical"): (bool,),
     ("cli_defaults", "crawl", "flatten"): (bool,),
     ("cli_defaults", "crawl", "follow"): (str,),
@@ -61,6 +62,7 @@ VALUE_TYPES: dict[ConfigPath, tuple[type, ...]] = {
     ("cli_defaults", "crawl", "metadata"): (bool,),
     ("cli_defaults", "crawl", "visualize"): (bool,),
     ("cli_defaults", "crawl", "quiet"): (bool,),
+    ("cli_defaults", "crawl", "allow_private_network"): (bool,),
     ("cli_defaults", "convert", "browser_cookies"): (bool,),
     ("cli_defaults", "convert", "no_cookies"): (bool,),
     ("cli_defaults", "convert", "browser"): (str, NoneType),
@@ -74,6 +76,7 @@ VALUE_TYPES: dict[ConfigPath, tuple[type, ...]] = {
     ("cli_defaults", "convert", "render_js"): (bool,),
     ("cli_defaults", "convert", "fancy"): (bool,),
     ("cli_defaults", "convert", "local"): (bool,),
+    ("cli_defaults", "convert", "allow_private_network"): (bool,),
 }
 
 ENUM_VALUES: dict[ConfigPath, frozenset[Any]] = {

@@ -5,8 +5,29 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import Mock, patch
 
 import requests
+import pytest
 
 from html2md.network.request_handler import FetchResult, fetch_html
+
+
+@pytest.fixture(autouse=True)
+def route_mock_sessions_through_contract_boundary(monkeypatch):
+    from html2md.network import request_handler
+
+    original = request_handler.guarded_request
+
+    def request(session, method, url, **kwargs):
+        if isinstance(session, Mock):
+            return session.request(
+                method,
+                url,
+                headers=kwargs.get("headers"),
+                data=kwargs.get("data"),
+                timeout=kwargs.get("timeout"),
+            )
+        return original(session, method, url, **kwargs)
+
+    monkeypatch.setattr(request_handler, "guarded_request", request)
 
 
 class ContractHandler(BaseHTTPRequestHandler):
@@ -127,7 +148,12 @@ def test_connection_failure_returns_structured_error_without_final_sleep():
 def test_local_server_redirect_reports_final_url_and_success():
     server, base_url = start_contract_server()
     try:
-        result = fetch_html(f"{base_url}/redirect", requests.Session(), {})
+        result = fetch_html(
+            f"{base_url}/redirect",
+            requests.Session(),
+            {},
+            allow_private_network=True,
+        )
     finally:
         server.shutdown()
         server.server_close()
@@ -141,7 +167,12 @@ def test_local_server_redirect_reports_final_url_and_success():
 def test_local_server_429_preserves_retry_after_without_hidden_retry():
     server, base_url = start_contract_server()
     try:
-        result = fetch_html(f"{base_url}/limited", requests.Session(), {})
+        result = fetch_html(
+            f"{base_url}/limited",
+            requests.Session(),
+            {},
+            allow_private_network=True,
+        )
     finally:
         server.shutdown()
         server.server_close()
@@ -155,7 +186,12 @@ def test_local_server_5xx_retries_and_recovers():
     server, base_url = start_contract_server()
     try:
         with patch("html2md.network.request_handler.time.sleep"):
-            result = fetch_html(f"{base_url}/flaky", requests.Session(), {})
+            result = fetch_html(
+                f"{base_url}/flaky",
+                requests.Session(),
+                {},
+                allow_private_network=True,
+            )
     finally:
         server.shutdown()
         server.server_close()

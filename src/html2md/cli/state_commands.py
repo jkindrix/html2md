@@ -72,6 +72,7 @@ def resume_crawl(
             "output_dir",
             "state_manager",
             "resume_crawl_id",
+            "scope_url",
         ):
             resume_options.pop(explicit_option, None)
         with state_manager.signal_handling():

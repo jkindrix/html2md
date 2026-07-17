@@ -127,6 +127,7 @@ def process_markdown_links(
     images_dir="images",
     verify_ssl=True,
     include_metadata=False,
+    allow_private_network=False,
 ):
     """
     Process markdown files, extract URLs, and convert each URL to markdown.
@@ -232,6 +233,7 @@ def process_markdown_links(
                     output_dir=url_dir,
                     images_dir=images_dir,
                     include_metadata=include_metadata,
+                    allow_private_network=allow_private_network,
                 )
 
                 if markdown_content:

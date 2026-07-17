@@ -155,6 +155,7 @@ def test_cli_ctrl_c_checkpoints_in_flight_url(tmp_path):
         "0",
         "--ignore-robots",
         "--quiet",
+        "--allow-private-network",
     ]
     process = subprocess.Popen(
         command,

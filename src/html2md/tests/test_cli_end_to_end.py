@@ -127,6 +127,7 @@ def test_url_conversion_handles_plain_redirected_and_compressed_responses(
         tmp_path,
         "convert",
         f"{cli_server}{path}",
+        "--allow-private-network",
         "--no-trim",
         "--output",
         output,
@@ -143,6 +144,7 @@ def test_url_metadata_uses_final_redirect_url(tmp_path, cli_server):
         tmp_path,
         "convert",
         f"{cli_server}/redirect",
+        "--allow-private-network",
         "--no-trim",
         "--metadata",
         "--output",
@@ -156,6 +158,22 @@ def test_url_metadata_uses_final_redirect_url(tmp_path, cli_server):
     assert "# Page /ok" in content
 
 
+def test_private_network_is_rejected_without_explicit_opt_in(tmp_path, cli_server):
+    output = tmp_path / "blocked.md"
+    result = run_cli(
+        tmp_path,
+        "convert",
+        f"{cli_server}/ok",
+        "--no-trim",
+        "--output",
+        output,
+    )
+
+    assert result.returncode == 1
+    assert "--allow-private-network" in result.stderr
+    assert not output.exists()
+
+
 @pytest.mark.parametrize("path", ["/not-found", "/limited", "/server-error"])
 def test_url_http_failures_exit_nonzero_without_output(tmp_path, cli_server, path):
     output = tmp_path / "failure.md"
@@ -164,6 +182,7 @@ def test_url_http_failures_exit_nonzero_without_output(tmp_path, cli_server, pat
         tmp_path,
         "convert",
         f"{cli_server}{path}",
+        "--allow-private-network",
         "--no-trim",
         "--output",
         output,
@@ -187,6 +206,7 @@ def test_batch_subprocess_fetches_and_writes_url(tmp_path, cli_server):
         output_dir,
         "--no-trim",
         "--quiet",
+        "--allow-private-network",
     )
 
     assert result.returncode == 0, result.stderr
@@ -217,6 +237,7 @@ def test_crawl_state_resume_and_traversal_containment_in_subprocess(
         "--no-trim",
         "--quiet",
         "--no-progress",
+        "--allow-private-network",
     )
 
     assert crawl.returncode == 0, f"stdout:\n{crawl.stdout}\nstderr:\n{crawl.stderr}"

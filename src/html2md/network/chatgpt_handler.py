@@ -3,9 +3,9 @@ Special handler for accessing ChatGPT content.
 """
 
 import json
-import re
 from urllib.parse import urlparse
 
+from html2md.network.safe_http import DestinationPolicy, guarded_request
 from html2md.utils.redaction import get_redacting_logger, redact_mapping
 
 logger = get_redacting_logger("chatgpt_handler")
@@ -13,16 +13,15 @@ logger = get_redacting_logger("chatgpt_handler")
 
 def extract_conversation_id(url):
     """Extract conversation ID from ChatGPT URL."""
-    # Format: https://chatgpt.com/c/6812d27d-6498-8006-9c6e-e6b6a4d6c0eb
-    match = re.search(r"chatgpt\.com/c/([a-zA-Z0-9-]+)", url)
-    if match:
-        return match.group(1)
-
-    # Check for other URL formats
     parsed_url = urlparse(url)
-    if parsed_url.netloc == "chatgpt.com" or parsed_url.netloc == "chat.openai.com":
+    if (
+        parsed_url.scheme.casefold() == "https"
+        and parsed_url.hostname in {"chatgpt.com", "chat.openai.com"}
+        and parsed_url.username is None
+        and parsed_url.password is None
+    ):
         path_parts = parsed_url.path.strip("/").split("/")
-        if len(path_parts) >= 2 and path_parts[0] == "c":
+        if len(path_parts) >= 2 and path_parts[0] in {"c", "share"}:
             return path_parts[1]
 
     return None
@@ -36,6 +35,17 @@ def get_conversation_html(url, session, headers):
         return None
 
     logger.info(f"Extracted conversation ID: {conversation_id}")
+    network_policy = DestinationPolicy()
+
+    def safe_get(target_url, *, request_headers):
+        return guarded_request(
+            session,
+            "GET",
+            target_url,
+            policy=network_policy,
+            headers=request_headers,
+            timeout=30,
+        )
 
     # Approach 1: Directly get the HTML page
     try:
@@ -67,7 +77,7 @@ def get_conversation_html(url, session, headers):
 
         logger.debug(f"Headers being used: {redact_mapping(chat_headers)}")
 
-        response = session.get(url, headers=chat_headers, timeout=30)
+        response = safe_get(url, request_headers=chat_headers)
 
         # Log detailed response info
         logger.debug(f"Response status code: {response.status_code}")
@@ -141,7 +151,7 @@ def get_conversation_html(url, session, headers):
 
         logger.debug(f"API Request Headers: {redact_mapping(api_headers)}")
 
-        api_response = session.get(api_url, headers=api_headers, timeout=30)
+        api_response = safe_get(api_url, request_headers=api_headers)
 
         logger.debug(f"API Response Status: {api_response.status_code}")
         logger.debug(f"API Response Headers: {redact_mapping(api_response.headers)}")
@@ -294,9 +304,7 @@ def get_conversation_html(url, session, headers):
         logger.debug(f"Alternate API URL: {alternate_api_url}")
         logger.debug(f"Simplified headers: {redact_mapping(simplified_headers)}")
 
-        alt_response = session.get(
-            alternate_api_url, headers=simplified_headers, timeout=30
-        )
+        alt_response = safe_get(alternate_api_url, request_headers=simplified_headers)
         logger.debug(f"Alternate API Response Status: {alt_response.status_code}")
 
         if alt_response.status_code == 200:
@@ -355,7 +363,7 @@ def get_conversation_html(url, session, headers):
 
             # Try a different API endpoint
             user_api_url = "https://chat.openai.com/api/auth/session"
-            user_response = session.get(user_api_url, headers=auth_headers, timeout=30)
+            user_response = safe_get(user_api_url, request_headers=auth_headers)
 
             if user_response.status_code == 200:
                 logger.debug("Successfully retrieved user session from API")
@@ -377,8 +385,8 @@ def get_conversation_html(url, session, headers):
                 }
 
                 conversation_api_url = f"https://chat.openai.com/backend-api/conversation/{conversation_id}"
-                token_response = session.get(
-                    conversation_api_url, headers=token_headers, timeout=30
+                token_response = safe_get(
+                    conversation_api_url, request_headers=token_headers
                 )
 
                 if token_response.status_code == 200:
@@ -412,18 +420,13 @@ def get_conversation_html(url, session, headers):
 
 def is_chatgpt_url(url):
     """Check if URL is a ChatGPT conversation."""
-    # Check for chatgpt.com and chat.openai.com domains with conversation paths
-    if any(
-        domain in url
-        for domain in ["chatgpt.com/c/", "chat.openai.com/c/", "chat.openai.com/share/"]
-    ):
-        return True
-
-    # Check for domain match
-    from urllib.parse import urlparse
-
     parsed_url = urlparse(url)
-    if parsed_url.netloc in ["chatgpt.com", "chat.openai.com"]:
+    if (
+        parsed_url.scheme.casefold() == "https"
+        and parsed_url.hostname in {"chatgpt.com", "chat.openai.com"}
+        and parsed_url.username is None
+        and parsed_url.password is None
+    ):
         # Check for conversation path patterns
         path = parsed_url.path
         if (

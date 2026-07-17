@@ -113,6 +113,17 @@ class TestHtmlToMarkdownVerifySsl:
         session.get.return_value = response
         return session
 
+    @pytest.fixture(autouse=True)
+    def route_mock_session(self, monkeypatch):
+        def request(session, _method, url, **kwargs):
+            return session.get(
+                url,
+                headers=kwargs.get("headers"),
+                timeout=kwargs.get("timeout"),
+            )
+
+        monkeypatch.setattr("html2md.markdown.converter.guarded_request", request)
+
     def test_verify_ssl_false_disables_on_provided_session(self):
         session = self._mock_session()
         html_to_markdown(

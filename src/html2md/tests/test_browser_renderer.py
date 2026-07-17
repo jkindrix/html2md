@@ -13,7 +13,9 @@ from html2md.network.browser_renderer import (
 
 
 def test_request_policy_allows_explicit_origin_and_generated_urls():
-    policy = BrowserRequestPolicy("http://127.0.0.1:8080/page")
+    policy = BrowserRequestPolicy(
+        "http://127.0.0.1:8080/page", allow_private_network=True
+    )
 
     assert policy.permits("http://127.0.0.1:8080/app.js", navigation=False)
     assert policy.permits("data:text/javascript,void(0)", navigation=False)
@@ -30,16 +32,31 @@ def test_request_policy_blocks_cross_origin_subresources_and_credentials():
     assert not policy.permits("file:///etc/passwd", navigation=False)
 
 
-def test_cross_origin_navigation_must_resolve_to_public_addresses():
-    policy = BrowserRequestPolicy("https://example.com/page")
-    private_dns = [(2, 1, 6, "", ("169.254.169.254", 80))]
-
+def test_cross_origin_navigation_is_blocked_without_a_second_resolution():
     with patch(
-        "html2md.network.browser_renderer.socket.getaddrinfo",
-        return_value=private_dns,
+        "socket.getaddrinfo", return_value=[(2, 1, 6, "", ("93.184.216.34", 443))]
+    ) as dns:
+        policy = BrowserRequestPolicy("https://example.com/page")
+        assert not policy.permits("https://example.net/final", navigation=True)
+    dns.assert_called_once()
+
+
+def test_browser_source_is_pinned_and_all_other_dns_fails_closed():
+    with patch(
+        "socket.getaddrinfo", return_value=[(2, 1, 6, "", ("93.184.216.34", 443))]
     ):
+        policy = BrowserRequestPolicy("https://example.com/page")
+
+    assert policy.host_resolver_rules() == (
+        "MAP example.com 93.184.216.34, MAP * ~NOTFOUND"
+    )
+
+
+def test_browser_rejects_private_source_without_explicit_authorization():
+    private_dns = [(2, 1, 6, "", ("169.254.169.254", 443))]
+    with patch("socket.getaddrinfo", return_value=private_dns):
         with pytest.raises(RenderError, match="non-public"):
-            policy.permits("http://metadata.test/latest", navigation=True)
+            BrowserRequestPolicy("https://metadata.test/latest")
 
 
 def test_rendered_conversion_uses_browser_html_and_final_url():
@@ -66,6 +83,7 @@ def test_rendered_conversion_uses_browser_html_and_final_url():
         "https://example.com/start",
         headers={"User-Agent": "fixture"},
         verify_ssl=True,
+        allow_private_network=False,
     )
     session.get.assert_not_called()
 

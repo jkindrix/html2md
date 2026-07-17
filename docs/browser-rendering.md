@@ -25,15 +25,20 @@ non-persistent Chromium context. The context:
 
 - has no imported browser profile, cookies, OAuth tokens, or persistent storage;
 - blocks service workers, downloads, images, media, and fonts;
-- permits subresources only from the explicitly requested or navigated origin;
-- permits a cross-origin top-level redirect only after all resolved addresses
-  are public, preventing redirects to loopback, private, link-local, or metadata
-  endpoints;
+- resolves the requested hostname once, validates every returned address, and
+  pins Chromium to one validated numeric address while retaining the URL
+  hostname for HTTP and TLS identity;
+- permits subresources only from the explicitly requested origin and blocks all
+  cross-origin requests and top-level redirects;
+- fails all other Chromium DNS lookups and bypasses system proxy resolution;
 - rejects credential-bearing and non-HTTP(S) network URLs;
 - caps navigation at 30 seconds, post-load settling at 500 milliseconds, and
   serialized HTML at 10 MiB; and
 - closes the browser after one conversion.
 
+Private, loopback, link-local, and metadata source destinations are rejected by
+default. `--allow-private-network` explicitly permits a trusted internal or
+local source while retaining hostname pinning and the remaining controls.
 `--insecure` also disables certificate verification inside Chromium and carries
 the same interception risk as the static path. Browser/JSON cookie import is
 rejected in render mode rather than silently creating an authenticated browser.
@@ -52,6 +57,7 @@ bypassed by a second browser request. Expanding rendering to those workflows
 requires a browser-backed fetch result integrated at the crawler boundary, not
 an after-the-fact second fetch.
 
-Cross-origin API-driven applications may render incompletely because their
-subresource requests are blocked. This is an intentional default-deny trade-off;
-there is no unrestricted-network switch.
+Cross-origin redirects and API-driven applications may render incompletely
+because their requests are blocked. This is an intentional default-deny
+trade-off; `--allow-private-network` changes address classification only and is
+not an unrestricted cross-origin switch.

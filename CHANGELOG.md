@@ -6,6 +6,28 @@ All notable changes are documented here. This project follows
 
 ## [Unreleased]
 
+### Added
+
+- Added `--allow-private-network` as an explicit opt-in for trusted internal and
+  local-development destinations.
+
+### Security
+
+- Extended destination validation and numeric-address pinning from image
+  downloads to static conversion, batch, crawl, robots, conversation, and test
+  OAuth requests; every redirect is handled manually and revalidated.
+- Pinned Chromium's source hostname through its resolver, failed all other DNS,
+  and blocked cross-origin browser redirects rather than permitting a separate
+  resolution race.
+- Added 10 MiB static page/crawl and 1 MiB robots response limits.
+- Restricted specialized ChatGPT handling to exact supported HTTPS origins
+  instead of substring matches.
+- Corrected crawl hostname/subdomain boundaries, established discovery scope
+  from the final starting URL, applied scope before robots lookups, and checked
+  redirect destinations against scope and robots before fetching them.
+- Removed session credentials and non-safe custom headers from cross-origin
+  page and image redirect hops.
+
 ## [0.1.1] - 2026-07-16
 
 Second alpha release, closing the remote-image DNS-rebinding residual found

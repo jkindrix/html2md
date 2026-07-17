@@ -50,7 +50,7 @@ class FakeSession:
 def route_fake_sessions_through_the_pinned_boundary(monkeypatch):
     original = ImageDownloader._send_to_address
 
-    def send(downloader, url, address):
+    def send(downloader, url, address, **_kwargs):
         if isinstance(downloader.session, FakeSession):
             response = downloader.session.get(
                 url,
@@ -82,7 +82,7 @@ def public_dns(*args, **kwargs):
 def test_remote_policy_rejects_unsafe_schemes_and_credentials(tmp_path, url):
     downloader = ImageDownloader(session=FakeSession())
 
-    with patch("html2md.network.image_downloader.socket.getaddrinfo", public_dns):
+    with patch("html2md.network.safe_http.socket.getaddrinfo", public_dns):
         assert downloader.download_image(url, tmp_path) is None
 
 
@@ -110,7 +110,7 @@ def test_remote_policy_blocks_non_public_and_metadata_destinations(
         FakeResponse(headers={"Content-Type": "image/png"}, chunks=[PNG])
     )
     downloader = ImageDownloader(session=session)
-    with patch("html2md.network.image_downloader.socket.getaddrinfo", private_dns):
+    with patch("html2md.network.safe_http.socket.getaddrinfo", private_dns):
         assert (
             downloader.download_image("https://metadata.test/image.png", tmp_path)
             is None
@@ -131,7 +131,7 @@ def test_redirect_target_is_resolved_and_revalidated(tmp_path):
         address = "93.184.216.34" if hostname == "example.com" else "169.254.169.254"
         return [(2, 1, 6, "", (address, 80))]
 
-    with patch("html2md.network.image_downloader.socket.getaddrinfo", selective_dns):
+    with patch("html2md.network.safe_http.socket.getaddrinfo", selective_dns):
         assert downloader.download_image("https://example.com/image", tmp_path) is None
 
     assert redirect.closed
@@ -144,7 +144,7 @@ def test_safe_redirect_is_followed_without_requests_automatic_redirects(tmp_path
     session = FakeSession(redirect, image)
     downloader = ImageDownloader(session=session)
 
-    with patch("html2md.network.image_downloader.socket.getaddrinfo", public_dns):
+    with patch("html2md.network.safe_http.socket.getaddrinfo", public_dns):
         result = downloader.download_image("https://example.com/image", tmp_path)
 
     assert result is not None
@@ -222,6 +222,28 @@ def test_https_pin_preserves_host_header_sni_and_certificate_hostname():
     assert request.headers["Host"] == "assets.example.test:8443"
 
 
+def test_cross_origin_image_hop_drops_session_secrets():
+    source = requests.Session()
+    source.headers.update(
+        {
+            "Authorization": "Bearer secret",
+            "X-API-Key": "secret",
+            "Accept": "image/png",
+        }
+    )
+    source.auth = ("user", "secret")
+    downloader = ImageDownloader(session=source)
+
+    direct = downloader._direct_session("93.184.216.34", retain_credentials=False)
+    try:
+        assert "Authorization" not in direct.headers
+        assert "X-API-Key" not in direct.headers
+        assert direct.headers["Accept"] == "image/png"
+        assert direct.auth is None
+    finally:
+        direct.close()
+
+
 @pytest.mark.parametrize(
     ("content_type", "body"),
     [
@@ -238,7 +260,7 @@ def test_mime_header_and_file_signature_must_be_supported_and_match(
     response = FakeResponse(200, {"Content-Type": content_type}, [body])
     downloader = ImageDownloader(session=FakeSession(response))
 
-    with patch("html2md.network.image_downloader.socket.getaddrinfo", public_dns):
+    with patch("html2md.network.safe_http.socket.getaddrinfo", public_dns):
         assert downloader.download_image("https://example.com/image", tmp_path) is None
 
     assert not list(tmp_path.rglob("*.png"))
@@ -253,7 +275,7 @@ def test_content_length_and_streaming_enforce_per_file_limit(tmp_path):
     )
     streamed = FakeResponse(200, {"Content-Type": "image/png"}, [PNG[:8], b"x" * 20])
 
-    with patch("html2md.network.image_downloader.socket.getaddrinfo", public_dns):
+    with patch("html2md.network.safe_http.socket.getaddrinfo", public_dns):
         assert (
             ImageDownloader(
                 session=FakeSession(stated), max_file_bytes=32
@@ -279,7 +301,7 @@ def test_aggregate_limit_applies_across_images(tmp_path):
         max_total_bytes=len(PNG) + len(JPEG) - 1,
     )
 
-    with patch("html2md.network.image_downloader.socket.getaddrinfo", public_dns):
+    with patch("html2md.network.safe_http.socket.getaddrinfo", public_dns):
         first_path = downloader.download_image("https://example.com/first", tmp_path)
         second_path = downloader.download_image("https://example.com/second", tmp_path)
 
@@ -292,7 +314,7 @@ def test_output_images_directory_cannot_escape_root(tmp_path):
     response = FakeResponse(200, {"Content-Type": "image/png"}, [PNG])
     downloader = ImageDownloader(session=FakeSession(response), images_dir="../escaped")
 
-    with patch("html2md.network.image_downloader.socket.getaddrinfo", public_dns):
+    with patch("html2md.network.safe_http.socket.getaddrinfo", public_dns):
         assert (
             downloader.download_image("https://example.com/image.png", tmp_path) is None
         )

@@ -3,12 +3,31 @@
 from unittest.mock import Mock, patch
 
 import requests
+import pytest
 
 from html2md.markdown.converter import (
     html_content_to_markdown,
     html_to_markdown,
     local_html_to_markdown,
 )
+
+
+@pytest.fixture(autouse=True)
+def route_mock_sessions_through_conversion_boundary(monkeypatch):
+    from html2md.markdown import converter
+
+    original = converter.guarded_request
+
+    def request(session, method, url, **kwargs):
+        if isinstance(session, Mock):
+            return session.get(
+                url,
+                headers=kwargs.get("headers"),
+                timeout=kwargs.get("timeout"),
+            )
+        return original(session, method, url, **kwargs)
+
+    monkeypatch.setattr(converter, "guarded_request", request)
 
 
 def test_html_content_conversion_preserves_core_markdown_structures():

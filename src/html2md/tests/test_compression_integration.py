@@ -58,7 +58,12 @@ def test_advertised_compression_is_decoded(compression_server, encoding):
     url = f"{compression_server}/{encoding}"
     headers = HeaderManager().get_headers(url)
 
-    result = html_to_markdown(url, session=requests.Session(), headers=headers)
+    result = html_to_markdown(
+        url,
+        session=requests.Session(),
+        headers=headers,
+        allow_private_network=True,
+    )
 
     assert result is not None
     assert "# Compression Test" in result

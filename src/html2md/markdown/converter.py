@@ -11,6 +11,11 @@ from html2md.utils.formatter import format_markdown
 from html2md.network.chatgpt_handler import is_chatgpt_url, get_conversation_html
 from html2md.network.image_downloader import ImageDownloader
 from html2md.network.browser_renderer import render_html
+from html2md.network.safe_http import (
+    DEFAULT_MAX_BODY_BYTES,
+    DestinationPolicy,
+    guarded_request,
+)
 from html2md.utils.redaction import redact_mapping
 
 # Setup logger
@@ -31,6 +36,9 @@ def html_to_markdown(
     verify_ssl=True,
     include_metadata=False,
     render_js=False,
+    allow_private_network=False,
+    network_policy=None,
+    max_html_bytes=DEFAULT_MAX_BODY_BYTES,
 ):
     """
     Fetch HTML and convert to Markdown.
@@ -54,7 +62,12 @@ def html_to_markdown(
     document_url = url
     if render_js:
         logger.info("Rendering URL with isolated Chromium: %s", url)
-        rendered = render_html(url, headers=headers, verify_ssl=verify_ssl)
+        rendered = render_html(
+            url,
+            headers=headers,
+            verify_ssl=verify_ssl,
+            allow_private_network=allow_private_network,
+        )
         html_content = rendered.html
         document_url = rendered.final_url
     else:
@@ -80,7 +93,18 @@ def html_to_markdown(
         try:
             logger.info(f"Fetching URL: {url}")
             # Send GET request to fetch the HTML content
-            response = session.get(url, headers=headers, timeout=30)
+            policy = network_policy or DestinationPolicy(
+                allow_private=allow_private_network
+            )
+            response = guarded_request(
+                session,
+                "GET",
+                url,
+                policy=policy,
+                headers=headers,
+                timeout=30,
+                max_body_bytes=max_html_bytes,
+            )
             response.raise_for_status()
 
             # Detect encoding if possible
@@ -154,6 +178,7 @@ def html_to_markdown(
         output_dir=output_dir,
         images_dir=images_dir,
         include_metadata=include_metadata,
+        allow_private_network=allow_private_network,
     )
 
 
@@ -166,6 +191,7 @@ def html_content_to_markdown(
     output_dir=None,
     images_dir="images",
     include_metadata=False,
+    allow_private_network=False,
 ):
     """Convert an already-fetched HTML document to Markdown."""
     if not html_content or not html_content.strip():
@@ -197,7 +223,11 @@ def html_content_to_markdown(
     # Download images if requested
     if download_images and output_dir:
         logger.info(f"Downloading images from {base_url}")
-        image_downloader = ImageDownloader(session=session, images_dir=images_dir)
+        image_downloader = ImageDownloader(
+            session=session,
+            images_dir=images_dir,
+            allow_private_network=allow_private_network,
+        )
         formatted_markdown = image_downloader.process_markdown_with_images(
             formatted_markdown, prepared_html, base_url, Path(output_dir)
         )
@@ -214,6 +244,7 @@ def local_html_to_markdown(
     images_dir="images",
     verify_ssl=True,
     include_metadata=False,
+    allow_private_network=False,
 ):
     """
     Convert HTML from a local file to Markdown.
@@ -276,6 +307,7 @@ def local_html_to_markdown(
                 session=get_session(verify_ssl=verify_ssl),
                 images_dir=images_dir,
                 local_root=source_path.parent,
+                allow_private_network=allow_private_network,
             )
             formatted_markdown = image_downloader.process_markdown_with_images(
                 formatted_markdown, prepared_html, base_url, Path(output_dir)

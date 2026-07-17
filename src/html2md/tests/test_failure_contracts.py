@@ -28,11 +28,19 @@ class FailingSession:
 
 
 def test_chatgpt_retrieval_failure_is_not_convertible_html():
-    result = get_conversation_html(
-        "https://chatgpt.com/c/00000000-0000-0000-0000-000000000000",
-        FailingSession(),
-        {},
-    )
+    def fixture_get(session, _method, url, **kwargs):
+        return session.get(
+            url,
+            headers=kwargs.get("headers"),
+            timeout=kwargs.get("timeout"),
+        )
+
+    with patch("html2md.network.chatgpt_handler.guarded_request", fixture_get):
+        result = get_conversation_html(
+            "https://chatgpt.com/c/00000000-0000-0000-0000-000000000000",
+            FailingSession(),
+            {},
+        )
 
     assert result is None
 

@@ -129,7 +129,17 @@ def test_chatgpt_diagnostics_never_log_cookies_headers_or_response_body(caplog):
     session.cookies.keys.return_value = []
     session.get.return_value = response
 
-    with caplog.at_level(logging.DEBUG):
+    def fixture_get(source_session, _method, url, **kwargs):
+        return source_session.get(
+            url,
+            headers=kwargs.get("headers"),
+            timeout=kwargs.get("timeout"),
+        )
+
+    with (
+        caplog.at_level(logging.DEBUG),
+        patch("html2md.network.chatgpt_handler.guarded_request", fixture_get),
+    ):
         get_conversation_html(
             "https://chatgpt.com/c/00000000-0000-0000-0000-000000000000",
             session,

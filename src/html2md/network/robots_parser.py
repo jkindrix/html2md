@@ -18,6 +18,8 @@ from urllib.robotparser import RobotFileParser
 
 import requests
 
+from html2md.network.safe_http import DestinationPolicy, guarded_request
+
 logger = logging.getLogger("html2md")
 
 
@@ -41,7 +43,11 @@ class RobotsChecker:
     """
 
     def __init__(
-        self, user_agent: str = "html2md", session: Optional[requests.Session] = None
+        self,
+        user_agent: str = "html2md",
+        session: Optional[requests.Session] = None,
+        network_policy: Optional[DestinationPolicy] = None,
+        allow_private_network: bool = False,
     ):
         """
         Initialize the robots checker.
@@ -53,6 +59,9 @@ class RobotsChecker:
         self.user_agent = user_agent
         self._product_token = user_agent.split()[0].split("/", 1)[0].lower()
         self.session = session or requests.Session()
+        self.network_policy = network_policy or DestinationPolicy(
+            allow_private=allow_private_network
+        )
         self._cache: Dict[str, Tuple[RobotFileParser, Optional[float], float]] = {}
         self._cache_duration = 3600  # Cache robots.txt for 1 hour
         self._lock = threading.RLock()
@@ -70,8 +79,14 @@ class RobotsChecker:
             Content and HTTP status, or no status for a network failure.
         """
         try:
-            response = self.session.get(
-                robots_url, timeout=10, headers={"User-Agent": self.user_agent}
+            response = guarded_request(
+                self.session,
+                "GET",
+                robots_url,
+                policy=self.network_policy,
+                timeout=10,
+                max_body_bytes=1024 * 1024,
+                headers={"User-Agent": self.user_agent},
             )
             if 200 <= response.status_code < 300:
                 return RobotsFetchResult(response.text, response.status_code)

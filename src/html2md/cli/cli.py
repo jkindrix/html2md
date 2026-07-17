@@ -128,6 +128,7 @@ def _convert_one(
     insecure: bool,
     include_metadata: bool,
     render_js: bool,
+    allow_private_network: bool,
     on_status: Optional[Callable[[str], None]] = None,
 ) -> ConversionResult:
     """Translate CLI option types into one presentation-neutral conversion."""
@@ -149,6 +150,7 @@ def _convert_one(
         insecure=insecure,
         include_metadata=include_metadata,
         render_js=render_js,
+        allow_private_network=allow_private_network,
         on_status=status_callback,
     )
 
@@ -171,6 +173,7 @@ def process_single_with_progress(
     insecure: bool = False,
     include_metadata: bool = False,
     render_js: bool = False,
+    allow_private_network: bool = False,
     progress: Optional[Progress] = None,
     task_id: Optional[TaskID] = None,
 ) -> bool:
@@ -196,6 +199,7 @@ def process_single_with_progress(
         insecure,
         include_metadata,
         render_js,
+        allow_private_network,
         lambda message: progress.update(task_id, description=message),
     )
 
@@ -263,6 +267,7 @@ def process_single_quiet(
     insecure: bool = False,
     include_metadata: bool = False,
     render_js: bool = False,
+    allow_private_network: bool = False,
 ) -> bool:
     """Render a shared conversion result without decoration."""
     del cookie_path  # The command persists this preference before conversion.
@@ -283,6 +288,7 @@ def process_single_quiet(
         insecure,
         include_metadata,
         render_js,
+        allow_private_network,
     )
     if not result.succeeded:
         if result.error:
@@ -365,6 +371,11 @@ def convert_command(
         "--no-verify-ssl",
         help="Disable SSL certificate verification. Only use with hosts you trust "
         "(e.g. internal servers with self-signed certificates).",
+    ),
+    allow_private_network: bool = typer.Option(
+        get_cli_default("convert", "allow_private_network", False),
+        "--allow-private-network/--public-network-only",
+        help="Allow explicitly trusted private, loopback, or link-local destinations.",
     ),
     download_images: bool = typer.Option(
         get_cli_default("convert", "download_images", False),
@@ -458,6 +469,7 @@ def convert_command(
                     insecure=insecure,
                     include_metadata=include_metadata,
                     render_js=render_js,
+                    allow_private_network=allow_private_network,
                     progress=progress,
                     task_id=task_id,
                 ):
@@ -494,6 +506,7 @@ def convert_command(
                 insecure=insecure,
                 include_metadata=include_metadata,
                 render_js=render_js,
+                allow_private_network=allow_private_network,
             ):
                 successes += 1
 
@@ -553,6 +566,11 @@ def batch_command(
         "--no-verify-ssl",
         help="Disable SSL certificate verification. Only use with hosts you trust "
         "(e.g. internal servers with self-signed certificates).",
+    ),
+    allow_private_network: bool = typer.Option(
+        get_cli_default("batch", "allow_private_network", False),
+        "--allow-private-network/--public-network-only",
+        help="Allow explicitly trusted private, loopback, or link-local destinations.",
     ),
     quiet: bool = typer.Option(
         get_cli_default("batch", "quiet", False),
@@ -681,6 +699,7 @@ def batch_command(
                 hierarchical_domains=hierarchical,
                 verify_ssl=not insecure,
                 include_metadata=include_metadata,
+                allow_private_network=allow_private_network,
             )
 
             # Set completed state
@@ -912,6 +931,11 @@ def crawl_command(
         help="Disable SSL certificate verification. Only use with hosts you trust "
         "(e.g. internal servers with self-signed certificates).",
     ),
+    allow_private_network: bool = typer.Option(
+        get_cli_default("crawl", "allow_private_network", False),
+        "--allow-private-network/--public-network-only",
+        help="Allow explicitly trusted private, loopback, or link-local destinations.",
+    ),
     polite: bool = typer.Option(
         get_cli_default("crawl", "polite", False),
         "--polite/--standard-policy",
@@ -1131,6 +1155,7 @@ def crawl_command(
                         flatten_output=flatten_output,
                         hierarchical_domains=hierarchical,
                         verify_ssl=not insecure,
+                        allow_private_network=allow_private_network,
                         state_manager=state_manager,
                     )
 

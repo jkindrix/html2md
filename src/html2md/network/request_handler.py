@@ -9,6 +9,12 @@ from typing import Dict, Optional
 
 import requests
 
+from html2md.network.safe_http import (
+    DEFAULT_MAX_BODY_BYTES,
+    DestinationPolicy,
+    guarded_request,
+)
+
 
 logger = logging.getLogger("html2md")
 
@@ -53,7 +59,19 @@ class FetchResult:
                 return None
 
 
-def fetch_html(url, session, headers, method="GET", data=None, max_retries=3):
+def fetch_html(
+    url,
+    session,
+    headers,
+    method="GET",
+    data=None,
+    max_retries=3,
+    *,
+    network_policy=None,
+    allow_private_network=False,
+    max_body_bytes=DEFAULT_MAX_BODY_BYTES,
+    redirect_validator=None,
+):
     """Fetch a URL and preserve status, headers, redirects, and failure details.
 
     Connection failures, timeouts, and server errors are retried with
@@ -69,8 +87,19 @@ def fetch_html(url, session, headers, method="GET", data=None, max_retries=3):
             logger.info(
                 "Attempt %s/%s: Fetching %s %s", attempt, max_retries, method, url
             )
-            response = session.request(
-                method, url, headers=headers, data=data, timeout=10
+            policy = network_policy or DestinationPolicy(
+                allow_private=allow_private_network
+            )
+            response = guarded_request(
+                session,
+                method,
+                url,
+                policy=policy,
+                headers=headers,
+                data=data,
+                timeout=10,
+                max_body_bytes=max_body_bytes,
+                redirect_validator=redirect_validator,
             )
             result = FetchResult(
                 requested_url=url,

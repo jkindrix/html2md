@@ -131,21 +131,38 @@ def should_follow_link(url, base_url, follow_option):
     # Parse URLs
     parsed_url = urlparse(url)
     parsed_base = urlparse(base_url)
+    if (
+        parsed_url.scheme.casefold() not in {"http", "https"}
+        or parsed_base.scheme.casefold() not in {"http", "https"}
+        or not parsed_url.hostname
+        or not parsed_base.hostname
+        or parsed_url.username is not None
+        or parsed_url.password is not None
+    ):
+        return False
+    url_host = parsed_url.hostname.casefold().rstrip(".")
+    base_host = parsed_base.hostname.casefold().rstrip(".")
+    try:
+        url_port = parsed_url.port or (
+            443 if parsed_url.scheme.casefold() == "https" else 80
+        )
+        base_port = parsed_base.port or (
+            443 if parsed_base.scheme.casefold() == "https" else 80
+        )
+    except ValueError:
+        return False
 
-    # Domain-only: Only follow links to the same domain
+    # Domain-only: only the same hostname and effective port.
     if follow_option == "domain-only":
-        return parsed_url.netloc == parsed_base.netloc
+        return url_host == base_host and url_port == base_port
 
-    # Host-only: Only follow links to the same host (excluding subdomains)
+    # Host-only: the exact hostname, independent of scheme/default port.
     elif follow_option == "host-only":
-        base_domain = ".".join(parsed_base.netloc.split(".")[-2:])
-        url_domain = ".".join(parsed_url.netloc.split(".")[-2:])
-        return url_domain == base_domain
+        return url_host == base_host
 
-    # Subdomain: Follow links to the same domain and its subdomains
+    # Subdomain: the exact starting hostname or a dot-delimited descendant.
     elif follow_option == "subdomain":
-        base_domain = ".".join(parsed_base.netloc.split(".")[-2:])
-        return parsed_url.netloc.endswith(base_domain)
+        return url_host == base_host or url_host.endswith(f".{base_host}")
 
     # Regex pattern: Follow links matching the regex pattern
     else:

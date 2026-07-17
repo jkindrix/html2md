@@ -14,6 +14,7 @@ from html2md.network.request_handler import fetch_html
 from html2md.network.robots_parser import RobotsChecker
 from html2md.network.rate_limiter import GlobalRateLimiter, RateLimitConfig
 from html2md.network.header_manager import HeaderManager, HeaderConfig
+from html2md.network.safe_http import DestinationPolicy, UnsafeNetworkTarget
 from html2md.network.concurrent_limiter import ConcurrentLimiter, ConcurrentConfig
 from html2md.utils.state_manager import StateManager
 from html2md.utils.parser import (
@@ -61,6 +62,7 @@ def crawl_website(
     images_dir="images",
     verify_ssl=True,
     include_metadata=False,
+    allow_private_network=False,
     # State management parameters
     state_manager=None,
     resume_crawl_id=None,
@@ -144,6 +146,12 @@ def crawl_website(
                 "warning",
             )
 
+    crawl_scope_url = (
+        str(crawl_state.config.get("scope_url", start_url))
+        if crawl_state
+        else start_url
+    )
+
     # Create new crawl state if not resuming
     if not crawl_state:
         crawl_config = {
@@ -160,10 +168,12 @@ def crawl_website(
             "images_dir": images_dir,
             "verify_ssl": verify_ssl,
             "include_metadata": include_metadata,
+            "allow_private_network": allow_private_network,
             "polite_mode": polite_mode,
             "enable_checkpoints": enable_checkpoints,
             "checkpoint_interval": checkpoint_interval,
             "checkpoint_page_count": checkpoint_page_count,
+            "scope_url": start_url,
         }
         crawl_state = state_manager.create_new_state(
             start_url, output_dir, crawl_config
@@ -197,6 +207,7 @@ def crawl_website(
 
     # Create session for requests (shared by robots checks, page fetches, and image downloads)
     session = get_session(verify_ssl=verify_ssl)
+    network_policy = DestinationPolicy(allow_private=allow_private_network)
 
     # Initialize header manager
     header_manager = HeaderManager(header_config or HeaderConfig())
@@ -238,7 +249,9 @@ def crawl_website(
     if respect_robots:
         initial_headers = header_manager.get_headers(start_url)
         robots_checker = RobotsChecker(
-            user_agent=initial_headers["User-Agent"], session=session
+            user_agent=initial_headers["User-Agent"],
+            session=session,
+            network_policy=network_policy,
         )
 
         # Check if start URL is allowed
@@ -359,7 +372,27 @@ def crawl_website(
             # Fetch HTML content
             update_progress(f"Fetching content from {url}", url, "fetching")
             headers = header_manager.get_headers(url)
-            fetch_result = fetch_html(url, session, headers)
+            starting_navigation = url == start_url and depth == 0
+
+            def validate_redirect(_source_url, target_url):
+                if not starting_navigation and not should_follow_link(
+                    target_url, crawl_scope_url, follow_option
+                ):
+                    raise UnsafeNetworkTarget(
+                        f"Crawl redirect leaves the configured scope: {target_url}"
+                    )
+                if robots_checker and not robots_checker.can_fetch(target_url):
+                    raise UnsafeNetworkTarget(
+                        f"Crawl redirect is disallowed by robots.txt: {target_url}"
+                    )
+
+            fetch_result = fetch_html(
+                url,
+                session,
+                headers,
+                network_policy=network_policy,
+                redirect_validator=validate_redirect,
+            )
 
             # Record request completion
             request_success = fetch_result.success
@@ -418,6 +451,9 @@ def crawl_website(
                 continue
 
             html_content = fetch_result.body
+            if url == start_url and depth == 0:
+                crawl_scope_url = fetch_result.final_url
+                crawl_state.config["scope_url"] = crawl_scope_url
 
             # Create directory structure for the URL
             url_dir = create_directory_structure(
@@ -441,6 +477,7 @@ def crawl_website(
                 output_dir=url_dir,
                 images_dir=images_dir,
                 include_metadata=include_metadata,
+                allow_private_network=allow_private_network,
             )
 
             if markdown_content:
@@ -475,26 +512,31 @@ def crawl_website(
 
                 # Extract links if we haven't reached max depth
                 if depth < max_depth:
-                    links = extract_links_from_html(html_content, url)
+                    links = extract_links_from_html(
+                        html_content, fetch_result.final_url
+                    )
                     update_progress(
                         f"Found {len(links)} links on {url}", url, "extracting_links"
                     )
 
                     # Filter links according to follow_option and robots.txt
-                    allowed_links = links
+                    allowed_links = [
+                        link
+                        for link in links
+                        if should_follow_link(link, crawl_scope_url, follow_option)
+                    ]
                     if robots_checker:
-                        allowed_links = robots_checker.filter_urls(links)
-                        if len(allowed_links) < len(links):
+                        scoped_count = len(allowed_links)
+                        allowed_links = robots_checker.filter_urls(allowed_links)
+                        if len(allowed_links) < scoped_count:
                             update_progress(
-                                f"Filtered {len(links) - len(allowed_links)} links due to robots.txt",
+                                f"Filtered {scoped_count - len(allowed_links)} links due to robots.txt",
                                 url,
                                 "filtered",
                             )
 
                     for link in allowed_links:
-                        if link not in visited_urls and should_follow_link(
-                            link, start_url, follow_option
-                        ):
+                        if link not in visited_urls:
                             if enqueue_url(link, depth + 1):
                                 update_progress(
                                     f"Queued link (depth {depth+1}): {link}",
