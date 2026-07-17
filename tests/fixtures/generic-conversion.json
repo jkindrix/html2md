@@ -1,0 +1,8 @@
+{
+  "html": "<html><body><h1>Architecture Notes</h1><p>Copy code is ordinary authored text. The model powers the Search API.</p></body></html>",
+  "required_phrases": [
+    "Architecture Notes",
+    "Copy code is ordinary authored text.",
+    "The model powers the Search API."
+  ]
+}

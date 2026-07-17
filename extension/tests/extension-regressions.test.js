@@ -6,6 +6,8 @@ const test = require('node:test');
 
 const extensionRoot = path.resolve(__dirname, '..');
 const { normalizeExtractedHtml } = require('../conversion-utils.js');
+const { Html2MdConverter } = require('../converter.js');
+const { Html2MdSettingsStore } = require('../settings-store.js');
 
 test('normalizes short and malformed extracted HTML without reassigning inputs', () => {
   const complete = '<html><body>' + 'content '.repeat(20) + '</body></html>';
@@ -31,8 +33,59 @@ test('popup loads only the generic conversion stack', () => {
     'logger.js',
     'turndown.js',
     'conversion-utils.js',
+    'converter.js',
+    'settings-store.js',
     'popup.js'
   ]);
+});
+
+test('conversion and settings persistence are isolated controllers', () => {
+  class FakeTurndown {
+    constructor(options) {
+      this.options = options;
+      this.rules = [];
+    }
+    remove() {}
+    keep() {}
+    addRule(name) { this.rules.push(name); }
+    turndown(html) { return `converted:${html}`; }
+  }
+  const converter = new Html2MdConverter(FakeTurndown);
+  converter.configure({
+    markdownOptions: { headingStyle: 'atx', bulletMarker: '-', linkStyle: 'inline' },
+    contentOptions: { codeBlocks: true, preserveImages: true, includeTables: false }
+  });
+  assert.equal(converter.convert('<h1>Title</h1>'), 'converted:<h1>Title</h1>');
+  assert.deepEqual(converter.service.rules, ['codeBlock']);
+
+  const storage = {
+    get(_key, callback) {
+      callback({ html2mdSettings: { markdownOptions: { headingStyle: 'setext' } } });
+    },
+    set(value, callback) { this.saved = value; callback(); }
+  };
+  const store = new Html2MdSettingsStore(storage);
+  const defaults = {
+    theme: 'light',
+    markdownOptions: { headingStyle: 'atx', bulletMarker: '-' },
+    contentOptions: { preserveImages: true }
+  };
+  store.load(defaults, loaded => {
+    assert.equal(loaded.markdownOptions.headingStyle, 'setext');
+    assert.equal(loaded.markdownOptions.bulletMarker, '-');
+    store.save(loaded, () => {});
+  });
+  assert.equal(storage.saved.html2mdSettings.markdownOptions.headingStyle, 'setext');
+});
+
+test('shared generic semantics fixture preserves authored phrases', () => {
+  const fixture = JSON.parse(fs.readFileSync(
+    path.join(extensionRoot, '..', 'tests', 'fixtures', 'generic-conversion.json'),
+    'utf8'
+  ));
+  const popupScript = fs.readFileSync(path.join(extensionRoot, 'popup.js'), 'utf8');
+  assert.doesNotMatch(popupScript, /replace\([^\n]+(?:Copy code|Search API|model)/);
+  for (const phrase of fixture.required_phrases) assert.ok(fixture.html.includes(phrase));
 });
 
 test('article mode uses the pinned packaged Mozilla Readability asset', () => {

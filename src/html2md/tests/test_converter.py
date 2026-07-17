@@ -1,5 +1,7 @@
 """Behavior tests for the core HTML conversion paths."""
 
+import json
+from pathlib import Path
 from unittest.mock import Mock
 
 import requests
@@ -167,3 +169,14 @@ def test_local_conversion_handles_success_missing_and_empty_files(tmp_path):
     assert converted is not None and "# Local" in converted
     assert local_html_to_markdown(tmp_path / "missing.html") is None
     assert local_html_to_markdown(empty_file) is None
+
+
+def test_shared_generic_semantics_fixture_preserves_authored_phrases():
+    fixture_path = Path(__file__).parents[3] / "tests/fixtures/generic-conversion.json"
+    fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+
+    markdown = html_content_to_markdown(fixture["html"], "https://example.com")
+
+    assert markdown is not None
+    for phrase in fixture["required_phrases"]:
+        assert phrase in markdown

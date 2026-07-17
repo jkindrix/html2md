@@ -32,8 +32,8 @@ const defaultSettings = {
 // Current settings - will be loaded from storage
 let settings = {...defaultSettings};
 
-// Initialize TurndownService for HTML to Markdown conversion
-let turndownService;
+const converter = new Html2MdConverter();
+const settingsStore = new Html2MdSettingsStore(chrome.storage.sync);
 
 // Initialize the extension
 document.addEventListener('DOMContentLoaded', () => {
@@ -49,19 +49,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Load saved settings from Chrome storage
 function loadSettings() {
-  chrome.storage.sync.get('html2mdSettings', (data) => {
-    if (data.html2mdSettings) {
-      settings = {...defaultSettings, ...data.html2mdSettings};
-    }
-
-    // Apply loaded settings to the UI
+  settingsStore.load(defaultSettings, loaded => {
+    settings = loaded;
     applySettings();
   });
 }
 
 // Save settings to Chrome storage
 function saveSettings() {
-  chrome.storage.sync.set({ html2mdSettings: settings }, () => {
+  settingsStore.save(settings, () => {
     showStatus('Settings saved', 'success');
   });
 }
@@ -89,66 +85,7 @@ function applySettings() {
   document.getElementById('code-blocks').checked = settings.contentOptions.codeBlocks;
   document.getElementById('inline-links').checked = settings.contentOptions.inlineLinks;
 
-  // Initialize Turndown with current settings
-  initializeTurndown();
-}
-
-// Initialize the Turndown service with current settings
-function initializeTurndown() {
-  // Standard TurndownService configuration
-  const turndownOptions = {
-    headingStyle: settings.markdownOptions.headingStyle,
-    bulletListMarker: settings.markdownOptions.bulletMarker,
-    linkStyle: settings.markdownOptions.linkStyle,
-    codeBlockStyle: settings.contentOptions.codeBlocks ? 'fenced' : 'indented'
-  };
-  
-  // Create the standard TurndownService
-  turndownService = new TurndownService(turndownOptions);
-  
-  // Configure Turndown based on settings
-  if (!settings.contentOptions.preserveImages) {
-    turndownService.remove('img');
-  }
-
-  if (settings.contentOptions.includeTables) {
-    turndownService.keep(['table', 'tr', 'td', 'th', 'thead', 'tbody']);
-  }
-  
-  // Add a generic rule for structured code blocks.
-  turndownService.addRule('codeBlock', {
-    filter: function(node) {
-      // Detect code blocks by structure or class
-      return (
-        (node.nodeName === 'PRE' && node.firstChild && node.firstChild.nodeName === 'CODE') ||
-        (node.nodeName === 'DIV' && node.classList && 
-         (node.classList.contains('code-block') || 
-          node.classList.contains('whitespace-pre') ||
-          node.classList.contains('bg-black')))
-      );
-    },
-    replacement: function(content, node, options) {
-      // Try to detect language
-      let language = '';
-      
-      // Check classes for language
-      if (node.className && node.className.includes('language-')) {
-        const match = node.className.match(/language-(\w+)/);
-        if (match) language = match[1];
-      }
-      
-      // Check child classes
-      if (!language && node.firstChild && node.firstChild.className) {
-        const match = node.firstChild.className.match(/language-(\w+)/);
-        if (match) language = match[1];
-      }
-      
-      // Clean up content and return as code block
-      content = content.trim();
-      
-      return '\n\n```' + language + '\n' + content + '\n```\n\n';
-    }
-  });
+  converter.configure(settings);
 }
 
 // Initialize UI elements
@@ -289,8 +226,7 @@ function updateSettingsFromForm() {
     inlineLinks: document.getElementById('inline-links').checked
   };
 
-  // Reinitialize Turndown with new settings
-  initializeTurndown();
+  converter.configure(settings);
 }
 
 // Handle the conversion process
@@ -384,8 +320,7 @@ function extractPageContent(mode) {
 
 // Convert HTML to Markdown using TurndownService
 function convertToMarkdown(html) {
-  // Convert to markdown using the standard converter
-  return turndownService.turndown(html);
+  return converter.convert(html);
 }
 
 // Handle the output based on selected action
