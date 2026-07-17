@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from html2md.cookies.replay import ScopedCookieSession, _ScopedCookiePolicy
+from html2md.network.header_manager import HeaderManager
 from html2md.utils.redaction import get_redacting_logger
 
 
@@ -32,14 +33,7 @@ def get_session(verify_ssl=True):
     """Return a new cookie-scope-aware requests session."""
     session = ScopedCookieSession()
     session.cookies.set_policy(_ScopedCookiePolicy())
-    session.headers.update(
-        {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Connection": "keep-alive",
-            "Cache-Control": "no-cache",
-        }
-    )
+    session.headers.update(HeaderManager().get_headers(""))
     if not verify_ssl:
         disable_ssl_verification(session)
     logger.info("New session initialized with default headers.")

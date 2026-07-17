@@ -75,8 +75,6 @@ def test_header_factory_uses_one_honest_default_identity():
             DEFAULT_CONFIG,
             enhanced_headers=True,
             user_agent_contact="crawler@example.com",
-            simulate_browser=False,
         )
         assert header_config.user_agent_name == "html2md"
         assert header_config.contact_email == "crawler@example.com"
-        assert header_config.simulate_browser is False

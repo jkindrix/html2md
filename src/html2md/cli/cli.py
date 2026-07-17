@@ -193,11 +193,6 @@ def convert_command(
         "--user-agent-contact",
         help="Contact email or URL to include in User-Agent header (e.g., 'admin@example.com').",
     ),
-    simulate_browser: bool = typer.Option(
-        get_cli_default("convert", "simulate_browser", False),
-        "--simulate-browser/--identify-crawler",
-        help="Use browser-like headers instead of identifying as html2md crawler.",
-    ),
     insecure: bool = typer.Option(
         get_cli_default("convert", "insecure", False),
         "--insecure/--secure",
@@ -302,7 +297,6 @@ def convert_command(
                     images_dir=images_dir,
                     enhanced_headers=enhanced_headers,
                     user_agent_contact=user_agent_contact,
-                    simulate_browser=simulate_browser,
                     insecure=insecure,
                     include_metadata=include_metadata,
                     render_js=render_js,
@@ -343,7 +337,6 @@ def convert_command(
                 images_dir=images_dir,
                 enhanced_headers=enhanced_headers,
                 user_agent_contact=user_agent_contact,
-                simulate_browser=simulate_browser,
                 insecure=insecure,
                 include_metadata=include_metadata,
                 render_js=render_js,
@@ -390,11 +383,6 @@ def batch_command(
         get_cli_default("batch", "user_agent_contact", None),
         "--user-agent-contact",
         help="Contact email or URL to include in the crawler user agent.",
-    ),
-    simulate_browser: bool = typer.Option(
-        get_cli_default("batch", "simulate_browser", False),
-        "--simulate-browser/--identify-crawler",
-        help="Use the configured browser-like request identity.",
     ),
     flatten_output: bool = typer.Option(
         get_cli_default("batch", "flatten", False),
@@ -554,7 +542,6 @@ def batch_command(
                 config,
                 enhanced_headers=enhanced_headers,
                 user_agent_contact=user_agent_contact,
-                simulate_browser=simulate_browser,
             )
 
             batch_result = process_markdown_links(
@@ -798,11 +785,6 @@ def crawl_command(
         "--user-agent-contact",
         help="Contact email or URL to include in User-Agent header (e.g., 'admin@example.com').",
     ),
-    simulate_browser: bool = typer.Option(
-        get_cli_default("crawl", "simulate_browser", False),
-        "--simulate-browser/--identify-crawler",
-        help="Use browser-like headers instead of identifying as html2md crawler.",
-    ),
     insecure: bool = typer.Option(
         get_cli_default("crawl", "insecure", False),
         "--insecure/--secure",
@@ -979,7 +961,6 @@ def crawl_command(
                     config,
                     enhanced_headers=enhanced_headers,
                     user_agent_contact=user_agent_contact,
-                    simulate_browser=simulate_browser,
                 )
 
                 # Signal handling is explicit and scoped to active crawl work.

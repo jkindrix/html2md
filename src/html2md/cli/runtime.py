@@ -14,7 +14,6 @@ def build_header_config(
     *,
     enhanced_headers: bool,
     user_agent_contact: str | None,
-    simulate_browser: bool,
 ) -> HeaderConfig:
     """Build one deliberate header identity for convert, batch, and crawl."""
     header_settings = config.get("headers", {})
@@ -30,16 +29,10 @@ def build_header_config(
         contact_email=contact_email,
         contact_url=contact_url,
         user_agent_name=header_settings.get("user_agent_name", "html2md"),
-        user_agent_version=header_settings.get("user_agent_version", "1.0"),
         enable_compression=header_settings.get("enable_compression", True),
         compression_methods=header_settings.get(
             "compression_methods", "gzip, deflate, br"
         ),
-        enable_conditional_requests=header_settings.get(
-            "enable_conditional_requests", True
-        ),
-        simulate_browser=simulate_browser,
-        browser_type=header_settings.get("browser_type", "chrome"),
         respect_caching=header_settings.get("respect_caching", True),
         include_accept_language=header_settings.get("include_accept_language", True),
         preferred_language=header_settings.get("preferred_language", "en-US,en;q=0.9"),
@@ -52,7 +45,6 @@ def build_header_manager(
     *,
     enhanced_headers: bool,
     user_agent_contact: str | None,
-    simulate_browser: bool,
 ) -> HeaderManager:
     """Construct the shared header policy as a ready-to-use manager."""
     return HeaderManager(
@@ -60,6 +52,5 @@ def build_header_manager(
             config,
             enhanced_headers=enhanced_headers,
             user_agent_contact=user_agent_contact,
-            simulate_browser=simulate_browser,
         )
     )

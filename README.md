@@ -117,8 +117,8 @@ Useful options include:
 - `--browser-cookies` or `--cookie-json` for authenticated pages;
 - `--headers-file` for an owner-only JSON object of target request headers;
 - `--storage-state` with `--render-js` for owner-only Playwright session state;
-- `--enhanced-headers/--basic-headers`, `--user-agent-contact`, and
-  `--simulate-browser` for request identity;
+- `--enhanced-headers/--basic-headers` and `--user-agent-contact` for an honest,
+  versioned request identity;
 - `--download-images` with a configurable `--images-dir`;
 - `--allow-private-network` only for explicitly trusted intranet, loopback, or
   development destinations;
@@ -126,8 +126,7 @@ Useful options include:
 - `--fancy` for decorated progress output.
 
 Automatic browser database extraction is implemented for Chrome and Firefox.
-Edge and Safari are accepted configuration values but do not currently have a
-complete extraction backend on every platform. Exported cookie JSON is the most
+Exported cookie JSON is the most
 portable explicit authentication path. Password submission is not supported.
 
 ### Batch output

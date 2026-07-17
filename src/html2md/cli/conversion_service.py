@@ -64,7 +64,6 @@ def convert_source(
     images_dir: str = "images",
     enhanced_headers: bool = True,
     user_agent_contact: Optional[str] = None,
-    simulate_browser: bool = False,
     insecure: bool = False,
     include_metadata: bool = False,
     render_js: bool = False,
@@ -90,7 +89,6 @@ def convert_source(
             images_dir=images_dir,
             enhanced_headers=enhanced_headers,
             user_agent_contact=user_agent_contact,
-            simulate_browser=simulate_browser,
             insecure=insecure,
             include_metadata=include_metadata,
             render_js=render_js,
@@ -145,7 +143,6 @@ def _convert_url(
     images_dir: str,
     enhanced_headers: bool,
     user_agent_contact: Optional[str],
-    simulate_browser: bool,
     insecure: bool,
     include_metadata: bool,
     render_js: bool,
@@ -170,7 +167,6 @@ def _convert_url(
             config,
             enhanced_headers=enhanced_headers,
             user_agent_contact=user_agent_contact,
-            simulate_browser=simulate_browser,
         )
         headers = HeaderManager(header_config).get_headers(source)
         if headers_file:

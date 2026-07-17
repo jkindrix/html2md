@@ -333,7 +333,6 @@ def show_config_options():
             "metadata": ("bool", "Prepend YAML document metadata"),
             "enhanced_headers": ("bool", "Use an identified crawler user agent"),
             "user_agent_contact": ("str", "Crawler contact email or URL"),
-            "simulate_browser": ("bool", "Use browser-like request headers"),
             "render_js": ("bool", "Render JavaScript with optional Chromium"),
             "fancy": ("bool", "Enable fancy output with progress bars"),
             "local": ("bool", "Treat sources as local files by default"),
