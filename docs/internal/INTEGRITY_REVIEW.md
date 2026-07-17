@@ -2,7 +2,12 @@
 
 **Status date:** 2026-07-16
 
-**Development version:** 0.1.0 (alpha)
+**Recorded version:** 0.1.0 (alpha)
+
+> [!NOTE]
+> This is a historical remediation record preserved for provenance. It is not a
+> current project-status or release-evidence document. Use the README,
+> CHANGELOG, and hosted CI results for the current state.
 
 ## Purpose
 
@@ -69,7 +74,8 @@ Historical baseline observations at that commit:
 - Meaningful CLI and Chrome extension end-to-end coverage is absent.
 - Four legacy core test modules are empty and require replacement or removal.
 
-Current remediation evidence for H2M-030 through H2M-032 supersedes those test-health observations:
+Remediation evidence recorded later on 2026-07-16 for H2M-030 through H2M-032
+superseded those baseline observations at that time:
 
 - `poetry run pytest src/html2md/tests tests/config` passes with **308 passed and 1 external dependency warning**. The unused async stack and its skipped/warning-producing tests have been removed.
 - The previously failing state modules pass both alone and in the canonical suite: **22 passed**.

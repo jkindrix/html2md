@@ -6,6 +6,54 @@ All notable changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-17
+
+Sixth source alpha, establishing one explicit acquisition, conversion, archive,
+and persistence pipeline across single, batch, crawl, and extension workflows.
+
+### Added
+
+- Added typed acquired-page and converted-document contracts with consistent
+  requested, final, canonical, media, status, and failure information.
+- Added a collision-resistant archive planner and manifest, structural link and
+  asset rewriting, and atomic artifact persistence.
+- Added an injected sequential crawl engine with explicit frontier, scope,
+  robots, scheduling, page-pipeline, artifact, checkpoint, and event boundaries.
+- Added explicit browser-render policy for allowed origins, readiness,
+  timeouts, request budgets, blocked resource types, and credential handling.
+- Added versioned crawl-state migrations and shared generic-conversion fixtures
+  across the Python and extension implementations.
+
+### Changed
+
+- Single, batch, and crawl conversion now compose the same page and asset
+  pipeline; partial and total batch failures have typed results and nonzero exit
+  status.
+- Crawl pages, redirects, robots requests, and assets now share one sequential
+  politeness scheduler and one guarded transport observation boundary.
+- Cookie discovery, exported-cookie parsing, replay policy, and HTTP-session
+  construction are separate adapters with explicit capability and failure
+  contracts.
+- Generated requests use an honest `html2md/<version>` identity with optional
+  contact information instead of imitating a browser.
+- The extension now separates conversion and settings controllers from popup UI
+  coordination while retaining standalone operation.
+
+### Removed
+
+- Removed unused concurrency machinery and its configuration surface.
+- Removed fabricated referers, browser impersonation, and conditional-request
+  settings that lacked a cache-backed implementation.
+
+### Security
+
+- Invalid or unavailable credential sources fail explicitly rather than
+  silently degrading to unauthenticated requests.
+- Rendered cross-origin requests strip credentials and caller-specific headers;
+  every authorized render origin is validated and pinned.
+- Browser cookies retain host, domain, path, secure, and expiry policy through
+  the centralized replay boundary.
+
 ## [0.2.0] - 2026-07-17
 
 Fifth source alpha, replacing implicit and site-specific cleanup with explicit,
@@ -140,7 +188,8 @@ First alpha release after the stabilization and integrity remediation cycle.
   formats, oversized files, and output-root escapes.
 - The extension uses least-privilege permissions and exposes only tested modes.
 
-[Unreleased]: https://github.com/jkindrix/html2md/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/jkindrix/html2md/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/jkindrix/html2md/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/jkindrix/html2md/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/jkindrix/html2md/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/jkindrix/html2md/compare/v0.1.1...v0.1.2
