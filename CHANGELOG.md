@@ -6,6 +6,11 @@ All notable changes are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-17
+
+Fifth source alpha, replacing implicit and site-specific cleanup with explicit,
+generic authentication and content-selection contracts.
+
 ### Added
 
 - Added generic owner-private request-header input for authenticated static and
@@ -34,6 +39,26 @@ All notable changes are documented here. This project follows
 - Removed the bundled site-rule map, domain-rule configuration commands, and
   obsolete encoding analysis. Content customization is now a caller-owned CSS
   selector with no packaged per-site behavior.
+
+### Security
+
+- Browser database cookies retain and enforce host, domain, path, secure, and
+  expiry scope across redirects instead of being flattened by name.
+- Header and browser storage-state authentication inputs require owner-private
+  files on POSIX systems and remain within the guarded static or pinned browser
+  transport boundaries.
+
+## [0.1.3] - 2026-07-17
+
+Fourth source alpha, narrowing the supported product to generic HTML-to-Markdown
+conversion before publication.
+
+### Changed
+
+- Extracted shared CLI presentation and conversion services and raised the
+  enforced production coverage floor to 75%.
+- Simplified the core and extension conversion paths by removing specialized
+  capture, parsing, and page-cleaning behavior.
 
 ## [0.1.2] - 2026-07-16
 
@@ -115,7 +140,9 @@ First alpha release after the stabilization and integrity remediation cycle.
   formats, oversized files, and output-root escapes.
 - The extension uses least-privilege permissions and exposes only tested modes.
 
-[Unreleased]: https://github.com/jkindrix/html2md/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/jkindrix/html2md/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/jkindrix/html2md/compare/v0.1.3...v0.2.0
+[0.1.3]: https://github.com/jkindrix/html2md/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/jkindrix/html2md/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/jkindrix/html2md/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/jkindrix/html2md/releases/tag/v0.1.0

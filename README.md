@@ -11,8 +11,8 @@ to Markdown. It includes a Python CLI and an unpacked Chrome extension.
 
 ## Status and support
 
-- Development version: `0.1.3`
-- Source alpha release: `v0.1.3`
+- Development version: `0.2.0`
+- Source alpha release: `v0.2.0`
 - Tested Python versions: 3.11, 3.12, and 3.13
 - Planned PyPI distribution: `html2md-cli`
 - Installed command and Python import: `html2md`
@@ -178,7 +178,7 @@ silently apply per-site extraction profiles. A selector can be supplied for one
 run or configured as a CLI default together with `content_mode=selector`.
 
 Crawl state supports `list`, `resume`, `clean`, `export`, `import`, and `info`.
-State and token files use restrictive permissions on POSIX systems.
+State files use restrictive permissions on POSIX systems.
 
 ## Chrome extension
 
@@ -188,7 +188,7 @@ The supported workflow operates on the active tab and provides:
 - full-page, main-article, and current-selection conversion;
 - preview, clipboard copy, and Markdown download;
 - theme and conversion settings; and
-- structural cleanup that preserves user-authored text and fenced code.
+- packaged Mozilla Readability extraction only when article mode is selected.
 
 The extension uses `activeTab`, `scripting`, `storage`, `downloads`, and
 `clipboardWrite`; it does not request persistent access to every site. URL-list,
@@ -245,10 +245,11 @@ language fields. Local references remain relative. See
 
 ## Known limitations
 
-- Conversion uses `markdownify` and optional per-domain trimming; it does not
-  provide general main-content extraction or boilerplate removal. The measured
-  extractor decision is documented in
-  [`docs/main-content-benchmark.md`](./docs/main-content-benchmark.md).
+- Conversion uses `markdownify`. Full-document mode deliberately preserves
+  authored boilerplate; opt-in main-content mode uses substantial semantic
+  regions and a confidence-gated readability fallback, whose quality varies by
+  document. The measured decision is recorded in
+  [`ADR 0002`](./docs/adr/0002-select-main-content-extraction.md).
 - JavaScript rendering is opt-in for `convert`; batch and crawl remain static.
 - Metadata extraction intentionally uses declared HTML/meta fields rather than
   text inference or executable structured data.

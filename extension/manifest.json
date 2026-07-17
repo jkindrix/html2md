@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "HTML2MD",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "Convert web pages to Markdown with a single click",
   "action": {
     "default_popup": "popup.html",

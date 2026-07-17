@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "html2md-cli"
-version = "0.1.3"
+version = "0.2.0"
 description = "A Python package to convert web pages to markdown"
 authors = ["Justin Kindrix <jkindrix@gmail.com>"]
 license = "MIT"

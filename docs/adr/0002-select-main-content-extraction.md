@@ -77,6 +77,13 @@ The direct dependencies will be `readability-lxml` and `lxml-html-clean` with
 compatible version bounds. This chooses the smaller standard-HTML integration
 because the measured hybrid output tied the larger Trafilatura hybrid.
 
+`readability-lxml` 0.8.4.1 still declares the retired `lxml[html-clean]` extra.
+Current lxml no longer publishes that extra, so a fresh pip install may warn
+about the upstream metadata even though this project directly installs
+`lxml-html-clean`. Do not suppress the warning by pinning lxml below 6.1: lxml
+6.1 and 6.1.1 contain parser and cleaner security fixes. Re-evaluate or remove
+this note when readability-lxml replaces the extra with a direct dependency.
+
 ## Consequences
 
 Main mode is heuristic and can fail on unusual pages, but failure is explicit
@@ -93,6 +100,7 @@ boundary, and pass dependency/security review before replacing this decision.
 ## Primary references
 
 - [Trafilatura Python usage and extraction controls](https://trafilatura.readthedocs.io/en/latest/usage-python.html)
+- [lxml 6.1.1 changelog and security fixes](https://lxml.de/6.1/changes-6.1.1.html)
 - [Trafilatura 2.1.0 package metadata](https://pypi.org/project/trafilatura/)
 - [readability-lxml 0.8.4.1 package metadata](https://pypi.org/project/readability-lxml/)
 - [Mozilla Readability API and heuristic boundaries](https://github.com/mozilla/readability)
