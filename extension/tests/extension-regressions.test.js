@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
@@ -32,6 +33,21 @@ test('popup loads only the generic conversion stack', () => {
     'conversion-utils.js',
     'popup.js'
   ]);
+});
+
+test('article mode uses the pinned packaged Mozilla Readability asset', () => {
+  const popup = fs.readFileSync(path.join(extensionRoot, 'popup.html'), 'utf8');
+  const popupScript = fs.readFileSync(path.join(extensionRoot, 'popup.js'), 'utf8');
+  const readability = fs.readFileSync(path.join(extensionRoot, 'readability.js'));
+
+  assert.ok(!popup.includes('id="trim-content"'));
+  assert.match(popupScript, /files: \['readability\.js'\]/);
+  assert.match(popupScript, /new Readability\(document\.cloneNode\(true\)\)\.parse\(\)/);
+  assert.doesNotMatch(popupScript, /\.post-content|\.article-content|elementsToRemove/);
+  assert.equal(
+    crypto.createHash('sha256').update(readability).digest('hex'),
+    '34dcab3d0832d0019f02990eed6b6124e029e8c32b9f0c6f2550544ff8dff174'
+  );
 });
 
 test('unsupported URL and element modes are not exposed', () => {
@@ -77,8 +93,10 @@ test('manifest and controls use the documented least-privilege surface', () => {
   assert.equal(new Set(ids).size, ids.length);
 });
 
-test('production scripts contain no direct console logging or duplicate worker conversion', () => {
-  for (const filename of fs.readdirSync(extensionRoot).filter(name => name.endsWith('.js'))) {
+test('project-authored production scripts contain no direct console logging or duplicate worker conversion', () => {
+  for (const filename of fs.readdirSync(extensionRoot).filter(name => {
+    return name.endsWith('.js') && name !== 'readability.js';
+  })) {
     const source = fs.readFileSync(path.join(extensionRoot, filename), 'utf8');
     assert.doesNotMatch(source, /console\.(?:log|warn|error)/);
     assert.doesNotMatch(source, /Justin(?:'s)? Workspace/i);

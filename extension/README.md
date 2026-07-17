@@ -11,7 +11,9 @@ The supported alpha surface is intentionally limited to converting the active ta
 - **One-Click Conversion**: Convert any web page to Markdown with a single click
 - **Multiple Conversion Modes**: Convert entire pages, selections, or just the main article content
 - **Customizable Output**: Control how your Markdown is formatted with advanced settings
-- **Smart Content Trimming**: Automatically removes navigation, sidebars, and other non-content elements
+- **Explicit Content Scope**: Full-page mode keeps authored page content,
+  selection mode converts exactly the selected range, and article mode uses
+  packaged Mozilla Readability heuristics
 - **Multiple Output Options**: View directly in the extension, copy to clipboard, or download as a file
 - **Dark Mode Support**: Beautiful light and dark themes for the extension UI
 
@@ -79,6 +81,7 @@ html2md-extension/
 ├── popup.js            # Popup functionality
 ├── styles.css          # Styles for the popup
 ├── logger.js           # Production-safe diagnostic boundary
+├── readability.js      # Vendored Mozilla Readability 0.6.0
 ├── turndown.js         # HTML to Markdown conversion library
 ├── THIRD_PARTY_NOTICES.md # Upstream copyright, license, and provenance
 └── images/             # Extension icons and images
@@ -109,5 +112,6 @@ Copyright (c) 2025-2026 Justin Kindrix. Distributed under the [MIT License](../L
 
 - Built by Justin Kindrix
 - Uses [Turndown](https://github.com/mixmark-io/turndown) for HTML to Markdown conversion
+- Uses [Mozilla Readability](https://github.com/mozilla/readability) 0.6.0 for explicit article extraction
 - Retains Turndown v7.1.1 copyright, MIT terms, provenance, and modification notes in [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)
 - Inspired by the [HTML2MD](https://github.com/jkindrix/html2md) command-line tool

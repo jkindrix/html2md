@@ -1,6 +1,16 @@
 # Third-Party Notices
 
-This extension contains locally modified code derived from the following project.
+This extension contains the following third-party code.
+
+## Mozilla Readability 0.6.0
+
+- Project: Mozilla Readability
+- Version: 0.6.0
+- Published package: `@mozilla/readability@0.6.0`
+- Upstream source: https://github.com/mozilla/readability
+- Vendored file: `readability.js` (unmodified `Readability.js`)
+- SHA-256: `34dcab3d0832d0019f02990eed6b6124e029e8c32b9f0c6f2550544ff8dff174`
+- License: Apache License 2.0, reproduced in `READABILITY_LICENSE.md`
 
 ## Turndown v7.1.1
 
@@ -34,8 +44,8 @@ SOFTWARE.
 
 ## Vendored-asset review
 
-As reviewed on 2026-07-16, Turndown is the only third-party source derivative
-declared or identified in the extension tree. The remaining JavaScript, HTML,
-CSS, and image assets are project-authored assets. If another third-party asset
-is added, its copyright, version, source, modifications, and required license
-text must be added here before distribution.
+As reviewed on 2026-07-17, Mozilla Readability and the Turndown derivative are
+the only third-party source assets declared or identified in the extension
+tree. The remaining JavaScript, HTML, CSS, and image assets are project-authored
+assets. If another third-party asset is added, its copyright, version, source,
+modifications, and required license text must be added here before distribution.

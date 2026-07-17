@@ -219,25 +219,40 @@ async function main() {
 
     const markdown = await evaluate(
       popupClient,
-      `convertToMarkdown('<h1>Fixture</h1><p>Search indexing uses a model.</p><pre><code class="language-text">model Search API</code></pre>', false)`
+      `convertToMarkdown('<h1>Fixture</h1><p>Search indexing uses a model.</p><pre><code class="language-text">model Search API</code></pre>')`
     );
     assert.match(markdown, /^# Fixture/m);
     assert.match(markdown, /Search indexing uses a model\./);
     assert.match(markdown, /```text\nmodel Search API\n```/);
 
+    const articleText = 'A substantial article sentence with concrete evidence and punctuation. '.repeat(12);
+    const fixtureHtml = `<html><body><nav>Full navigation</nav><article><h1>Injected Article</h1><p id="selection">Selected text. ${articleText}</p><p>${articleText}</p></article><section class="comments">Full comments</section><footer>Full footer</footer></body></html>`;
     const fixtureTarget = await createTarget(
       port,
-      'data:text/html,<html><body><nav>Menu</nav><main><h1>Injected</h1><p id="selection">Selected text</p></main></body></html>'
+      `data:text/html,${encodeURIComponent(fixtureHtml)}`
     );
     fixtureClient = new CdpClient(fixtureTarget.webSocketDebuggerUrl);
     await fixtureClient.connect();
     await fixtureClient.send('Runtime.enable');
+    const readabilitySource = fs.readFileSync(path.join(extensionRoot, 'readability.js'), 'utf8');
+    await evaluate(fixtureClient, readabilitySource);
+    assert.equal(await evaluate(fixtureClient, 'typeof Readability'), 'function');
     const extractionSource = await evaluate(popupClient, 'extractPageContent.toString()');
-    const fullPage = await evaluate(fixtureClient, `(${extractionSource})('full-page', false)`);
-    const article = await evaluate(fixtureClient, `(${extractionSource})('article', true)`);
-    assert.match(fullPage, /<nav>Menu<\/nav>/);
-    assert.doesNotMatch(article, /<nav>Menu<\/nav>/);
-    assert.match(article, /<h1>Injected<\/h1>/);
+    const fullPage = await evaluate(fixtureClient, `(${extractionSource})('full-page')`);
+    const article = await evaluate(fixtureClient, `(${extractionSource})('article')`);
+    assert.match(fullPage, /<nav>Full navigation<\/nav>/);
+    assert.match(fullPage, /Full comments/);
+    assert.match(fullPage, /<footer>Full footer<\/footer>/);
+    assert.doesNotMatch(article, /Full navigation|Full comments|Full footer/);
+    assert.match(article, /<h[12]>Injected Article<\/h[12]>/);
+
+    const fullMarkdown = await evaluate(
+      popupClient,
+      `convertToMarkdown(${JSON.stringify(fullPage)})`
+    );
+    assert.match(fullMarkdown, /Full navigation/);
+    assert.match(fullMarkdown, /Full comments/);
+    assert.match(fullMarkdown, /Full footer/);
 
     await evaluate(
       fixtureClient,
@@ -247,9 +262,9 @@ async function main() {
        selection.removeAllRanges();
        selection.addRange(range);`
     );
-    const selection = await evaluate(fixtureClient, `(${extractionSource})('selection', false)`);
+    const selection = await evaluate(fixtureClient, `(${extractionSource})('selection')`);
     assert.match(selection, /Selected text/);
-    assert.doesNotMatch(selection, /Injected/);
+    assert.doesNotMatch(selection, /Injected Article/);
 
     const turndownSource = fs.readFileSync(path.join(extensionRoot, 'turndown.js'), 'utf8');
     await evaluate(fixtureClient, turndownSource);

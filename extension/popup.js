@@ -3,7 +3,6 @@ const convertBtn = document.getElementById('convert-btn');
 const settingsBtn = document.getElementById('settings-btn');
 const themeToggleBtn = document.getElementById('theme-toggle-btn');
 const conversionModeSelect = document.getElementById('conversion-mode');
-const trimContentCheckbox = document.getElementById('trim-content');
 const outputActionSelect = document.getElementById('output-action');
 const resultContainer = document.getElementById('result-container');
 const markdownResult = document.getElementById('markdown-result');
@@ -297,7 +296,6 @@ function updateSettingsFromForm() {
 // Handle the conversion process
 function handleConversion() {
   const conversionMode = conversionModeSelect.value;
-  const trimContent = trimContentCheckbox.checked;
   const outputAction = outputActionSelect.value;
 
   showStatus('Converting...', 'processing');
@@ -307,11 +305,10 @@ function handleConversion() {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     const tab = tabs[0];
 
-    // Inject content script to extract HTML
-    chrome.scripting.executeScript({
+    const extract = () => chrome.scripting.executeScript({
       target: { tabId: tab.id },
       function: extractPageContent,
-      args: [conversionMode, trimContent]
+      args: [conversionMode]
     }, (results) => {
       if (chrome.runtime.lastError) {
         showStatus('Error: ' + chrome.runtime.lastError.message, 'error');
@@ -330,7 +327,7 @@ function handleConversion() {
       const htmlContent = Html2MdConversionUtils.normalizeExtractedHtml(extractedContent);
 
       // Convert HTML to Markdown
-      const markdown = convertToMarkdown(htmlContent, trimContent);
+      const markdown = convertToMarkdown(htmlContent);
 
       // Handle the output based on user selection
       handleOutput(markdown, outputAction, tab.title);
@@ -338,11 +335,27 @@ function handleConversion() {
       showStatus('Conversion complete', 'success');
       showSpinner(false);
     });
+
+    if (conversionMode === 'article') {
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['readability.js']
+      }, () => {
+        if (chrome.runtime.lastError) {
+          showStatus('Error: ' + chrome.runtime.lastError.message, 'error');
+          showSpinner(false);
+          return;
+        }
+        extract();
+      });
+    } else {
+      extract();
+    }
   });
 }
 
 // Extract content from the page based on mode
-function extractPageContent(mode, trim) {
+function extractPageContent(mode) {
   let content = '';
 
   switch(mode) {
@@ -357,24 +370,12 @@ function extractPageContent(mode, trim) {
         const div = document.createElement('div');
         div.appendChild(fragment);
         content = div.innerHTML;
-      } else {
-        content = document.documentElement.outerHTML;
       }
       break;
     case 'article':
-      // Try to find the main content
-      const article = document.querySelector('article') ||
-                      document.querySelector('main') ||
-                      document.querySelector('.post-content') ||
-                      document.querySelector('.article-content') ||
-                      document.querySelector('#content');
-
-      if (article) {
-        content = article.outerHTML;
-      } else {
-        // If no main content container is found, use the full page
-        content = document.documentElement.outerHTML;
-      }
+      if (typeof Readability !== 'function') return '';
+      const article = new Readability(document.cloneNode(true)).parse();
+      content = article && article.content ? article.content : '';
       break;
   }
 
@@ -382,39 +383,7 @@ function extractPageContent(mode, trim) {
 }
 
 // Convert HTML to Markdown using TurndownService
-function convertToMarkdown(html, trim) {
-  // Perform any pre-processing if trim is enabled
-  if (trim) {
-    // Simple trimming: remove scripts, styles, nav, footer, etc.
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = html;
-
-    // Remove unwanted elements
-    const elementsToRemove = [
-      'script', 'style', 'iframe', 'noscript',
-      'nav:not([role="navigation"])',
-      'footer',
-      '[role="complementary"]',
-      '[role="banner"]',
-      '.sidebar', '.widget', '.cookie-notice',
-      '#comments', '.comments', '.related-posts',
-      'aside', '.ad', '.advertisement', '.social-share',
-      '.navigation', '.pagination'
-    ];
-
-    elementsToRemove.forEach(selector => {
-      try {
-        tempDiv.querySelectorAll(selector).forEach(el => {
-          el.remove();
-        });
-      } catch (e) {
-        // Ignore errors from invalid selectors
-      }
-    });
-
-    html = tempDiv.innerHTML;
-  }
-
+function convertToMarkdown(html) {
   // Convert to markdown using the standard converter
   return turndownService.turndown(html);
 }

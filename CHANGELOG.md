@@ -20,6 +20,9 @@ All notable changes are documented here. This project follows
 - Main-content mode now selects one substantial semantic region when available
   and otherwise uses a confidence-gated readability extractor before the
   existing HTML-to-Markdown pipeline.
+- The Chrome extension now preserves the complete document in full-page mode,
+  preserves the exact selected fragment in selection mode, and uses packaged
+  Mozilla Readability 0.6.0 only when article mode is explicitly selected.
 
 ### Removed
 
