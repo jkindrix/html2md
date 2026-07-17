@@ -1,6 +1,7 @@
 """Black-box CLI tests across process, HTTP, filesystem, and state boundaries."""
 
 import gzip
+import json
 import os
 import subprocess
 import sys
@@ -37,6 +38,21 @@ class CliContractHandler(BaseHTTPRequestHandler):
             self.end_headers()
         elif path == "/server-error":
             self._send(500, b"server error")
+        elif path == "/authenticated-article":
+            authenticated = (
+                self.headers.get("Authorization") == "Bearer integration-secret"
+                and self.headers.get("X-Tenant") == "docs"
+            )
+            if not authenticated:
+                self._send(401, b"authentication required", "text/plain")
+                return
+            body = (
+                "<html><body><nav>PRIVATE NAVIGATION</nav>"
+                "<article><h1>Authenticated article</h1>"
+                f"<p>{'Evidence-backed authenticated content. ' * 10}</p>"
+                "</article><footer>PRIVATE FOOTER</footer></body></html>"
+            ).encode()
+            self._send(200, body)
         elif path in {"/ok", "/blocked"} or path.endswith("/escape"):
             body = (
                 f"<html><h1>Page {path}</h1><p>body</p>"
@@ -220,6 +236,44 @@ def test_url_metadata_uses_final_redirect_url(tmp_path, cli_server):
     assert content.startswith("---\n")
     assert f'canonical_url: "{cli_server}/ok"' in content
     assert "# Page /ok" in content
+
+
+def test_authenticated_url_applies_explicit_content_selection(tmp_path, cli_server):
+    headers = tmp_path / "headers.json"
+    headers.write_text(
+        json.dumps(
+            {
+                "Authorization": "Bearer integration-secret",
+                "X-Tenant": "docs",
+            }
+        ),
+        encoding="utf-8",
+    )
+    if os.name == "posix":
+        headers.chmod(0o600)
+    output = tmp_path / "authenticated.md"
+
+    result = run_cli(
+        tmp_path,
+        "convert",
+        f"{cli_server}/authenticated-article",
+        "--headers-file",
+        headers,
+        "--content",
+        "selector",
+        "--selector",
+        "article",
+        "--allow-private-network",
+        "--output",
+        output,
+    )
+
+    assert result.returncode == 0, result.stderr
+    markdown = output.read_text(encoding="utf-8")
+    assert "# Authenticated article" in markdown
+    assert "Evidence-backed authenticated content" in markdown
+    assert "PRIVATE NAVIGATION" not in markdown
+    assert "PRIVATE FOOTER" not in markdown
 
 
 def test_private_network_is_rejected_without_explicit_opt_in(tmp_path, cli_server):

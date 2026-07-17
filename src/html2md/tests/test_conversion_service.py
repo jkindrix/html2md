@@ -3,6 +3,7 @@
 from unittest.mock import Mock
 
 from html2md.cli import conversion_service
+from html2md.markdown.content_extractor import ContentMode
 
 
 def test_url_conversion_builds_one_session_and_threads_security_options(
@@ -178,6 +179,8 @@ def test_remote_conversion_loads_private_headers_and_render_storage_state(
 
     result = conversion_service.convert_source(
         "https://example.com",
+        content_mode=ContentMode.SELECTOR,
+        selector="article.docs",
         output=None,
         no_cookies=True,
         browser_cookies=False,
@@ -196,6 +199,8 @@ def test_remote_conversion_loads_private_headers_and_render_storage_state(
         "cookies": [],
         "origins": [],
     }
+    assert convert.call_args.kwargs["content_mode"] is ContentMode.SELECTOR
+    assert convert.call_args.kwargs["selector"] == "article.docs"
 
 
 def test_storage_state_requires_rendering_and_auth_inputs_reject_local_files(tmp_path):

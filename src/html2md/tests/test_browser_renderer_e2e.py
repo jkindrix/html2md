@@ -11,6 +11,7 @@ import pytest
 from unittest.mock import patch
 
 from html2md.markdown.converter import html_to_markdown
+from html2md.markdown.content_extractor import ContentMode
 from html2md.network.auth_inputs import load_storage_state
 from html2md.network.browser_renderer import render_html
 
@@ -23,7 +24,12 @@ class JavaScriptFixtureHandler(BaseHTTPRequestHandler):
                 and self.headers.get("X-Tenant") == "docs"
             )
             body = (
-                b"<html><body><h1>Authenticated</h1></body></html>"
+                (
+                    "<html><body><nav>PRIVATE NAVIGATION</nav><article>"
+                    "<h1>Authenticated</h1>"
+                    f"<p>{'Rendered authenticated evidence. ' * 12}</p>"
+                    "</article><footer>PRIVATE FOOTER</footer></body></html>"
+                ).encode()
                 if authenticated
                 else b"<html><body><h1>Guest</h1></body></html>"
             )
@@ -128,11 +134,13 @@ def test_browser_storage_state_authenticates_the_isolated_context(tmp_path):
     url = f"http://127.0.0.1:{server.server_port}/authenticated"
     try:
         guest = render_html(url, allow_private_network=True)
-        authenticated = render_html(
+        authenticated = html_to_markdown(
             url,
+            render_js=True,
             allow_private_network=True,
             headers={"X-Tenant": "docs"},
             storage_state=load_storage_state(state),
+            content_mode=ContentMode.MAIN,
         )
     finally:
         server.shutdown()
@@ -140,4 +148,8 @@ def test_browser_storage_state_authenticates_the_isolated_context(tmp_path):
         thread.join(timeout=5)
 
     assert "Guest" in guest.html
-    assert "Authenticated" in authenticated.html
+    assert authenticated is not None
+    assert "# Authenticated" in authenticated
+    assert "Rendered authenticated evidence" in authenticated
+    assert "PRIVATE NAVIGATION" not in authenticated
+    assert "PRIVATE FOOTER" not in authenticated
