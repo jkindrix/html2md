@@ -1,33 +1,32 @@
 import logging
 import os
-from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from typing import Dict, Optional
 
 from html2md.cookies.session_manager import get_session
 from html2md.markdown.archive import (
     ArtifactManifest,
-    ArtifactRecord,
     ArtifactStore,
     OutputPlanner,
 )
 from html2md.markdown.content_extractor import ContentMode, validate_content_request
-from html2md.markdown.link_rewriter import rewrite_archived_files
-from html2md.markdown.pipeline import AcquiredPage, PagePipeline
+from html2md.markdown.crawl_engine import (
+    CrawlCheckpointStore,
+    CrawlFrontier,
+    CrawlOptions,
+    CrawlScope,
+    SequentialCrawlEngine,
+)
+from html2md.markdown.pipeline import PagePipeline
 from html2md.network.request_handler import fetch_html
 from html2md.network.robots_parser import RobotsChecker
 from html2md.network.header_manager import HeaderManager, HeaderConfig
 from html2md.network.request_scheduler import SequentialRequestScheduler
-from html2md.network.safe_http import DestinationPolicy, UnsafeNetworkTarget
+from html2md.network.safe_http import DestinationPolicy
 from html2md.utils.state_manager import StateManager
-from html2md.utils.parser import (
-    extract_links_from_html,
-    should_follow_link,
-)
 
 # Setup logger
 logger = logging.getLogger("html2md")
-MAX_RATE_LIMIT_RETRIES = 2
 
 
 @dataclass(frozen=True)
@@ -141,7 +140,7 @@ def crawl_website(
             visited_urls = set(crawl_state.urls_visited.keys()) | set(
                 crawl_state.urls_failed.keys()
             )
-            queue = deque(crawl_state.urls_queued)
+            queue = list(crawl_state.urls_queued)
             processed_urls_count = len(crawl_state.urls_visited)
         else:
             update_progress(
@@ -185,26 +184,13 @@ def crawl_website(
         )
         url_to_file_mapping = {}
         visited_urls = set()
-        queue = deque([(start_url, 0)])  # (url, depth)
+        queue = [(start_url, 0)]  # (url, depth)
         processed_urls_count = 0
 
         # Initialize queue in state
         state_manager.add_urls_to_queue([(start_url, 0)])
 
-    failed_urls_count = 0
-    retryable_attempts = defaultdict(int)
-    queued_urls = {item[0] for item in queue}
-    in_flight_urls = set()
-
-    def enqueue_url(url, depth):
-        """Queue nonterminal work exactly once."""
-        if url in visited_urls or url in queued_urls or url in in_flight_urls:
-            return False
-        queue.append((url, depth))
-        queued_urls.add(url)
-        if enable_checkpoints:
-            state_manager.current_state.urls_queued = list(queue)
-        return True
+    frontier = CrawlFrontier(queue, terminal_urls=visited_urls)
 
     # Now update progress for resume case
     if resume_crawl_id and crawl_state:
@@ -280,204 +266,41 @@ def crawl_website(
                     f"Using robots.txt crawl-delay: {delay}s", start_url, "info"
                 )
 
-    # Process URLs breadth-first up to max_depth
-    while queue and processed_urls_count < max_pages:
-        url, depth = queue.popleft()
-        queued_urls.discard(url)
-
-        # Skip if already visited
-        if url in visited_urls:
-            continue
-
-        # Keep the active URL in persisted state until it reaches a terminal
-        # outcome so a signal checkpoint can resume it.
-        if enable_checkpoints:
-            state_manager.current_state.urls_queued = [(url, depth), *queue]
-
-        # Check robots.txt for this URL
-        if robots_checker and not robots_checker.can_fetch(url):
-            update_progress(f"URL disallowed by robots.txt: {url}", url, "blocked")
-            visited_urls.add(url)
-            if enable_checkpoints:
-                state_manager.current_state.urls_queued = list(queue)
-            continue
-
-        # Process the URL
-        update_progress(
-            f"Processing URL {processed_urls_count+1}/{max_pages} (depth {depth}/{max_depth}): {url}",
-            url,
-            "processing",
-        )
-
-        try:
-            in_flight_urls.add(url)
-            update_progress(f"Fetching content from {url}", url, "fetching")
-            headers = header_manager.get_headers(url)
-            starting_navigation = url == start_url and depth == 0
-
-            def validate_redirect(_source_url, target_url):
-                if not starting_navigation and not should_follow_link(
-                    target_url, crawl_scope_url, follow_option
-                ):
-                    raise UnsafeNetworkTarget(
-                        f"Crawl redirect leaves the configured scope: {target_url}"
-                    )
-                if robots_checker and not robots_checker.can_fetch(target_url):
-                    raise UnsafeNetworkTarget(
-                        f"Crawl redirect is disallowed by robots.txt: {target_url}"
-                    )
-
-            fetch_result = fetch_html(
-                url,
-                session,
-                headers,
-                network_policy=network_policy,
-                redirect_validator=validate_redirect,
-                request_scheduler=scheduler,
-            )
-
-            if (
-                fetch_result.status_code == 429
-                and retryable_attempts[url] < MAX_RATE_LIMIT_RETRIES
-            ):
-                retryable_attempts[url] += 1
-                update_progress(
-                    f"Server rate limited {url}; queueing retry "
-                    f"{retryable_attempts[url]}/{MAX_RATE_LIMIT_RETRIES}",
-                    url,
-                    "queued",
-                )
-                in_flight_urls.discard(url)
-                enqueue_url(url, depth)
-                if enable_checkpoints:
-                    state_manager.current_state.urls_queued = list(queue)
-                continue
-
-            # The URL is terminal only after it succeeds or exhausts retry policy.
-            in_flight_urls.discard(url)
-            visited_urls.add(url)
-
-            if not fetch_result.success or not fetch_result.body:
-                error_message = fetch_result.error or "Failed to fetch content"
-                update_progress(
-                    f"Failed to fetch content from {url}: {error_message}",
-                    url,
-                    "failed",
-                )
-                failed_urls_count += 1
-                if enable_checkpoints:
-                    state_manager.current_state.urls_queued = list(queue)
-                    state_manager.update_progress(
-                        url, False, error_message=error_message
-                    )
-                continue
-
-            html_content = fetch_result.body
-            if url == start_url and depth == 0:
-                crawl_scope_url = fetch_result.final_url
-                crawl_state.config["scope_url"] = crawl_scope_url
-
-            existing = manifest.resolve(fetch_result.final_url)
-            if existing is not None:
-                manifest.register_alias(url, existing)
-                output_file = str(existing.output_path)
-                url_to_file_mapping[url] = output_file
-                processed_urls_count += 1
-                if enable_checkpoints:
-                    state_manager.current_state.urls_queued = list(queue)
-                    state_manager.update_progress(url, True, output_file)
-                continue
-
-            output_path = output_planner.plan(fetch_result.final_url)
-            page = AcquiredPage(
-                requested_url=url,
-                final_url=fetch_result.final_url,
-                html=html_content,
-                status_code=fetch_result.status_code,
-                headers=fetch_result.headers,
-                media_type="text/html",
-                charset="utf-8",
-            )
-            document = page_pipeline.convert(
-                page,
-                content_mode=content_mode,
-                selector=selector,
-                download_images=download_images,
-                output_dir=output_path.parent,
-                images_dir=images_dir,
-                include_metadata=include_metadata,
-                session=session,
-                allow_private_network=allow_private_network,
-                request_scheduler=scheduler,
-            )
-            canonical_url = document.metadata.canonical_url
-            canonical_record = (
-                manifest.resolve(canonical_url) if canonical_url else None
-            )
-            if canonical_record is not None:
-                manifest.register_alias(url, canonical_record)
-                manifest.register_alias(fetch_result.final_url, canonical_record)
-                output_path = canonical_record.output_path
-            else:
-                ArtifactStore.write_text(output_path, document.markdown)
-                manifest.register(
-                    ArtifactRecord(
-                        url, fetch_result.final_url, canonical_url, output_path
-                    )
-                )
-            output_file = str(output_path)
-
-            url_to_file_mapping[url] = output_file
-            update_progress(f"Saved markdown to: {output_file}", url, "saved")
-            processed_urls_count += 1
-
-            if enable_checkpoints:
-                state_manager.current_state.urls_queued = list(queue)
-                state_manager.update_progress(url, True, output_file)
-
-            if depth < max_depth:
-                links = extract_links_from_html(html_content, fetch_result.final_url)
-                update_progress(
-                    f"Found {len(links)} links on {url}", url, "extracting_links"
-                )
-
-                allowed_links = [
-                    link
-                    for link in links
-                    if should_follow_link(link, crawl_scope_url, follow_option)
-                ]
-                if robots_checker:
-                    scoped_count = len(allowed_links)
-                    allowed_links = robots_checker.filter_urls(allowed_links)
-                    if len(allowed_links) < scoped_count:
-                        update_progress(
-                            f"Filtered {scoped_count - len(allowed_links)} links due to robots.txt",
-                            url,
-                            "filtered",
-                        )
-
-                for link in allowed_links:
-                    if link not in visited_urls and enqueue_url(link, depth + 1):
-                        update_progress(
-                            f"Queued link (depth {depth+1}): {link}",
-                            link,
-                            "queued",
-                        )
-
-        except Exception as e:
-            in_flight_urls.discard(url)
-            visited_urls.add(url)
-            failed_urls_count += 1
-            update_progress(f"Error processing URL {url}: {str(e)}", url, "error")
-
-            # Update state manager with failed processing
-            if enable_checkpoints:
-                state_manager.current_state.urls_queued = list(queue)
-                state_manager.update_progress(url, False, error_message=str(e))
-
-    # Rewrite links in all files to point to local files
-    if processed_urls_count > 0:
-        rewrite_archived_files(manifest, update_progress)
+    checkpoint_store = CrawlCheckpointStore(state_manager, enabled=enable_checkpoints)
+    engine = SequentialCrawlEngine(
+        frontier=frontier,
+        scope=CrawlScope(crawl_scope_url, follow_option),
+        robots=robots_checker,
+        scheduler=scheduler,
+        page_pipeline=page_pipeline,
+        artifact_store=ArtifactStore,
+        checkpoint_store=checkpoint_store,
+        event_sink=update_progress,
+        session=session,
+        network_policy=network_policy,
+        header_manager=header_manager,
+        manifest=manifest,
+        output_planner=output_planner,
+        url_mapping=url_to_file_mapping,
+        fetch_page=fetch_html,
+        options=CrawlOptions(
+            max_depth=max_depth,
+            max_pages=max_pages,
+            content_mode=content_mode,
+            selector=selector,
+            download_images=download_images,
+            images_dir=images_dir,
+            include_metadata=include_metadata,
+            allow_private_network=allow_private_network,
+        ),
+        initial_processed=processed_urls_count,
+    )
+    try:
+        run = engine.run()
+    finally:
+        session.close()
+    processed_urls_count = run.processed_count
+    failed_urls_count = run.failed_count
 
     for domain, domain_stats in scheduler.get_all_stats().items():
         if domain_stats.total_requests > 0:
@@ -490,7 +313,8 @@ def crawl_website(
             )
 
     update_progress(
-        f"Completed crawling. Processed {processed_urls_count} pages, visited {len(visited_urls)} URLs."
+        f"Completed crawling. Processed {processed_urls_count} pages, "
+        f"visited {run.terminal_count} URLs."
     )
 
     # Save final checkpoint
@@ -504,8 +328,6 @@ def crawl_website(
         error = "Crawl completed without producing any pages"
     else:
         error = None
-
-    session.close()
 
     return CrawlResult(
         processed_count=processed_urls_count,

@@ -41,9 +41,7 @@ class SequentialRequestScheduler:
         self.sleep = sleep
         self.clock = clock
         self.rate_limiter = (
-            GlobalRateLimiter(
-                RateLimitConfig(requests_per_minute=requests_per_minute)
-            )
+            GlobalRateLimiter(RateLimitConfig(requests_per_minute=requests_per_minute))
             if requests_per_minute is not None
             else None
         )
@@ -90,7 +88,9 @@ class SequentialRequestScheduler:
             )
         delay = self.minimum_delay
         if delay and self.jitter:
-            delay = max(0.0, delay + random.uniform(-delay * self.jitter, delay * self.jitter))
+            delay = max(
+                0.0, delay + random.uniform(-delay * self.jitter, delay * self.jitter)
+            )
         if status_code == 429 and retry_after is not None:
             delay = max(delay, float(retry_after))
         self._ready_at[self._origin(request.url)] = self.clock() + delay

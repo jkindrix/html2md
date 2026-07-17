@@ -6,7 +6,16 @@ from unittest.mock import Mock, patch
 import pytest
 
 from html2md.markdown.converter import html_to_markdown
+from html2md.markdown.archive import ArtifactManifest, ArtifactStore, OutputPlanner
+from html2md.markdown.content_extractor import ContentMode
+from html2md.markdown.crawl_engine import (
+    CrawlFrontier,
+    CrawlOptions,
+    CrawlScope,
+    SequentialCrawlEngine,
+)
 from html2md.markdown.crawler import crawl_website
+from html2md.markdown.pipeline import PagePipeline
 from html2md.network.request_handler import FetchResult
 from html2md.network.safe_http import UnsafeNetworkTarget
 from html2md.utils.state_manager import StateManager
@@ -191,3 +200,52 @@ def test_429_response_is_requeued_and_retried(tmp_path):
 
     assert result.processed_count == 1
     assert fetch.call_count == 2
+
+
+def test_engine_uses_injected_pipeline_store_checkpoint_and_event_sink(tmp_path):
+    url = "https://example.com/page"
+    frontier = CrawlFrontier([(url, 0)])
+    checkpoint = Mock()
+    events = Mock()
+    store = Mock()
+    store.write_text.side_effect = ArtifactStore.write_text
+    fetch = Mock(
+        return_value=FetchResult(url, url, status_code=200, body="<h1>Page</h1>")
+    )
+    headers = Mock()
+    headers.get_headers.return_value = {"User-Agent": "html2md"}
+
+    engine = SequentialCrawlEngine(
+        frontier=frontier,
+        scope=CrawlScope(url, "domain-only"),
+        robots=None,
+        scheduler=Mock(),
+        page_pipeline=PagePipeline(),
+        artifact_store=store,
+        checkpoint_store=checkpoint,
+        event_sink=events,
+        session=Mock(),
+        network_policy=Mock(),
+        header_manager=headers,
+        manifest=ArtifactManifest(),
+        output_planner=OutputPlanner(tmp_path),
+        url_mapping={},
+        fetch_page=fetch,
+        options=CrawlOptions(
+            max_depth=0,
+            max_pages=1,
+            content_mode=ContentMode.FULL,
+            selector=None,
+            download_images=False,
+            images_dir="images",
+            include_metadata=False,
+            allow_private_network=False,
+        ),
+    )
+
+    run = engine.run()
+
+    assert run.processed_count == 1
+    store.write_text.assert_called_once()
+    checkpoint.succeeded.assert_called_once()
+    assert any(call.args[2] == "saved" for call in events.call_args_list)
