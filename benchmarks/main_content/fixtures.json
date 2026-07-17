@@ -1,20 +1,27 @@
 [
   {
     "name": "article",
-    "html": "<html><head><title>Deep Work</title></head><body><header>Brand Subscribe Login</header><nav>Home News Sports</nav><main><article><h1>Deep Work</h1><p>By Ada Author</p><p>The essential opening paragraph explains the thesis carefully.</p><h2>Evidence</h2><p>The second paragraph contains the decisive evidence and a <a href=\"/source\">source link</a>.</p><table><tr><th>Metric</th><th>Value</th></tr><tr><td>Recall</td><td>High</td></tr></table></article><aside>Related story Advertisement Newsletter</aside></main><footer>Privacy Terms Copyright</footer></body></html>",
-    "required": ["Deep Work", "essential opening", "decisive evidence", "source link", "Metric", "Recall", "High"],
-    "boilerplate": ["Brand", "Subscribe", "Login", "Home", "Sports", "Related story", "Advertisement", "Newsletter", "Privacy", "Terms", "Copyright"]
+    "file": "../../tests/fixtures/extraction/article.html",
+    "required": ["Measured Article", "important source link", "def preserved", "Mode", "Focused", "Architecture diagram", "References are legitimate"],
+    "boilerplate": ["GLOBAL NAVIGATION", "RELATED STORIES", "COPYRIGHT FOOTER"]
   },
   {
     "name": "documentation",
-    "html": "<html><body><header>Project Docs Search</header><aside><nav>Install API FAQ Changelog</nav></aside><main><h1>Configuration</h1><p>Set the timeout to thirty seconds.</p><pre><code>timeout = 30\nretries = 2</code></pre><h2>Options</h2><dl><dt>timeout</dt><dd>Maximum request duration.</dd></dl></main><footer>Edit this page Previous Next</footer></body></html>",
-    "required": ["Configuration", "thirty seconds", "timeout = 30", "retries = 2", "Options", "Maximum request duration"],
-    "boilerplate": ["Project Docs", "Search", "Install", "API", "FAQ", "Changelog", "Edit this page", "Previous", "Next"]
+    "file": "../../tests/fixtures/extraction/documentation.html",
+    "required": ["Configuration Guide", "output", "guide", "Setting", "enabled", "license section is intentional"],
+    "boilerplate": ["PRODUCT HEADER", "DOCUMENTATION TREE", "SITE FOOTER"]
   },
   {
-    "name": "product",
-    "html": "<html><body><header>Store Cart Account</header><nav>Products Sale Support</nav><main><section class=\"hero\"><h1>Orbit Camera</h1><p>Capture detailed night skies.</p><button>Buy now</button></section><section><h2>Specifications</h2><ul><li>24 megapixels</li><li>Weather sealed</li></ul></section></main><aside>Customers also bought Tripod</aside><footer>Shipping Returns Legal</footer></body></html>",
-    "required": ["Orbit Camera", "detailed night skies", "Buy now", "Specifications", "24 megapixels", "Weather sealed"],
-    "boilerplate": ["Store", "Cart", "Account", "Products", "Sale", "Support", "Customers also bought", "Tripod", "Shipping", "Returns", "Legal"]
+    "name": "generic-article",
+    "file": "../../tests/fixtures/extraction/generic-article.html",
+    "required": ["Generic Container Story", "realistic article", "evidence link", "important wording", "Supporting detail", "structurally useful"],
+    "boilerplate": ["MASTHEAD", "NAVIGATION", "FOOTER"]
+  },
+  {
+    "name": "ambiguous",
+    "file": "../../tests/fixtures/extraction/ambiguous.html",
+    "required": [],
+    "boilerplate": ["Alpha", "Beta", "Gamma", "Contact and legal"],
+    "expected_empty": true
   }
 ]

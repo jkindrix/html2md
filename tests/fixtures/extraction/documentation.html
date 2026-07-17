@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head><title>Configuration Guide</title></head>
+  <body>
+    <header>PRODUCT HEADER SHOULD NOT SURVIVE MAIN MODE</header>
+    <nav>DOCUMENTATION TREE SHOULD NOT SURVIVE MAIN MODE</nav>
+    <main>
+      <h1>Configuration Guide</h1>
+      <p>
+        This guide explains the configuration contract in enough detail for an
+        article extractor to recognize the central documentation region.
+      </p>
+      <h2>Settings</h2>
+      <dl>
+        <dt><code>output</code></dt>
+        <dd>Controls the destination used for generated Markdown documents.</dd>
+      </dl>
+      <pre><code class="language-json">{"output": "guide.md", "enabled": true}</code></pre>
+      <table>
+        <thead><tr><th>Setting</th><th>Default</th></tr></thead>
+        <tbody><tr><td>enabled</td><td>true</td></tr></tbody>
+      </table>
+      <h2>License</h2>
+      <p>The license section is intentional documentation, not a footer marker.</p>
+    </main>
+    <footer>SITE FOOTER SHOULD NOT SURVIVE MAIN MODE</footer>
+  </body>
+</html>

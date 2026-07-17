@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Measured Article</title>
+    <meta name="author" content="A. Writer">
+  </head>
+  <body>
+    <nav>GLOBAL NAVIGATION SHOULD NOT SURVIVE MAIN MODE</nav>
+    <aside>RELATED STORIES SHOULD NOT SURVIVE MAIN MODE</aside>
+    <article>
+      <h1>Measured Article</h1>
+      <p class="byline">By A. Writer</p>
+      <p>
+        This deliberately substantial opening paragraph gives a general-purpose
+        extractor enough prose to distinguish the article from surrounding page
+        chrome while preserving an <a href="/source">important source link</a>.
+      </p>
+      <h2>Implementation details</h2>
+      <p>
+        The second paragraph contains enough explanatory prose to remain part of
+        the article and introduces a concrete example for preservation testing.
+      </p>
+      <pre><code class="language-python">def preserved():
+    return "code block"
+</code></pre>
+      <table>
+        <thead><tr><th>Mode</th><th>Result</th></tr></thead>
+        <tbody><tr><td>Main</td><td>Focused</td></tr></tbody>
+      </table>
+      <figure>
+        <img src="/diagram.png" alt="Architecture diagram">
+        <figcaption>Architecture diagram caption</figcaption>
+      </figure>
+      <h2>References</h2>
+      <p>References are legitimate article content and must remain.</p>
+    </article>
+    <footer>COPYRIGHT FOOTER SHOULD NOT SURVIVE MAIN MODE</footer>
+  </body>
+</html>
