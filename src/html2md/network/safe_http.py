@@ -157,7 +157,10 @@ class DestinationPolicy:
 
 def _clone_direct_session(source: Session) -> Session:
     """Copy request identity into a session that cannot delegate DNS to a proxy."""
-    direct = requests.Session()
+    try:
+        direct = type(source)()
+    except TypeError:
+        direct = requests.Session()
     direct.headers.clear()
     direct.headers.update(getattr(source, "headers", {}))
     source_cookies = getattr(source, "cookies", None)

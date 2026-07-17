@@ -199,7 +199,7 @@ def test_chrome_cookie_temp_storage_cleans_up_on_failure_and_interruption(
             with pytest.raises(KeyboardInterrupt):
                 session_manager.get_chrome_cookies("example.com")
         else:
-            assert session_manager.get_chrome_cookies("example.com") == {}
+            assert session_manager.get_chrome_cookies("example.com") == []
 
     assert not captured["directory"].exists()
 
