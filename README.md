@@ -251,6 +251,7 @@ documented in [`docs/coverage.md`](./docs/coverage.md).
 - [`docs/releasing.md`](./docs/releasing.md): reproducible release checklist
 - [`docs/deployment.md`](./docs/deployment.md): local deployment details
 - [`docs/configuration-example.md`](./docs/configuration-example.md): configuration example
+- [`docs/adr/0001-defer-scale-out-crawling.md`](./docs/adr/0001-defer-scale-out-crawling.md): scale-out architecture gate
 - [`docs/internal/`](./docs/internal/README.md): historical planning and review records
 
 ## License

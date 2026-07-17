@@ -1,5 +1,10 @@
 # HTML2MD Development Roadmap
 
+> Historical and superseded. This 2025 planning artifact is not a current
+> delivery commitment. Scale-out work is governed by
+> [`ADR 0001`](../adr/0001-defer-scale-out-crawling.md) and remains deferred
+> until its measured-need, benchmark, architecture, and security gates pass.
+
 ## Executive Summary
 This roadmap outlines the planned development for html2md, focusing on enterprise-grade features for large-scale, respectful web crawling. The implementation is organized into 4 phases over approximately 4 weeks.
 
@@ -224,4 +229,4 @@ Transform html2md from a simple conversion tool into a professional-grade, distr
 
 ---
 
-*This roadmap is a living document and will be updated as development progresses.*
+*This roadmap is retained only as historical planning context.*

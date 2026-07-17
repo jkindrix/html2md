@@ -1,5 +1,10 @@
 # HTML2MD Work Breakdown Structure
 
+> Historical and superseded. Estimates and feature priorities in this document
+> are not active commitments. See
+> [`ADR 0001`](../adr/0001-defer-scale-out-crawling.md) for the accepted gate on
+> concurrency, distributed crawling, storage, scheduling, and dashboards.
+
 ## Overview
 This document contains a dependency-aware, topologically sorted breakdown of all work items, including known issues, enhancements, and recommended actions.
 

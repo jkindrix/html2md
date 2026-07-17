@@ -16,6 +16,8 @@ All notable changes are documented here. This project follows
 
 - Remote relative links and images now resolve against the final response URL
   and valid HTML base element while local-file references remain relative.
+- The historical enterprise/distributed roadmap is superseded by an accepted
+  measured-need, benchmark, architecture, resource, and security gate.
 
 ## [0.1.0] - 2026-07-16
 
