@@ -49,7 +49,7 @@ source = ["html2md"]
 omit = ["*/html2md/tests/*"]
 
 [tool.coverage.report]
-fail_under = 65
+fail_under = 75
 show_missing = true
 skip_covered = true
 omit = ["*/html2md/tests/*"]

@@ -105,6 +105,142 @@ def test_config_restore_uses_explicit_backup(tmp_path):
     manager.restore_backup.assert_called_once_with(backup)
 
 
+def test_config_path_and_options_render_without_loading_state():
+    path_result = runner.invoke(app, ["config", "path"])
+    options_result = runner.invoke(app, ["config", "show-options"])
+
+    assert path_result.exit_code == 0
+    assert "Configuration file" in path_result.output
+    assert options_result.exit_code == 0
+    assert "CLI Defaults" in options_result.output
+    assert "Domain-Specific Trimming" in options_result.output
+    assert "Browser Configuration" in options_result.output
+
+
+def test_config_get_handles_values_and_invalid_paths():
+    config = {"browser": {"preferred": "firefox"}, "scalar": 3}
+    with patch("html2md.cli.config_commands.load_config", return_value=config):
+        found = runner.invoke(app, ["config", "get", "browser.preferred"])
+        missing = runner.invoke(app, ["config", "get", "browser.missing"])
+        blocked = runner.invoke(app, ["config", "get", "scalar.child"])
+
+    assert found.exit_code == 0
+    assert "firefox" in found.output
+    assert "not found" in missing.output
+    assert "not a dictionary" in blocked.output
+
+
+def test_config_set_handles_plain_strings_and_invalid_parent():
+    save = Mock()
+    with (
+        patch(
+            "html2md.cli.config_commands.load_config",
+            side_effect=[{"custom": {}}, {"custom": "scalar"}],
+        ),
+        patch("html2md.cli.config_commands.save_config", save),
+    ):
+        plain = runner.invoke(app, ["config", "set", "custom.label", "plain"])
+        blocked = runner.invoke(app, ["config", "set", "custom.label", "plain"])
+
+    assert plain.exit_code == 0
+    assert save.call_args.args[0]["custom"]["label"] == "plain"
+    assert "not a dictionary" in blocked.output
+
+
+def test_config_delete_confirms_or_preserves_value():
+    save = Mock()
+    with (
+        patch(
+            "html2md.cli.config_commands.load_config",
+            side_effect=[
+                {"custom": {"label": "value"}},
+                {"custom": {"label": "value"}},
+            ],
+        ),
+        patch("html2md.cli.config_commands.save_config", save),
+    ):
+        deleted = runner.invoke(app, ["config", "delete", "custom.label"], input="y\n")
+        cancelled = runner.invoke(
+            app, ["config", "delete", "custom.label"], input="n\n"
+        )
+
+    assert deleted.exit_code == 0
+    assert "Deleted" in deleted.output
+    assert cancelled.exit_code == 0
+    save.assert_called_once()
+
+
+def test_config_list_domains_handles_empty_and_populated_state():
+    with patch(
+        "html2md.cli.config_commands.load_config",
+        side_effect=[
+            {"domains": {}},
+            {
+                "domains": {
+                    "example.com": {
+                        "footer_marker": "End",
+                        "path_rules": {"/docs": {"h1_occurrence": 1}},
+                    }
+                }
+            },
+        ],
+    ):
+        empty = runner.invoke(app, ["config", "list-domains"])
+        populated = runner.invoke(app, ["config", "list-domains"])
+
+    assert "No domains configured" in empty.output
+    assert "example.com" in populated.output
+    assert "1 path rule" in populated.output
+
+
+def test_config_reset_cancellation_and_success():
+    manager = Mock()
+    manager.create_backup.return_value = Path("reset-backup.json")
+    save = Mock()
+    with (
+        patch("html2md.cli.config_commands.get_backup_manager", return_value=manager),
+        patch("html2md.cli.config_commands.save_config", save),
+    ):
+        cancelled = runner.invoke(app, ["config", "reset"], input="n\n")
+        reset = runner.invoke(app, ["config", "reset"], input="y\n")
+
+    assert "Reset cancelled" in cancelled.output
+    assert "reset to default" in reset.output
+    save.assert_called_once_with(DEFAULT_CONFIG)
+
+
+def test_config_cli_default_listing_handles_empty_and_populated_state():
+    with patch(
+        "html2md.cli.config_commands.load_config",
+        side_effect=[
+            {"cli_defaults": {}},
+            {"cli_defaults": {"convert": {"trim": False}}},
+        ],
+    ):
+        empty = runner.invoke(app, ["config", "list-cli-defaults"])
+        populated = runner.invoke(app, ["config", "list-cli-defaults"])
+
+    assert "No CLI defaults" in empty.output
+    assert "Convert Command Defaults" in populated.output
+    assert "--trim" in populated.output
+
+
+def test_config_backup_and_restore_failure_contracts():
+    manager = Mock()
+    manager.create_backup.return_value = None
+    manager.list_backups.return_value = []
+    with patch("html2md.cli.config_commands.get_backup_manager", return_value=manager):
+        backup = runner.invoke(app, ["config", "backup"])
+        listing = runner.invoke(app, ["config", "list-backups"])
+        restore = runner.invoke(app, ["config", "restore"])
+
+    assert backup.exit_code == 1
+    assert "Failed to create backup" in backup.output
+    assert "No backups found" in listing.output
+    assert restore.exit_code == 1
+    assert "No backups available" in restore.output
+
+
 @pytest.mark.parametrize(
     "command, option, raw, expected",
     [
