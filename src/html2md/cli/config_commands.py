@@ -324,13 +324,16 @@ def show_config_options():
             "no_cookies": ("bool", "Disable cookie loading by default"),
             "browser": (
                 "str",
-                "Default browser for cookie extraction (chrome/firefox/edge/safari)",
+                "Default browser for cookie extraction (chrome/firefox)",
             ),
             "content_mode": ("str", "Content mode (full/main/selector)"),
             "selector": ("str", "CSS selector for selector content mode"),
             "download_images": ("bool", "Download images from pages"),
             "images_dir": ("str", "Directory name for downloaded images"),
             "metadata": ("bool", "Prepend YAML document metadata"),
+            "enhanced_headers": ("bool", "Use an identified crawler user agent"),
+            "user_agent_contact": ("str", "Crawler contact email or URL"),
+            "simulate_browser": ("bool", "Use browser-like request headers"),
             "render_js": ("bool", "Render JavaScript with optional Chromium"),
             "fancy": ("bool", "Enable fancy output with progress bars"),
             "local": ("bool", "Treat sources as local files by default"),
@@ -390,7 +393,7 @@ def show_config_options():
     browser_table.add_column("Setting", style="cyan")
     browser_table.add_column("Description", style="white")
 
-    browser_table.add_row("preferred", "Default browser (chrome/firefox/edge/safari)")
+    browser_table.add_row("preferred", "Default browser (chrome/firefox)")
     browser_table.add_row(
         "custom_path.<browser>", "Custom path to browser cookie database"
     )

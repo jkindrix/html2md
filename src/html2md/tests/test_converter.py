@@ -62,6 +62,23 @@ def test_html_content_conversion_preserves_ordinary_words_and_code():
     assert "model Search API" in markdown
 
 
+def test_full_conversion_preserves_clipboard_phrases_and_ordinary_glyphs():
+    html = """
+    <article>
+      <p>Content copied to clipboard</p>
+      <p>Link copied to clipboard</p>
+      <p>The authored private-use glyph is  and must survive.</p>
+    </article>
+    """
+
+    markdown = html_content_to_markdown(html, "https://example.com/article")
+
+    assert markdown is not None
+    assert "Content copied to clipboard" in markdown
+    assert "Link copied to clipboard" in markdown
+    assert "" in markdown
+
+
 def test_full_conversion_preserves_legitimate_navigation_footer_and_sections():
     html = """
     <nav>Documentation navigation</nav>

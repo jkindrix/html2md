@@ -26,14 +26,14 @@ from rich.table import Table
 from rich.text import Text
 
 from html2md.config.loader import load_config, save_config
-from html2md.markdown.batch_processor import process_markdown_links
+from html2md.markdown.batch_processor import BatchResult, process_markdown_links
 from html2md.markdown.content_extractor import (
     ContentExtractionError,
     ContentMode,
     validate_content_request,
 )
 from html2md.markdown.crawler import crawl_website
-from html2md.cli.runtime import build_header_config
+from html2md.cli.runtime import build_header_config, build_header_manager
 from html2md.cli.state_commands import state_app
 from html2md import __version__
 from html2md.cli.conversion_presenter import (
@@ -99,8 +99,6 @@ class Browser(str, Enum):
 
     CHROME = "chrome"
     FIREFOX = "firefox"
-    EDGE = "edge"
-    SAFARI = "safari"
 
 
 def set_log_level(level: LogLevel, debug_log: Optional[Path] = None) -> None:
@@ -383,6 +381,21 @@ def batch_command(
         "--metadata/--no-metadata",
         help="Prepend title, author/date, canonical URL, and page metadata as YAML front matter.",
     ),
+    enhanced_headers: bool = typer.Option(
+        get_cli_default("batch", "enhanced_headers", True),
+        "--enhanced-headers/--basic-headers",
+        help="Use an identified html2md user agent and compression support.",
+    ),
+    user_agent_contact: Optional[str] = typer.Option(
+        get_cli_default("batch", "user_agent_contact", None),
+        "--user-agent-contact",
+        help="Contact email or URL to include in the crawler user agent.",
+    ),
+    simulate_browser: bool = typer.Option(
+        get_cli_default("batch", "simulate_browser", False),
+        "--simulate-browser/--identify-crawler",
+        help="Use the configured browser-like request identity.",
+    ),
     flatten_output: bool = typer.Option(
         get_cli_default("batch", "flatten", False),
         "--flatten/--preserve-paths",
@@ -504,8 +517,7 @@ def batch_command(
     console.print("\n[bold]Starting batch processing...[/bold]")
 
     # Initialize variables to track results
-    processed_count = 0
-    url_to_file_mapping = {}
+    batch_result = BatchResult()
 
     with EnhancedProgress() as progress:
         task = progress.add_task("Extracting URLs...", total=None)
@@ -537,8 +549,15 @@ def batch_command(
                     # Resume the progress display
                     progress.start()
 
-            # Process the files with callback for updates
-            processed_count, url_to_file_mapping = process_markdown_links(
+            config = load_config()
+            header_manager = build_header_manager(
+                config,
+                enhanced_headers=enhanced_headers,
+                user_agent_contact=user_agent_contact,
+                simulate_browser=simulate_browser,
+            )
+
+            batch_result = process_markdown_links(
                 expanded_files,
                 output_dir,
                 content_mode=content_mode,
@@ -550,7 +569,10 @@ def batch_command(
                 verify_ssl=not insecure,
                 include_metadata=include_metadata,
                 allow_private_network=allow_private_network,
+                header_manager=header_manager,
             )
+            processed_count = batch_result.processed_count
+            url_to_file_mapping = batch_result.url_mapping
 
             # Set completed state
             progress.update(
@@ -714,7 +736,14 @@ def batch_command(
             f"\n[success]Report saved to: [filename]{report}[/filename][/success]"
         )
 
-    # Final success message
+    if not batch_result.success:
+        detail = batch_result.error or (
+            f"{batch_result.failed_count} URL(s) failed; "
+            f"{batch_result.processed_count} succeeded"
+        )
+        console.print(f"\n[bold red]Batch processing failed: {detail}[/bold red]")
+        raise typer.Exit(1)
+
     console.print(
         f"\n[success]Batch processing complete! Output saved to [directory]{output_dir}[/directory][/success]"
     )

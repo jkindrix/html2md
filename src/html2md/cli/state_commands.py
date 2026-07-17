@@ -126,6 +126,7 @@ def export_state(
         console.print(f"[green]✓ State exported to {output_file}[/green]")
     except Exception as error:
         console.print(f"[red]Error exporting state: {error}[/red]")
+        raise typer.Exit(1) from error
 
 
 @state_app.command(name="import")
@@ -136,6 +137,7 @@ def import_state(input_file: Path = typer.Argument(..., help="State file to impo
         console.print(f"[green]✓ State imported with ID: {crawl_id}[/green]")
     except Exception as error:
         console.print(f"[red]Error importing state: {error}[/red]")
+        raise typer.Exit(1) from error
 
 
 @state_app.command(name="info")
@@ -146,7 +148,7 @@ def show_state_info(
     crawl_state = StateManager().load_state(crawl_id)
     if not crawl_state:
         console.print(f"[red]Crawl {crawl_id} not found.[/red]")
-        return
+        raise typer.Exit(1)
 
     table = Table(title=f"Crawl State: {crawl_id}", show_header=False)
     table.add_column("Property", style="cyan", width=20)

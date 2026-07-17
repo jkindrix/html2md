@@ -7,9 +7,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 import requests
+import pytest
 
 from html2md.cookies.session_manager import (
     CookieRecord,
+    CookieSourceError,
     apply_browser_cookies,
     get_chrome_cookies,
     get_domain_cookies,
@@ -43,7 +45,8 @@ def test_exported_cookie_dict_requires_target_and_creates_host_only_records(tmp_
     cookie_file = tmp_path / "cookies.json"
     cookie_file.write_text(json.dumps({"session": "token", "theme": "dark"}))
 
-    assert load_cookies_from_json(cookie_file) == []
+    with pytest.raises(CookieSourceError, match="target URL"):
+        load_cookies_from_json(cookie_file)
     cookies = load_cookies_from_json(cookie_file, "https://example.com")
     assert [(item.name, item.domain, item.host_only) for item in cookies] == [
         ("session", "example.com", True),
@@ -51,11 +54,27 @@ def test_exported_cookie_dict_requires_target_and_creates_host_only_records(tmp_
     ]
 
 
-def test_malformed_cookie_export_returns_empty_mapping(tmp_path):
+def test_malformed_cookie_export_fails_explicitly(tmp_path):
     cookie_file = tmp_path / "cookies.json"
     cookie_file.write_text("not-json", encoding="utf-8")
 
-    assert load_cookies_from_json(cookie_file, "https://example.com") == []
+    with pytest.raises(CookieSourceError, match="Could not load cookie export"):
+        load_cookies_from_json(cookie_file, "https://example.com")
+
+
+def test_empty_cookie_export_fails_before_unauthenticated_fallback(tmp_path):
+    cookie_file = tmp_path / "cookies.json"
+    cookie_file.write_text("[]", encoding="utf-8")
+
+    with pytest.raises(CookieSourceError, match="No applicable cookies"):
+        apply_browser_cookies(
+            requests.Session(), "https://example.com", cookie_json=cookie_file
+        )
+
+
+def test_unsupported_browser_fails_explicitly():
+    with pytest.raises(CookieSourceError, match="chrome and firefox"):
+        get_domain_cookies("https://example.com", browser="safari")
 
 
 def test_apply_cookie_export_preserves_domain_and_path(tmp_path):

@@ -99,11 +99,14 @@ def test_batch_mapping_and_rewrites_exclude_failed_outputs(tmp_path):
             side_effect=[f"[Failed]({failed})", None],
         ),
     ):
-        count, mapping = process_markdown_links([source], tmp_path / "output")
+        result = process_markdown_links([source], tmp_path / "output")
 
-    assert count == 1
-    assert set(mapping) == {good}
-    archived_file = next(iter(mapping.values()))
+    assert result.processed_count == 1
+    assert result.failed_count == 1
+    assert result.success is False
+    assert result.items[1].error == "Conversion returned no Markdown content"
+    assert set(result.url_mapping) == {good}
+    archived_file = next(iter(result.url_mapping.values()))
     assert failed in Path(archived_file).read_text(encoding="utf-8")
     assert not list((tmp_path / "output").rglob("*failed*.md"))
 

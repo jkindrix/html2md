@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from html2md.network.header_manager import HeaderConfig
+from html2md.network.header_manager import HeaderManager
 
 
 def build_header_config(
@@ -43,4 +44,22 @@ def build_header_config(
         include_accept_language=header_settings.get("include_accept_language", True),
         preferred_language=header_settings.get("preferred_language", "en-US,en;q=0.9"),
         custom_headers=header_settings.get("custom_headers", {}),
+    )
+
+
+def build_header_manager(
+    config: Mapping[str, Any],
+    *,
+    enhanced_headers: bool,
+    user_agent_contact: str | None,
+    simulate_browser: bool,
+) -> HeaderManager:
+    """Construct the shared header policy as a ready-to-use manager."""
+    return HeaderManager(
+        build_header_config(
+            config,
+            enhanced_headers=enhanced_headers,
+            user_agent_contact=user_agent_contact,
+            simulate_browser=simulate_browser,
+        )
     )

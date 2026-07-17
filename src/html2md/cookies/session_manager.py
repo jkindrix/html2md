@@ -29,6 +29,10 @@ from html2md.utils.redaction import get_redacting_logger
 logger = get_redacting_logger("session_manager")
 
 
+class CookieSourceError(RuntimeError):
+    """A requested cookie source could not be read or applied safely."""
+
+
 def _normalize_hostname(value: str) -> str:
     """Return a comparison-safe ASCII hostname without a cookie-domain dot."""
     hostname = value.strip().lstrip(".").rstrip(".")
@@ -426,18 +430,16 @@ def get_chrome_cookies(domain):
     cookie_records = []
     target_hostname = _normalize_hostname(domain)
     if not target_hostname:
-        return cookie_records
+        raise CookieSourceError("Chrome cookie extraction requires a valid hostname")
     cookie_path = get_browser_cookie_path("chrome")
 
     if not cookie_path or not cookie_path.exists():
-        logger.warning(f"Chrome cookie database not found at {cookie_path}")
-        return cookie_records
+        raise CookieSourceError(f"Chrome cookie database not found at {cookie_path}")
 
     # Get encryption key (specific to Chrome)
     encryption_key = get_chrome_encryption_key()
     if not encryption_key:
-        logger.warning("Could not retrieve Chrome encryption key")
-        return cookie_records
+        raise CookieSourceError("Could not retrieve the Chrome cookie encryption key")
 
     temp_directory = None
     conn = None
@@ -500,8 +502,11 @@ def get_chrome_cookies(domain):
                     decrypted_value = decrypt_chrome_cookie(
                         encrypted_value, encryption_key
                     )
-                    if decrypted_value:
-                        value = decrypted_value
+                    if decrypted_value is None:
+                        raise CookieSourceError(
+                            f"Could not decrypt Chrome cookie {name!r}"
+                        )
+                    value = decrypted_value
                 else:
                     value = str(value)
 
@@ -518,11 +523,16 @@ def get_chrome_cookies(domain):
                             host_only=host_only,
                         )
                     )
+            except CookieSourceError:
+                raise
             except Exception as e:
                 logger.debug(f"Error processing cookie {name}: {e}")
 
     except Exception as e:
         logger.error(f"Error reading Chrome cookies: {e}")
+        if isinstance(e, CookieSourceError):
+            raise
+        raise CookieSourceError(f"Could not read Chrome cookies: {e}") from e
     finally:
         try:
             if conn is not None:
@@ -540,12 +550,11 @@ def get_firefox_cookies(domain):
     cookie_records = []
     target_hostname = _normalize_hostname(domain)
     if not target_hostname:
-        return cookie_records
+        raise CookieSourceError("Firefox cookie extraction requires a valid hostname")
     cookie_path = get_browser_cookie_path("firefox")
 
     if not cookie_path or not cookie_path.exists():
-        logger.warning(f"Firefox profile directory not found at {cookie_path}")
-        return cookie_records
+        raise CookieSourceError(f"Firefox profile directory not found at {cookie_path}")
 
     # Find the default profile
     profile_dir = None
@@ -586,7 +595,9 @@ def get_firefox_cookies(domain):
                                 profile_dir = Path(profile_name)
                             break
             except Exception as e:
-                logger.error(f"Error parsing Firefox profiles.ini: {e}")
+                raise CookieSourceError(
+                    f"Could not parse Firefox profiles.ini: {e}"
+                ) from e
 
     # If still no profile found, check if there's only one subdirectory
     if not profile_dir and cookie_path.is_dir():
@@ -605,14 +616,12 @@ def get_firefox_cookies(domain):
                     break
 
     if not profile_dir or not profile_dir.exists():
-        logger.warning("Could not find a valid Firefox profile")
-        return cookie_records
+        raise CookieSourceError("Could not find a valid Firefox profile")
 
     # Locate cookies.sqlite in the profile
     cookies_db = profile_dir / "cookies.sqlite"
     if not cookies_db.exists():
-        logger.warning(f"Firefox cookies database not found at {cookies_db}")
-        return cookie_records
+        raise CookieSourceError(f"Firefox cookies database not found at {cookies_db}")
 
     temp_directory = None
     conn = None
@@ -674,9 +683,13 @@ def get_firefox_cookies(domain):
                 )
         except sqlite3.OperationalError as e:
             logger.error(f"Error querying Firefox cookies: {e}")
+            raise CookieSourceError(f"Could not query Firefox cookies: {e}") from e
 
     except Exception as e:
         logger.error(f"Error reading Firefox cookies: {e}")
+        if isinstance(e, CookieSourceError):
+            raise
+        raise CookieSourceError(f"Could not read Firefox cookies: {e}") from e
     finally:
         try:
             if conn is not None:
@@ -705,10 +718,10 @@ def get_domain_cookies(url, browser=None):
     elif preferred_browser == "firefox":
         return get_firefox_cookies(domain)
     else:
-        logger.warning(
-            f"Cookie extraction not implemented for browser: {preferred_browser}"
+        raise CookieSourceError(
+            f"Cookie extraction is supported only for chrome and firefox, not "
+            f"{preferred_browser!r}"
         )
-        return {}
 
 
 # -------------------------------
@@ -866,9 +879,9 @@ def load_cookies_from_json(json_file, url=None):
         logger.info(f"Loaded {len(cookies)} cookies from JSON file: {json_file}")
     except Exception as e:
         logger.error(f"Error loading cookies from JSON file: {e}")
-        import traceback
-
-        logger.debug(f"Cookie loading traceback: {traceback.format_exc()}")
+        if isinstance(e, CookieSourceError):
+            raise
+        raise CookieSourceError(f"Could not load cookie export: {e}") from e
 
     return cookies
 
@@ -893,6 +906,12 @@ def apply_browser_cookies(session, url, cookie_json=None, browser=None):
         cookies = load_cookies_from_json(cookie_json, url)
     else:
         cookies = get_domain_cookies(url, browser=browser)
+
+    if not cookies:
+        source = str(cookie_json) if cookie_json else (browser or "configured browser")
+        raise CookieSourceError(
+            f"No applicable cookies were found for {url_domain} in {source}"
+        )
 
     for cookie in _coerce_cookie_records(cookies, url_domain):
         if cookie.applies_to(url_domain):

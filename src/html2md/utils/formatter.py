@@ -1,9 +1,6 @@
 import logging
 import re
 
-# Define characters that should be removed
-EXCLUDED_CHARACTERS = [""]
-
 
 def format_markdown(markdown_content):
     """
@@ -20,12 +17,6 @@ def format_markdown(markdown_content):
 
     logging.info("Applying markdown formatting...")
 
-    # Remove unwanted characters
-    for char in EXCLUDED_CHARACTERS:
-        if char in markdown_content:
-            markdown_content = markdown_content.replace(char, "")
-            logging.info(f"Removed character: {char}")
-
     # Fix improperly formatted headers with links
     markdown_content = re.sub(
         r"(#{1,6} )([^\[]+)\[\]\((#[^\)]+)\)", r"\1[\2](\3)", markdown_content
@@ -37,12 +28,6 @@ def format_markdown(markdown_content):
         "</code></pre>", "\n```"
     )
     logging.info("Converted HTML <pre><code> to markdown code blocks")
-
-    # Remove "Content copied to clipboard" and "Link copied to clipboard" lines
-    markdown_content = re.sub(
-        r"\n*(?:Content|Link) copied to clipboard\n*", "\n", markdown_content
-    )
-    logging.info("Removed clipboard copy notifications")
 
     # Collapse excessive newlines
     markdown_content = re.sub(r"\n{3,}", "\n\n", markdown_content)

@@ -41,6 +41,9 @@ VALUE_TYPES: dict[ConfigPath, tuple[type, ...]] = {
     ("cli_defaults", "batch", "content_mode"): (str,),
     ("cli_defaults", "batch", "selector"): (str, NoneType),
     ("cli_defaults", "batch", "metadata"): (bool,),
+    ("cli_defaults", "batch", "enhanced_headers"): (bool,),
+    ("cli_defaults", "batch", "user_agent_contact"): (str, NoneType),
+    ("cli_defaults", "batch", "simulate_browser"): (bool,),
     ("cli_defaults", "batch", "visualize"): (bool,),
     ("cli_defaults", "batch", "quiet"): (bool,),
     ("cli_defaults", "batch", "allow_private_network"): (bool,),
@@ -85,11 +88,9 @@ ENUM_VALUES: dict[ConfigPath, frozenset[Any]] = {
         {"none", "linear", "exponential", "fibonacci"}
     ),
     ("logging", "level"): frozenset({"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}),
-    ("browser", "preferred"): frozenset({"chrome", "firefox", "edge", "safari"}),
+    ("browser", "preferred"): frozenset({"chrome", "firefox"}),
     ("headers", "browser_type"): frozenset({"chrome", "firefox", "edge", "safari"}),
-    ("cli_defaults", "convert", "browser"): frozenset(
-        {"chrome", "firefox", "edge", "safari", None}
-    ),
+    ("cli_defaults", "convert", "browser"): frozenset({"chrome", "firefox", None}),
     ("cli_defaults", "convert", "content_mode"): frozenset(
         {"full", "main", "selector"}
     ),

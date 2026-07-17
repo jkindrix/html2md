@@ -1,5 +1,6 @@
 import logging
 import os
+from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -7,6 +8,7 @@ from html2md.cookies.session_manager import get_session
 from html2md.markdown.content_extractor import ContentMode, validate_content_request
 from html2md.markdown.converter import html_to_markdown
 from html2md.markdown.link_rewriter import rewrite_archived_files
+from html2md.network.header_manager import HeaderManager
 from html2md.utils.parser import generate_safe_filename, get_urls_from_file
 from html2md.utils.path_safety import (
     contained_output_file,
@@ -18,31 +20,38 @@ from html2md.utils.path_safety import (
 logger = logging.getLogger("html2md")
 
 
-def build_headers(url):
-    """Dynamically construct request headers based on the target URL."""
-    parsed_url = urlparse(url)
-    domain = parsed_url.netloc
+@dataclass(frozen=True)
+class BatchItemResult:
+    """Outcome for one unique URL discovered by a batch input."""
 
-    # Basic headers for most sites
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Referer": f"https://{domain}/",
-        "Connection": "keep-alive",
-        "Cache-Control": "no-cache",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "Accept-Encoding": "gzip, deflate",
-        "sec-ch-ua": '"Google Chrome";v="123", "Not:A-Brand";v="8", "Chromium";v="123"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-        "Upgrade-Insecure-Requests": "1",
-        "Sec-Fetch-Site": "same-origin",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-User": "?1",
-        "Sec-Fetch-Dest": "document",
-    }
+    url: str
+    output_file: str | None = None
+    error: str | None = None
 
-    return headers
+    @property
+    def success(self) -> bool:
+        return self.output_file is not None and self.error is None
+
+
+@dataclass
+class BatchResult:
+    """Typed aggregate result for batch orchestration and presentation."""
+
+    items: list[BatchItemResult] = field(default_factory=list)
+    url_mapping: dict[str, str] = field(default_factory=dict)
+    error: str | None = None
+
+    @property
+    def processed_count(self) -> int:
+        return sum(item.success for item in self.items)
+
+    @property
+    def failed_count(self) -> int:
+        return sum(not item.success for item in self.items)
+
+    @property
+    def success(self) -> bool:
+        return bool(self.items) and self.failed_count == 0 and self.error is None
 
 
 def create_directory_structure(
@@ -118,6 +127,7 @@ def process_markdown_links(
     verify_ssl=True,
     include_metadata=False,
     allow_private_network=False,
+    header_manager=None,
 ):
     """
     Process markdown files, extract URLs, and convert each URL to markdown.
@@ -141,7 +151,7 @@ def process_markdown_links(
         include_metadata (bool, optional): Prepend YAML front matter to each output.
 
     Returns:
-        int: Number of processed URLs
+        BatchResult: Per-URL outcomes and durable URL-to-file mappings.
     """
     content_mode = validate_content_request(content_mode, selector)
 
@@ -150,7 +160,8 @@ def process_markdown_links(
 
     # URL to local file mapping for link rewriting
     url_to_file_mapping = {}
-    processed_urls_count = 0
+    item_results = []
+    header_manager = header_manager or HeaderManager()
 
     # Helper function to update progress
     def update_progress(message, url=None, status=None):
@@ -214,21 +225,23 @@ def process_markdown_links(
                 # Create session for the URL
                 update_progress(f"Fetching content from {url}", url, "fetching")
                 session = get_session(verify_ssl=verify_ssl)
-                headers = build_headers(url)
+                headers = header_manager.get_headers(url)
 
-                # Convert HTML to markdown
-                markdown_content = html_to_markdown(
-                    url,
-                    session=session,
-                    headers=headers,
-                    content_mode=content_mode,
-                    selector=selector,
-                    download_images=download_images,
-                    output_dir=url_dir,
-                    images_dir=images_dir,
-                    include_metadata=include_metadata,
-                    allow_private_network=allow_private_network,
-                )
+                try:
+                    markdown_content = html_to_markdown(
+                        url,
+                        session=session,
+                        headers=headers,
+                        content_mode=content_mode,
+                        selector=selector,
+                        download_images=download_images,
+                        output_dir=url_dir,
+                        images_dir=images_dir,
+                        include_metadata=include_metadata,
+                        allow_private_network=allow_private_network,
+                    )
+                finally:
+                    session.close()
 
                 if markdown_content:
                     # Save to file
@@ -238,16 +251,24 @@ def process_markdown_links(
 
                     # Only durable output files are eligible for local rewriting.
                     url_to_file_mapping[url] = output_file
+                    item_results.append(BatchItemResult(url, output_file=output_file))
                     update_progress(f"Saved markdown to: {output_file}", url, "saved")
-                    processed_urls_count += 1
                 else:
+                    item_results.append(
+                        BatchItemResult(
+                            url, error="Conversion returned no Markdown content"
+                        )
+                    )
                     update_progress(f"Failed to process URL: {url}", url, "failed")
 
             except Exception as e:
+                item_results.append(BatchItemResult(url, error=str(e)))
                 update_progress(f"Error processing URL {url}: {str(e)}", url, "error")
 
     # Second pass: Rewrite links in all files to point to local files.
     rewrite_archived_files(url_to_file_mapping, update_progress)
 
-    update_progress(f"Completed processing {processed_urls_count} URLs")
-    return processed_urls_count, url_to_file_mapping
+    processed_count = sum(item.success for item in item_results)
+    update_progress(f"Completed processing {processed_count} URLs")
+    error = None if item_results else "No URLs were found in the batch inputs"
+    return BatchResult(item_results, url_to_file_mapping, error=error)
