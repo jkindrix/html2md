@@ -20,6 +20,7 @@ def test_request_policy_allows_explicit_origin_and_generated_urls():
     assert policy.permits("http://127.0.0.1:8080/app.js", navigation=False)
     assert policy.permits("data:text/javascript,void(0)", navigation=False)
     assert policy.permits("blob:http://127.0.0.1:8080/id", navigation=False)
+    assert not policy.permits("data:text/html,redirect", navigation=True)
 
 
 def test_request_policy_blocks_cross_origin_subresources_and_credentials():
@@ -39,6 +40,47 @@ def test_cross_origin_navigation_is_blocked_without_a_second_resolution():
         policy = BrowserRequestPolicy("https://example.com/page")
         assert not policy.permits("https://example.net/final", navigation=True)
     dns.assert_called_once()
+
+
+def test_explicit_cross_origin_is_validated_pinned_and_authorized():
+    records = [(2, 1, 6, "", ("93.184.216.34", 443))]
+    with patch("socket.getaddrinfo", return_value=records) as dns:
+        policy = BrowserRequestPolicy(
+            "https://example.com/page",
+            additional_origins=["https://cdn.example.net/"],
+        )
+
+    assert policy.permits("https://cdn.example.net/app.js", navigation=False)
+    assert policy.host_resolver_rules() == (
+        "MAP cdn.example.net 93.184.216.34, "
+        "MAP example.com 93.184.216.34, MAP * ~NOTFOUND"
+    )
+    assert dns.call_count == 2
+
+
+def test_cross_origin_headers_drop_credentials_and_custom_context():
+    records = [(2, 1, 6, "", ("93.184.216.34", 443))]
+    with patch("socket.getaddrinfo", return_value=records):
+        policy = BrowserRequestPolicy(
+            "https://example.com/page",
+            additional_origins=["https://cdn.example.net/"],
+        )
+
+    headers = policy.headers_for(
+        "https://cdn.example.net/app.js",
+        {"authorization": "browser secret", "cookie": "session=secret"},
+        {
+            "Authorization": "Bearer secret",
+            "X-Tenant": "private",
+            "Accept-Language": "en-US",
+        },
+    )
+
+    assert "authorization" not in headers
+    assert "cookie" not in headers
+    assert "Authorization" not in headers
+    assert "X-Tenant" not in headers
+    assert headers["Accept-Language"] == "en-US"
 
 
 def test_browser_source_is_pinned_and_all_other_dns_fails_closed():
@@ -97,6 +139,9 @@ def test_rendered_conversion_uses_browser_html_and_final_url():
         {"settle_ms": -1},
         {"settle_ms": 5_001},
         {"max_html_bytes": 0},
+        {"max_requests": 0},
+        {"wait_until": "eventually"},
+        {"wait_for_selector": ""},
     ],
 )
 def test_invalid_resource_limits_fail_before_browser_start(limits):
