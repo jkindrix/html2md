@@ -58,10 +58,8 @@ def test_static_and_browser_modes_have_deterministic_distinct_output():
     thread.start()
     url = f"http://127.0.0.1:{server.server_port}/fixture"
     try:
-        static = html_to_markdown(url, trim=False, allow_private_network=True)
-        rendered = html_to_markdown(
-            url, trim=False, render_js=True, allow_private_network=True
-        )
+        static = html_to_markdown(url, allow_private_network=True)
+        rendered = html_to_markdown(url, render_js=True, allow_private_network=True)
     finally:
         server.shutdown()
         server.server_close()

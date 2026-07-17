@@ -214,7 +214,7 @@ def test_config_cli_default_listing_handles_empty_and_populated_state():
         "html2md.cli.config_commands.load_config",
         side_effect=[
             {"cli_defaults": {}},
-            {"cli_defaults": {"convert": {"trim": False}}},
+            {"cli_defaults": {"convert": {"content_mode": "main"}}},
         ],
     ):
         empty = runner.invoke(app, ["config", "list-cli-defaults"])
@@ -222,7 +222,7 @@ def test_config_cli_default_listing_handles_empty_and_populated_state():
 
     assert "No CLI defaults" in empty.output
     assert "Convert Command Defaults" in populated.output
-    assert "--trim" in populated.output
+    assert "--content-mode" in populated.output
 
 
 def test_config_backup_and_restore_failure_contracts():
@@ -244,7 +244,7 @@ def test_config_backup_and_restore_failure_contracts():
 @pytest.mark.parametrize(
     "command, option, raw, expected",
     [
-        ("convert", "trim", "false", False),
+        ("convert", "content_mode", "main", "main"),
         ("crawl", "max_pages", "250", 250),
         ("crawl", "delay", "1.5", 1.5),
         ("crawl", "rate_limit", "30", 30),
@@ -289,12 +289,12 @@ def test_set_cli_default_reset_restores_builtin_value():
 @pytest.mark.parametrize(
     "arguments",
     [
-        ["convert", "trim", "sometimes"],
+        ["convert", "content_mode", "sometimes"],
         ["crawl", "max_pages", "1.5"],
         ["crawl", "rate_limit", "fast"],
         ["convert", "browser", "opera"],
         ["crawl", "missing", "1"],
-        ["missing", "trim", "true"],
+        ["missing", "content_mode", "main"],
         ["crawl", "max_pages"],
         ["crawl", "max_pages", "10", "--reset"],
     ],

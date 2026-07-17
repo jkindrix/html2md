@@ -99,9 +99,7 @@ def test_batch_mapping_and_rewrites_exclude_failed_outputs(tmp_path):
             side_effect=[f"[Failed]({failed})", None],
         ),
     ):
-        count, mapping = process_markdown_links(
-            [source], tmp_path / "output", trim=False
-        )
+        count, mapping = process_markdown_links([source], tmp_path / "output")
 
     assert count == 1
     assert set(mapping) == {good}
@@ -134,7 +132,6 @@ def test_crawl_mapping_and_rewrites_exclude_failed_outputs(tmp_path):
             max_pages=2,
             max_depth=1,
             respect_robots=False,
-            trim=False,
             state_manager=manager,
         )
 

@@ -11,12 +11,23 @@ All notable changes are documented here. This project follows
 - Added generic owner-private request-header input for authenticated static and
   rendered conversion, plus owner-private Playwright storage-state input for
   rendered conversion.
+- Added explicit `full`, `main`, and CSS-selector content modes across convert,
+  batch, and crawl. Full-document conversion is the lossless default; inferred
+  main-content failure is explicit rather than a silent fallback.
+
+### Changed
+
+- Main-content mode now selects one substantial semantic region when available
+  and otherwise uses a confidence-gated readability extractor before the
+  existing HTML-to-Markdown pipeline.
 
 ### Removed
 
 - Removed the unreachable provider-specific OAuth flow, token storage, and its
   runtime dependencies; login and credential acquisition remain outside the
   converter.
+- Removed domain/footer/heading-based Markdown truncation from all Python
+  conversion paths.
 
 ## [0.1.2] - 2026-07-16
 

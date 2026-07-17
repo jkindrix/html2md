@@ -38,7 +38,8 @@ VALUE_TYPES: dict[ConfigPath, tuple[type, ...]] = {
     ("cli_defaults", "batch", "hierarchical"): (bool,),
     ("cli_defaults", "batch", "flatten"): (bool,),
     ("cli_defaults", "batch", "flatten_all"): (bool,),
-    ("cli_defaults", "batch", "trim"): (bool,),
+    ("cli_defaults", "batch", "content_mode"): (str,),
+    ("cli_defaults", "batch", "selector"): (str, NoneType),
     ("cli_defaults", "batch", "metadata"): (bool,),
     ("cli_defaults", "batch", "visualize"): (bool,),
     ("cli_defaults", "batch", "quiet"): (bool,),
@@ -56,7 +57,8 @@ VALUE_TYPES: dict[ConfigPath, tuple[type, ...]] = {
     ("cli_defaults", "crawl", "simulate_browser"): (bool,),
     ("cli_defaults", "crawl", "polite"): (bool,),
     ("cli_defaults", "crawl", "show_progress"): (bool,),
-    ("cli_defaults", "crawl", "trim"): (bool,),
+    ("cli_defaults", "crawl", "content_mode"): (str,),
+    ("cli_defaults", "crawl", "selector"): (str, NoneType),
     ("cli_defaults", "crawl", "metadata"): (bool,),
     ("cli_defaults", "crawl", "visualize"): (bool,),
     ("cli_defaults", "crawl", "quiet"): (bool,),
@@ -67,7 +69,8 @@ VALUE_TYPES: dict[ConfigPath, tuple[type, ...]] = {
     ("cli_defaults", "convert", "enhanced_headers"): (bool,),
     ("cli_defaults", "convert", "user_agent_contact"): (str, NoneType),
     ("cli_defaults", "convert", "simulate_browser"): (bool,),
-    ("cli_defaults", "convert", "trim"): (bool,),
+    ("cli_defaults", "convert", "content_mode"): (str,),
+    ("cli_defaults", "convert", "selector"): (str, NoneType),
     ("cli_defaults", "convert", "download_images"): (bool,),
     ("cli_defaults", "convert", "images_dir"): (str,),
     ("cli_defaults", "convert", "metadata"): (bool,),
@@ -87,6 +90,11 @@ ENUM_VALUES: dict[ConfigPath, frozenset[Any]] = {
     ("cli_defaults", "convert", "browser"): frozenset(
         {"chrome", "firefox", "edge", "safari", None}
     ),
+    ("cli_defaults", "convert", "content_mode"): frozenset(
+        {"full", "main", "selector"}
+    ),
+    ("cli_defaults", "batch", "content_mode"): frozenset({"full", "main", "selector"}),
+    ("cli_defaults", "crawl", "content_mode"): frozenset({"full", "main", "selector"}),
 }
 
 

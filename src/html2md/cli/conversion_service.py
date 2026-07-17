@@ -10,6 +10,7 @@ from typing import Callable, Optional
 from html2md.cli.runtime import build_header_config
 from html2md.config.loader import load_config
 from html2md.cookies.session_manager import apply_browser_cookies, get_session
+from html2md.markdown.content_extractor import ContentMode, validate_content_request
 from html2md.markdown.converter import html_to_markdown, local_html_to_markdown
 from html2md.network.auth_inputs import load_private_headers, load_storage_state
 from html2md.network.header_manager import HeaderManager
@@ -42,7 +43,8 @@ def _ignore_status(_message: str) -> None:
 def convert_source(
     source: str,
     *,
-    trim: bool,
+    content_mode: ContentMode = ContentMode.FULL,
+    selector: Optional[str] = None,
     output: Optional[Path],
     no_cookies: bool,
     browser_cookies: bool,
@@ -68,7 +70,8 @@ def convert_source(
     if remote:
         return _convert_url(
             source,
-            trim=trim,
+            content_mode=content_mode,
+            selector=selector,
             output=output,
             no_cookies=no_cookies,
             browser_cookies=browser_cookies,
@@ -107,7 +110,8 @@ def convert_source(
 
     return _convert_file(
         source,
-        trim=trim,
+        content_mode=content_mode,
+        selector=selector,
         output=output,
         download_images=download_images,
         images_dir=images_dir,
@@ -121,7 +125,8 @@ def convert_source(
 def _convert_url(
     source: str,
     *,
-    trim: bool,
+    content_mode: ContentMode,
+    selector: Optional[str],
     output: Optional[Path],
     no_cookies: bool,
     browser_cookies: bool,
@@ -142,6 +147,7 @@ def _convert_url(
 ) -> ConversionResult:
     logger.info("Processing URL: %s", source)
     try:
+        validate_content_request(content_mode, selector)
         if render_js and (browser_cookies or cookie_json):
             raise ValueError(
                 "JavaScript rendering does not import browser or JSON cookies; "
@@ -187,7 +193,8 @@ def _convert_url(
             source,
             session=session,
             headers=headers,
-            trim=trim,
+            content_mode=content_mode,
+            selector=selector,
             download_images=download_images,
             output_dir=output_dir,
             images_dir=images_dir,
@@ -207,7 +214,8 @@ def _convert_url(
 def _convert_file(
     source: str,
     *,
-    trim: bool,
+    content_mode: ContentMode,
+    selector: Optional[str],
     output: Optional[Path],
     download_images: bool,
     images_dir: str,
@@ -219,6 +227,7 @@ def _convert_file(
     file_path = Path(source).expanduser().resolve()
     logger.info("Processing local file: %s", file_path)
     try:
+        validate_content_request(content_mode, selector)
         on_status(f"Reading local file {file_path}")
         output_dir = None
         if download_images:
@@ -226,7 +235,8 @@ def _convert_file(
 
         markdown = local_html_to_markdown(
             file_path,
-            trim=trim,
+            content_mode=content_mode,
+            selector=selector,
             download_images=download_images,
             output_dir=output_dir,
             images_dir=images_dir,

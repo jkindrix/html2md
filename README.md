@@ -111,7 +111,8 @@ Global options include `--log-level` (default `WARNING`), `--debug-log`,
 
 Useful options include:
 
-- `--trim/--no-trim` for domain-specific trimming rules;
+- `--content full|main|selector` for explicit content selection (full is the
+  lossless default), with `--selector` required by selector mode;
 - `--output/-o` to write a file instead of stdout;
 - `--browser-cookies` or `--cookie-json` for authenticated pages;
 - `--headers-file` for an owner-only JSON object of target request headers;

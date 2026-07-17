@@ -27,6 +27,11 @@ from rich.text import Text
 
 from html2md.config.loader import load_config, save_config
 from html2md.markdown.batch_processor import process_markdown_links
+from html2md.markdown.content_extractor import (
+    ContentExtractionError,
+    ContentMode,
+    validate_content_request,
+)
 from html2md.markdown.crawler import crawl_website
 from html2md.cli.runtime import build_header_config
 from html2md.cli.state_commands import state_app
@@ -113,15 +118,29 @@ def set_log_level(level: LogLevel, debug_log: Optional[Path] = None) -> None:
     logger.setLevel(getattr(logging, level))
 
 
+def validate_content_options(mode: ContentMode, selector: Optional[str]) -> None:
+    """Turn content-contract mistakes into concise CLI failures."""
+    try:
+        validate_content_request(mode, selector)
+    except ContentExtractionError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        raise typer.Exit(1) from error
+
+
 @app.command(name="convert")
 def convert_command(
     sources: List[str] = typer.Argument(
         ..., help="URLs or local HTML files to convert."
     ),
-    trim: bool = typer.Option(
-        get_cli_default("convert", "trim", True),
-        "--trim/--no-trim",
-        help="Enable/disable trimming based on domain-specific rules.",
+    content_mode: ContentMode = typer.Option(
+        get_cli_default("convert", "content_mode", ContentMode.FULL.value),
+        "--content",
+        help="Select full document, inferred main content, or an explicit selector.",
+    ),
+    selector: Optional[str] = typer.Option(
+        get_cli_default("convert", "selector", None),
+        "--selector",
+        help="CSS selector used only with '--content selector'.",
     ),
     output: Optional[Path] = typer.Option(
         None, "--output", "-o", help="Output file to save converted markdown."
@@ -227,6 +246,7 @@ def convert_command(
 ):
     """Convert HTML content from URLs or local files to Markdown."""
     set_log_level(log_level, debug_log)
+    validate_content_options(content_mode, selector)
 
     # Handle config updates for cookie path
     if cookie_path:
@@ -269,7 +289,8 @@ def convert_command(
 
                 if process_single_with_progress(
                     source=source,
-                    trim=trim,
+                    content_mode=content_mode,
+                    selector=selector,
                     output=output,
                     no_cookies=no_cookies,
                     browser_cookies=browser_cookies,
@@ -309,7 +330,8 @@ def convert_command(
         for source in sources:
             if process_single_quiet(
                 source=source,
-                trim=trim,
+                content_mode=content_mode,
+                selector=selector,
                 output=output,
                 no_cookies=no_cookies,
                 browser_cookies=browser_cookies,
@@ -346,10 +368,15 @@ def batch_command(
         "-o",
         help="Directory to save output files and folders.",
     ),
-    trim: bool = typer.Option(
-        get_cli_default("batch", "trim", True),
-        "--trim/--no-trim",
-        help="Enable/disable trimming based on domain-specific rules.",
+    content_mode: ContentMode = typer.Option(
+        get_cli_default("batch", "content_mode", ContentMode.FULL.value),
+        "--content",
+        help="Select full document, inferred main content, or an explicit selector.",
+    ),
+    selector: Optional[str] = typer.Option(
+        get_cli_default("batch", "selector", None),
+        "--selector",
+        help="CSS selector used only with '--content selector'.",
     ),
     include_metadata: bool = typer.Option(
         get_cli_default("batch", "metadata", False),
@@ -407,6 +434,7 @@ def batch_command(
 ):
     """Process markdown files with links and create modular output."""
     set_log_level(log_level, debug_log)
+    validate_content_options(content_mode, selector)
 
     # Validate flatten options
     if flatten_output and flatten_all:
@@ -513,7 +541,8 @@ def batch_command(
             processed_count, url_to_file_mapping = process_markdown_links(
                 expanded_files,
                 output_dir,
-                trim=trim,
+                content_mode=content_mode,
+                selector=selector,
                 progress_callback=progress_callback,
                 flatten_output=flatten_output,
                 flatten_all=flatten_all,
@@ -669,7 +698,7 @@ def batch_command(
 - **Processing Time:** {processing_time:.2f} seconds
 - **Output Directory:** {output_dir}
 - **Options Used:**
-  - Trim: {trim}
+  - Content: {content_mode.value}{f" ({selector})" if selector else ""}
   - Flatten Output: {flatten_output}
 
 ## Files Created
@@ -767,10 +796,15 @@ def crawl_command(
         "--progress/--no-progress",
         help="Show crawling progress and statistics.",
     ),
-    trim: bool = typer.Option(
-        get_cli_default("crawl", "trim", True),
-        "--trim/--no-trim",
-        help="Enable/disable trimming based on domain-specific rules.",
+    content_mode: ContentMode = typer.Option(
+        get_cli_default("crawl", "content_mode", ContentMode.FULL.value),
+        "--content",
+        help="Select full document, inferred main content, or an explicit selector.",
+    ),
+    selector: Optional[str] = typer.Option(
+        get_cli_default("crawl", "selector", None),
+        "--selector",
+        help="CSS selector used only with '--content selector'.",
     ),
     include_metadata: bool = typer.Option(
         get_cli_default("crawl", "metadata", False),
@@ -806,6 +840,7 @@ def crawl_command(
 ):
     """Recursively crawl websites from starting URLs and convert to markdown."""
     set_log_level(log_level, debug_log)
+    validate_content_options(content_mode, selector)
 
     # Start time for processing report
     start_time = time.time()
@@ -970,7 +1005,8 @@ def crawl_command(
                         concurrent_config=concurrent_config,
                         polite_mode=polite,
                         show_progress=show_progress,
-                        trim=trim,
+                        content_mode=content_mode,
+                        selector=selector,
                         include_metadata=include_metadata,
                         progress_callback=progress_callback,
                         flatten_output=flatten_output,

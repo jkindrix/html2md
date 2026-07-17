@@ -10,11 +10,13 @@ from rich.panel import Panel
 from rich.progress import Progress, TaskID
 
 from html2md.cli.conversion_service import ConversionResult, convert_source
+from html2md.markdown.content_extractor import ContentMode
 
 
 def _convert_one(
     source: str,
-    trim: bool,
+    content_mode: ContentMode,
+    selector: Optional[str],
     output: Optional[Path],
     no_cookies: bool,
     browser_cookies: bool,
@@ -38,7 +40,8 @@ def _convert_one(
     status_callback = on_status or (lambda _message: None)
     return convert_source(
         source,
-        trim=trim,
+        content_mode=content_mode,
+        selector=selector,
         output=output,
         no_cookies=no_cookies,
         browser_cookies=browser_cookies,
@@ -62,7 +65,8 @@ def _convert_one(
 
 def process_single_with_progress(
     source: str,
-    trim: bool,
+    content_mode: ContentMode,
+    selector: Optional[str],
     output: Optional[Path],
     no_cookies: bool,
     browser_cookies: bool,
@@ -92,7 +96,8 @@ def process_single_with_progress(
     progress.update(task_id, description=f"Processing {source}")
     result = _convert_one(
         source,
-        trim,
+        content_mode,
+        selector,
         output,
         no_cookies,
         browser_cookies,
@@ -161,7 +166,8 @@ def process_single_with_progress(
 
 def process_single_quiet(
     source: str,
-    trim: bool,
+    content_mode: ContentMode,
+    selector: Optional[str],
     output: Optional[Path],
     no_cookies: bool,
     browser_cookies: bool,
@@ -185,7 +191,8 @@ def process_single_quiet(
     del cookie_path  # The command persists this preference before conversion.
     result = _convert_one(
         source,
-        trim,
+        content_mode,
+        selector,
         output,
         no_cookies,
         browser_cookies,

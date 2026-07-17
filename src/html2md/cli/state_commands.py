@@ -75,6 +75,9 @@ def resume_crawl(
             "scope_url",
         ):
             resume_options.pop(explicit_option, None)
+        # Pre-0.2 states used a destructive Markdown-trimming flag. Full mode is
+        # the safe migration because it cannot silently delete archived content.
+        resume_options.pop("trim", None)
         with state_manager.signal_handling():
             result = crawl_website(
                 start_url=crawl_state.start_url,

@@ -106,12 +106,78 @@ def test_local_conversion_subprocess_writes_markdown(tmp_path):
     output = tmp_path / "result.md"
     source.write_text("<h1>Local page</h1><p>converted body</p>", encoding="utf-8")
 
-    result = run_cli(
-        tmp_path, "convert", source, "--local", "--no-trim", "--output", output
-    )
+    result = run_cli(tmp_path, "convert", source, "--local", "--output", output)
 
     assert result.returncode == 0, result.stderr
     assert "# Local page" in output.read_text(encoding="utf-8")
+
+
+def test_local_content_modes_are_explicit_lossless_and_fail_honestly(tmp_path):
+    fixtures = Path(__file__).parents[3] / "tests" / "fixtures" / "extraction"
+    article = tmp_path / "article.html"
+    article.write_text(
+        (fixtures / "article.html").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    full_output = tmp_path / "full.md"
+    main_output = tmp_path / "main.md"
+    selector_output = tmp_path / "selector.md"
+
+    full = run_cli(tmp_path, "convert", article, "--local", "--output", full_output)
+    main = run_cli(
+        tmp_path,
+        "convert",
+        article,
+        "--local",
+        "--content",
+        "main",
+        "--output",
+        main_output,
+    )
+    selected = run_cli(
+        tmp_path,
+        "convert",
+        article,
+        "--local",
+        "--content",
+        "selector",
+        "--selector",
+        ".byline",
+        "--output",
+        selector_output,
+    )
+
+    assert full.returncode == main.returncode == selected.returncode == 0
+    assert "GLOBAL NAVIGATION" in full_output.read_text(encoding="utf-8")
+    assert "GLOBAL NAVIGATION" not in main_output.read_text(encoding="utf-8")
+    assert selector_output.read_text(encoding="utf-8").strip() == "By A. Writer"
+
+    ambiguous = tmp_path / "ambiguous.html"
+    ambiguous.write_text(
+        (fixtures / "ambiguous.html").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    failed = run_cli(
+        tmp_path,
+        "convert",
+        ambiguous,
+        "--local",
+        "--content",
+        "main",
+        "--output",
+        tmp_path / "ambiguous.md",
+    )
+    assert failed.returncode == 1
+    assert "No confident main-content region" in failed.stderr
+
+    invalid = run_cli(
+        tmp_path,
+        "convert",
+        article,
+        "--local",
+        "--content",
+        "selector",
+    )
+    assert invalid.returncode == 1
+    assert "Selector mode requires --selector" in invalid.stderr
 
 
 @pytest.mark.parametrize(
@@ -128,7 +194,6 @@ def test_url_conversion_handles_plain_redirected_and_compressed_responses(
         "convert",
         f"{cli_server}{path}",
         "--allow-private-network",
-        "--no-trim",
         "--output",
         output,
     )
@@ -145,7 +210,6 @@ def test_url_metadata_uses_final_redirect_url(tmp_path, cli_server):
         "convert",
         f"{cli_server}/redirect",
         "--allow-private-network",
-        "--no-trim",
         "--metadata",
         "--output",
         output,
@@ -164,7 +228,6 @@ def test_private_network_is_rejected_without_explicit_opt_in(tmp_path, cli_serve
         tmp_path,
         "convert",
         f"{cli_server}/ok",
-        "--no-trim",
         "--output",
         output,
     )
@@ -183,7 +246,6 @@ def test_url_http_failures_exit_nonzero_without_output(tmp_path, cli_server, pat
         "convert",
         f"{cli_server}{path}",
         "--allow-private-network",
-        "--no-trim",
         "--output",
         output,
     )
@@ -204,7 +266,10 @@ def test_batch_subprocess_fetches_and_writes_url(tmp_path, cli_server):
         source,
         "--output-dir",
         output_dir,
-        "--no-trim",
+        "--content",
+        "selector",
+        "--selector",
+        "html",
         "--quiet",
         "--allow-private-network",
     )
@@ -234,7 +299,10 @@ def test_crawl_state_resume_and_traversal_containment_in_subprocess(
         "--max-pages",
         "1",
         "--ignore-robots",
-        "--no-trim",
+        "--content",
+        "selector",
+        "--selector",
+        "html",
         "--quiet",
         "--no-progress",
         "--allow-private-network",

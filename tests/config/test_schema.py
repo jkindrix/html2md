@@ -100,7 +100,7 @@ def test_unknown_extension_keys_are_preserved_defensively():
 @pytest.mark.parametrize(
     "path, raw, expected",
     [
-        (("cli_defaults", "convert", "trim"), "off", False),
+        (("cli_defaults", "convert", "content_mode"), "main", "main"),
         (("cli_defaults", "crawl", "max_pages"), "250", 250),
         (("cli_defaults", "crawl", "delay"), "1.25", 1.25),
         (("cli_defaults", "crawl", "rate_limit"), "45", 45),

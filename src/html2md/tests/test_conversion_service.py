@@ -32,7 +32,6 @@ def test_url_conversion_builds_one_session_and_threads_security_options(
     output = tmp_path / "docs" / "page.md"
     result = conversion_service.convert_source(
         "https://example.com/page",
-        trim=True,
         output=output,
         no_cookies=False,
         browser_cookies=True,
@@ -71,7 +70,6 @@ def test_local_conversion_uses_source_directory_for_downloaded_images(
 
     result = conversion_service.convert_source(
         str(source),
-        trim=False,
         output=None,
         no_cookies=True,
         browser_cookies=False,
@@ -95,7 +93,6 @@ def test_conversion_exceptions_become_typed_failures(monkeypatch):
 
     result = conversion_service.convert_source(
         "https://example.com",
-        trim=True,
         output=None,
         no_cookies=True,
         browser_cookies=False,
@@ -116,7 +113,6 @@ def test_empty_conversion_is_not_success(monkeypatch, tmp_path):
 
     result = conversion_service.convert_source(
         str(source),
-        trim=True,
         output=None,
         no_cookies=True,
         browser_cookies=False,
@@ -134,7 +130,6 @@ def test_browser_rendering_rejects_local_files_and_cookie_import(tmp_path):
 
     local = conversion_service.convert_source(
         str(source),
-        trim=False,
         output=None,
         no_cookies=True,
         browser_cookies=False,
@@ -144,7 +139,6 @@ def test_browser_rendering_rejects_local_files_and_cookie_import(tmp_path):
     )
     authenticated = conversion_service.convert_source(
         "https://example.com",
-        trim=False,
         output=None,
         no_cookies=False,
         browser_cookies=True,
@@ -184,7 +178,6 @@ def test_remote_conversion_loads_private_headers_and_render_storage_state(
 
     result = conversion_service.convert_source(
         "https://example.com",
-        trim=False,
         output=None,
         no_cookies=True,
         browser_cookies=False,
@@ -208,7 +201,6 @@ def test_remote_conversion_loads_private_headers_and_render_storage_state(
 def test_storage_state_requires_rendering_and_auth_inputs_reject_local_files(tmp_path):
     remote = conversion_service.convert_source(
         "https://example.com",
-        trim=False,
         output=None,
         no_cookies=True,
         browser_cookies=False,
@@ -219,7 +211,6 @@ def test_storage_state_requires_rendering_and_auth_inputs_reject_local_files(tmp
     source.write_text("<h1>Local</h1>", encoding="utf-8")
     local = conversion_service.convert_source(
         str(source),
-        trim=False,
         output=None,
         no_cookies=True,
         browser_cookies=False,

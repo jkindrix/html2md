@@ -1,6 +1,6 @@
 """Behavior tests for the core HTML conversion paths."""
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import requests
 import pytest
@@ -62,21 +62,33 @@ def test_html_content_conversion_preserves_ordinary_words_and_code():
     assert "model Search API" in markdown
 
 
+def test_full_conversion_preserves_legitimate_navigation_footer_and_sections():
+    html = """
+    <nav>Documentation navigation</nav>
+    <main><h1>Guide</h1><h2>References</h2><p>Reference entry.</p>
+    <h2>License</h2><p>License terms.</p>
+    <section class="comments"><h2>Comments</h2><p>Reader response.</p></section></main>
+    <footer>Authored footer note</footer>
+    """
+
+    markdown = html_content_to_markdown(html, "https://example.com/guide")
+
+    assert markdown is not None
+    for authored_text in (
+        "Documentation navigation",
+        "## References",
+        "Reference entry.",
+        "## License",
+        "License terms.",
+        "## Comments",
+        "Reader response.",
+        "Authored footer note",
+    ):
+        assert authored_text in markdown
+
+
 def test_empty_html_is_a_conversion_failure():
     assert html_content_to_markdown("  ", "https://example.com") is None
-
-
-def test_trimmed_conversion_uses_document_url_and_result():
-    with patch(
-        "html2md.markdown.converter.trim_markdown", return_value="# Trimmed"
-    ) as trim:
-        result = html_content_to_markdown(
-            "<h1>Original</h1><p>body</p>", "https://example.com/docs", trim=True
-        )
-
-    assert result == "# Trimmed"
-    trim.assert_called_once()
-    assert trim.call_args.args[1] == "https://example.com/docs"
 
 
 def test_url_conversion_passes_headers_without_mutating_session():
@@ -92,7 +104,7 @@ def test_url_conversion_passes_headers_without_mutating_session():
     headers = {"Referer": "https://example.com/source"}
 
     result = html_to_markdown(
-        "https://example.com/page", session=session, headers=headers, trim=False
+        "https://example.com/page", session=session, headers=headers
     )
 
     assert result is not None and "# Fetched" in result
@@ -114,7 +126,7 @@ def test_url_conversion_uses_final_response_url_for_relative_references():
     session = Mock()
     session.get.return_value = response
 
-    result = html_to_markdown("https://example.com/start", session=session, trim=False)
+    result = html_to_markdown("https://example.com/start", session=session)
 
     assert result is not None
     assert "[Next](https://example.com/redirected/next)" in result
@@ -133,22 +145,8 @@ def test_local_conversion_handles_success_missing_and_empty_files(tmp_path):
     empty_file = tmp_path / "empty.html"
     empty_file.write_text("", encoding="utf-8")
 
-    converted = local_html_to_markdown(html_file, trim=False)
+    converted = local_html_to_markdown(html_file)
 
     assert converted is not None and "# Local" in converted
     assert local_html_to_markdown(tmp_path / "missing.html") is None
     assert local_html_to_markdown(empty_file) is None
-
-
-def test_local_trim_uses_filename(tmp_path):
-    html_file = tmp_path / "page.html"
-    html_file.write_text("<h1>Local</h1><p>body</p>", encoding="utf-8")
-
-    with patch(
-        "html2md.markdown.converter.trim_markdown_local", return_value="# Local trimmed"
-    ) as trim:
-        result = local_html_to_markdown(html_file, trim=True)
-
-    assert result == "# Local trimmed"
-    trim.assert_called_once()
-    assert trim.call_args.args[1] == "page.html"

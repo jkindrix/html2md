@@ -4,6 +4,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from html2md.cookies.session_manager import get_session
+from html2md.markdown.content_extractor import ContentMode, validate_content_request
 from html2md.markdown.converter import html_to_markdown
 from html2md.markdown.link_rewriter import rewrite_archived_files
 from html2md.utils.parser import generate_safe_filename, get_urls_from_file
@@ -106,7 +107,8 @@ def create_directory_structure(
 def process_markdown_links(
     source_files,
     output_dir,
-    trim=True,
+    content_mode=ContentMode.FULL,
+    selector=None,
     progress_callback=None,
     flatten_output=False,
     flatten_all=False,
@@ -123,7 +125,8 @@ def process_markdown_links(
     Args:
         source_files (list): List of markdown files to process
         output_dir (str): Directory to save the output files
-        trim (bool, optional): Whether to trim the markdown. Defaults to True.
+        content_mode: Full document, inferred main content, or explicit selector.
+        selector: CSS selector required by selector mode.
         progress_callback (callable, optional): Function to call with progress updates
         flatten_output (bool, optional): If True, creates output directories directly
                                         named after domain. Defaults to False.
@@ -140,6 +143,8 @@ def process_markdown_links(
     Returns:
         int: Number of processed URLs
     """
+    content_mode = validate_content_request(content_mode, selector)
+
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
 
@@ -216,7 +221,8 @@ def process_markdown_links(
                     url,
                     session=session,
                     headers=headers,
-                    trim=trim,
+                    content_mode=content_mode,
+                    selector=selector,
                     download_images=download_images,
                     output_dir=url_dir,
                     images_dir=images_dir,

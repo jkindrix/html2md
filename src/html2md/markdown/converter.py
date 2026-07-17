@@ -5,7 +5,11 @@ import requests
 from markdownify import markdownify as md
 
 from html2md.cookies.session_manager import get_session, disable_ssl_verification
-from html2md.markdown.trimmer import trim_markdown, trim_markdown_local
+from html2md.markdown.content_extractor import (
+    ContentExtractionError,
+    ContentMode,
+    extract_content_html,
+)
 from html2md.markdown.document import prepare_document
 from html2md.utils.formatter import format_markdown
 from html2md.network.image_downloader import ImageDownloader
@@ -28,7 +32,8 @@ def html_to_markdown(
     url,
     session=None,
     headers=None,
-    trim=False,
+    content_mode=ContentMode.FULL,
+    selector=None,
     download_images=False,
     output_dir=None,
     images_dir="images",
@@ -47,7 +52,8 @@ def html_to_markdown(
         url (str): URL to fetch HTML content from.
         session (requests.Session, optional): Session object for HTTP requests.
         headers (dict, optional): Custom headers for the HTTP request.
-        trim (bool, optional): Whether to apply trimming rules to the resulting markdown.
+        content_mode: Full document, inferred main content, or explicit selector.
+        selector: CSS selector required by selector mode.
         download_images (bool, optional): Whether to download images from the page.
         output_dir (Path, optional): Output directory for saving images.
         images_dir (str, optional): Subdirectory name for images (default: "images").
@@ -162,7 +168,8 @@ def html_to_markdown(
         html_content,
         document_url,
         session=session,
-        trim=trim,
+        content_mode=content_mode,
+        selector=selector,
         download_images=download_images,
         output_dir=output_dir,
         images_dir=images_dir,
@@ -175,7 +182,8 @@ def html_content_to_markdown(
     html_content,
     base_url,
     session=None,
-    trim=False,
+    content_mode=ContentMode.FULL,
+    selector=None,
     download_images=False,
     output_dir=None,
     images_dir="images",
@@ -195,16 +203,15 @@ def html_content_to_markdown(
         # We'll still try to convert it, but log a warning
 
     prepared_html, metadata = prepare_document(html_content, base_url)
+    selected_html = extract_content_html(
+        prepared_html, mode=content_mode, selector=selector
+    )
 
     # Convert HTML to Markdown using markdownify
-    markdown_content = md(prepared_html, heading_style="ATX")
+    markdown_content = md(selected_html, heading_style="ATX")
 
     # Apply formatting rules to clean up the generated markdown
     formatted_markdown = format_markdown(markdown_content)
-
-    # Apply trimming if requested
-    if trim:
-        formatted_markdown = trim_markdown(formatted_markdown, base_url)
 
     if include_metadata:
         formatted_markdown = metadata.front_matter() + formatted_markdown
@@ -218,7 +225,7 @@ def html_content_to_markdown(
             allow_private_network=allow_private_network,
         )
         formatted_markdown = image_downloader.process_markdown_with_images(
-            formatted_markdown, prepared_html, base_url, Path(output_dir)
+            formatted_markdown, selected_html, base_url, Path(output_dir)
         )
 
     logger.info(f"Successfully converted HTML from {base_url} to Markdown.")
@@ -227,7 +234,8 @@ def html_content_to_markdown(
 
 def local_html_to_markdown(
     file_path,
-    trim=False,
+    content_mode=ContentMode.FULL,
+    selector=None,
     download_images=False,
     output_dir=None,
     images_dir="images",
@@ -240,7 +248,8 @@ def local_html_to_markdown(
 
     Args:
         file_path (str): Path to the local HTML file.
-        trim (bool, optional): Whether to apply trimming rules to the resulting markdown.
+        content_mode: Full document, inferred main content, or explicit selector.
+        selector: CSS selector required by selector mode.
         download_images (bool, optional): Whether to download images from the page.
         output_dir (Path, optional): Output directory for saving images.
         images_dir (str, optional): Subdirectory name for images (default: "images").
@@ -272,17 +281,15 @@ def local_html_to_markdown(
         prepared_html, metadata = prepare_document(
             html_content, Path(file_path).resolve().as_uri()
         )
+        selected_html = extract_content_html(
+            prepared_html, mode=content_mode, selector=selector
+        )
 
         # Convert HTML to Markdown using markdownify
-        markdown_content = md(prepared_html, heading_style="ATX")
+        markdown_content = md(selected_html, heading_style="ATX")
 
         # Apply formatting rules to clean up the generated markdown
         formatted_markdown = format_markdown(markdown_content)
-
-        # Apply trimming if requested
-        if trim:
-            file_name = os.path.basename(file_path)
-            formatted_markdown = trim_markdown_local(formatted_markdown, file_name)
 
         if include_metadata:
             formatted_markdown = metadata.front_matter() + formatted_markdown
@@ -299,12 +306,14 @@ def local_html_to_markdown(
                 allow_private_network=allow_private_network,
             )
             formatted_markdown = image_downloader.process_markdown_with_images(
-                formatted_markdown, prepared_html, base_url, Path(output_dir)
+                formatted_markdown, selected_html, base_url, Path(output_dir)
             )
 
         logger.info(f"Successfully converted HTML from {file_path} to Markdown.")
         return formatted_markdown
 
+    except ContentExtractionError:
+        raise
     except Exception as e:
         logger.error(f"Error processing local file {file_path}: {str(e)}")
         return None

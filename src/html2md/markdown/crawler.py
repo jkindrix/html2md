@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Dict, Optional
 
 from html2md.cookies.session_manager import get_session
+from html2md.markdown.content_extractor import ContentMode, validate_content_request
 from html2md.markdown.converter import html_content_to_markdown
 from html2md.markdown.link_rewriter import rewrite_archived_files
 from html2md.markdown.batch_processor import create_directory_structure
@@ -54,7 +55,8 @@ def crawl_website(
     concurrent_config=None,
     polite_mode=False,
     show_progress=True,
-    trim=True,
+    content_mode=ContentMode.FULL,
+    selector=None,
     progress_callback=None,
     flatten_output=False,
     hierarchical_domains=False,
@@ -86,7 +88,8 @@ def crawl_website(
         delay (float, optional): Delay between requests in seconds. Random jitter of ±30% will be added. Defaults to 0.0.
         respect_robots (bool, optional): Whether to respect robots.txt rules. Defaults to True.
         rate_limit (int, optional): Requests per minute limit. If None, no rate limiting is applied. Defaults to None.
-        trim (bool, optional): Whether to trim the markdown. Defaults to True.
+        content_mode: Full document, inferred main content, or explicit selector.
+        selector: CSS selector required by selector mode.
         progress_callback (callable, optional): Function to call with progress updates
         flatten_output (bool, optional): If True, creates output directories directly
                                        named after domain. Defaults to False.
@@ -106,6 +109,8 @@ def crawl_website(
     Returns:
         CrawlResult: Typed result for successful and unsuccessful outcomes.
     """
+    content_mode = validate_content_request(content_mode, selector)
+
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
 
@@ -161,7 +166,8 @@ def crawl_website(
             "delay": delay,
             "respect_robots": respect_robots,
             "rate_limit": rate_limit,
-            "trim": trim,
+            "content_mode": content_mode.value,
+            "selector": selector,
             "flatten_output": flatten_output,
             "hierarchical_domains": hierarchical_domains,
             "download_images": download_images,
@@ -472,7 +478,8 @@ def crawl_website(
                 html_content,
                 fetch_result.final_url,
                 session=session,
-                trim=trim,
+                content_mode=content_mode,
+                selector=selector,
                 download_images=download_images,
                 output_dir=url_dir,
                 images_dir=images_dir,
