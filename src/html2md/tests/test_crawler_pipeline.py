@@ -179,7 +179,7 @@ def test_request_headers_do_not_leak_into_shared_session():
             timeout=kwargs.get("timeout"),
         )
 
-    with patch("html2md.markdown.converter.guarded_request", side_effect=guarded):
+    with patch("html2md.markdown.pipeline.guarded_request", side_effect=guarded):
         html_to_markdown(
             "https://other.example/page",
             session=session,

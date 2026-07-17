@@ -4,6 +4,25 @@ from unittest.mock import Mock
 
 from html2md.cli import conversion_service
 from html2md.markdown.content_extractor import ContentMode
+from html2md.markdown.document import DocumentMetadata
+from html2md.markdown.pipeline import AcquiredPage, ConvertedDocument
+
+
+def _page(source="https://example.com/page", *, local_path=None):
+    return AcquiredPage(
+        requested_url=source,
+        final_url=source,
+        html="<h1>Example</h1>",
+        status_code=200 if local_path is None else None,
+        headers={"Content-Type": "text/html"},
+        media_type="text/html",
+        charset="utf-8",
+        source_path=local_path,
+    )
+
+
+def _document(page, markdown="# converted"):
+    return ConvertedDocument(page, markdown, page.html, DocumentMetadata())
 
 
 def test_url_conversion_builds_one_session_and_threads_security_options(
@@ -11,7 +30,10 @@ def test_url_conversion_builds_one_session_and_threads_security_options(
 ):
     session = Mock()
     statuses = []
-    convert = Mock(return_value="# converted")
+    page = _page()
+    acquire = Mock(return_value=page)
+    pipeline = Mock()
+    pipeline.convert.return_value = _document(page)
     apply_cookies = Mock(return_value=session)
     header_manager = Mock()
     header_manager.get_headers.return_value = {"User-Agent": "html2md-test"}
@@ -28,7 +50,8 @@ def test_url_conversion_builds_one_session_and_threads_security_options(
     get_session = Mock(return_value=session)
     monkeypatch.setattr(conversion_service, "get_session", get_session)
     monkeypatch.setattr(conversion_service, "apply_browser_cookies", apply_cookies)
-    monkeypatch.setattr(conversion_service, "html_to_markdown", convert)
+    monkeypatch.setattr(conversion_service, "acquire_http_page", acquire)
+    monkeypatch.setattr(conversion_service, "PagePipeline", Mock(return_value=pipeline))
 
     output = tmp_path / "docs" / "page.md"
     result = conversion_service.convert_source(
@@ -53,10 +76,11 @@ def test_url_conversion_builds_one_session_and_threads_security_options(
         tmp_path / "cookies.json",
         browser="firefox",
     )
-    assert convert.call_args.kwargs["headers"] == {"User-Agent": "html2md-test"}
-    assert convert.call_args.kwargs["output_dir"] == output.parent.resolve()
-    assert convert.call_args.kwargs["verify_ssl"] is False
-    assert convert.call_args.kwargs["include_metadata"] is True
+    assert acquire.call_args.kwargs["headers"] == {"User-Agent": "html2md-test"}
+    assert acquire.call_args.kwargs["session"] is session
+    assert pipeline.convert.call_args.kwargs["output_dir"] == output.parent.resolve()
+    assert pipeline.convert.call_args.kwargs["include_metadata"] is True
+    session.close.assert_called_once()
     assert statuses[-1] == "Converting https://example.com/page to markdown"
 
 
@@ -66,8 +90,14 @@ def test_local_conversion_uses_source_directory_for_downloaded_images(
     source = tmp_path / "input" / "page.html"
     source.parent.mkdir()
     source.write_text("<h1>Example</h1>", encoding="utf-8")
-    convert = Mock(return_value="# Example")
-    monkeypatch.setattr(conversion_service, "local_html_to_markdown", convert)
+    page = _page(source.resolve().as_uri(), local_path=source.resolve())
+    acquire = Mock(return_value=page)
+    pipeline = Mock()
+    pipeline.convert.return_value = _document(page, "# Example")
+    monkeypatch.setattr(conversion_service, "acquire_local_page", acquire)
+    monkeypatch.setattr(conversion_service, "PagePipeline", Mock(return_value=pipeline))
+    session = Mock()
+    monkeypatch.setattr(conversion_service, "get_session", Mock(return_value=session))
 
     result = conversion_service.convert_source(
         str(source),
@@ -82,9 +112,10 @@ def test_local_conversion_uses_source_directory_for_downloaded_images(
     assert result.succeeded
     assert result.is_remote is False
     assert result.source_label == str(source.resolve())
-    assert convert.call_args.args == (source.resolve(),)
-    assert convert.call_args.kwargs["output_dir"] == source.parent.resolve()
-    assert convert.call_args.kwargs["verify_ssl"] is True
+    assert acquire.call_args.args == (source.resolve(),)
+    assert pipeline.convert.call_args.kwargs["output_dir"] == source.parent.resolve()
+    assert pipeline.convert.call_args.kwargs["session"] is session
+    session.close.assert_called_once()
 
 
 def test_conversion_exceptions_become_typed_failures(monkeypatch):
@@ -108,10 +139,6 @@ def test_conversion_exceptions_become_typed_failures(monkeypatch):
 def test_empty_conversion_is_not_success(monkeypatch, tmp_path):
     source = tmp_path / "empty.html"
     source.write_text("", encoding="utf-8")
-    monkeypatch.setattr(
-        conversion_service, "local_html_to_markdown", Mock(return_value=None)
-    )
-
     result = conversion_service.convert_source(
         str(source),
         output=None,
@@ -122,7 +149,7 @@ def test_empty_conversion_is_not_success(monkeypatch, tmp_path):
     )
 
     assert result.succeeded is False
-    assert result.error is None
+    assert "empty" in (result.error or "").casefold()
 
 
 def test_browser_rendering_rejects_local_files_and_cookie_import(tmp_path):
@@ -159,7 +186,10 @@ def test_remote_conversion_loads_private_headers_and_render_storage_state(
     headers_path = tmp_path / "headers.json"
     state_path = tmp_path / "state.json"
     loaded_headers = {"Authorization": "Bearer secret"}
-    convert = Mock(return_value="# rendered")
+    page = _page()
+    acquire = Mock(return_value=page)
+    pipeline = Mock()
+    pipeline.convert.return_value = _document(page, "# rendered")
     header_manager = Mock()
     header_manager.get_headers.return_value = {"User-Agent": "html2md-test"}
     monkeypatch.setattr(conversion_service, "load_config", lambda: {})
@@ -175,7 +205,8 @@ def test_remote_conversion_loads_private_headers_and_render_storage_state(
         "load_storage_state",
         Mock(return_value={"cookies": [], "origins": []}),
     )
-    monkeypatch.setattr(conversion_service, "html_to_markdown", convert)
+    monkeypatch.setattr(conversion_service, "acquire_rendered_page", acquire)
+    monkeypatch.setattr(conversion_service, "PagePipeline", Mock(return_value=pipeline))
 
     result = conversion_service.convert_source(
         "https://example.com",
@@ -191,16 +222,16 @@ def test_remote_conversion_loads_private_headers_and_render_storage_state(
     )
 
     assert result.succeeded
-    assert convert.call_args.kwargs["headers"] == {
+    assert acquire.call_args.kwargs["headers"] == {
         "User-Agent": "html2md-test",
         "Authorization": "Bearer secret",
     }
-    assert convert.call_args.kwargs["storage_state"] == {
+    assert acquire.call_args.kwargs["storage_state"] == {
         "cookies": [],
         "origins": [],
     }
-    assert convert.call_args.kwargs["content_mode"] is ContentMode.SELECTOR
-    assert convert.call_args.kwargs["selector"] == "article.docs"
+    assert pipeline.convert.call_args.kwargs["content_mode"] is ContentMode.SELECTOR
+    assert pipeline.convert.call_args.kwargs["selector"] == "article.docs"
 
 
 def test_storage_state_requires_rendering_and_auth_inputs_reject_local_files(tmp_path):

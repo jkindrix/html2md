@@ -1,31 +1,26 @@
+"""Compatibility functions over the typed page acquisition/conversion pipeline."""
+
+from __future__ import annotations
+
 import logging
-import os
 from pathlib import Path
+
 import requests
-from markdownify import markdownify as md
 
-from html2md.cookies.session_manager import get_session, disable_ssl_verification
-from html2md.markdown.content_extractor import (
-    ContentExtractionError,
-    ContentMode,
-    extract_content_html,
+from html2md.cookies.session_manager import disable_ssl_verification, get_session
+from html2md.markdown.content_extractor import ContentMode
+from html2md.markdown.pipeline import (
+    AcquisitionFailure,
+    AcquiredPage,
+    ConversionFailure,
+    PagePipeline,
+    acquire_http_page,
+    acquire_local_page,
+    acquire_rendered_page,
 )
-from html2md.markdown.document import prepare_document
-from html2md.utils.formatter import format_markdown
-from html2md.network.image_downloader import ImageDownloader
-from html2md.network.browser_renderer import render_html
-from html2md.network.safe_http import (
-    DEFAULT_MAX_BODY_BYTES,
-    DestinationPolicy,
-    guarded_request,
-)
-from html2md.utils.redaction import redact_mapping
+from html2md.network.safe_http import DEFAULT_MAX_BODY_BYTES
 
-# Setup logger
 logger = logging.getLogger("html2md")
-
-# Default headers are now set in session_manager.get_session()
-# This ensures consistent header handling across the application
 
 
 def html_to_markdown(
@@ -45,137 +40,52 @@ def html_to_markdown(
     max_html_bytes=DEFAULT_MAX_BODY_BYTES,
     storage_state=None,
 ):
-    """
-    Fetch HTML and convert to Markdown.
-
-    Args:
-        url (str): URL to fetch HTML content from.
-        session (requests.Session, optional): Session object for HTTP requests.
-        headers (dict, optional): Custom headers for the HTTP request.
-        content_mode: Full document, inferred main content, or explicit selector.
-        selector: CSS selector required by selector mode.
-        download_images (bool, optional): Whether to download images from the page.
-        output_dir (Path, optional): Output directory for saving images.
-        images_dir (str, optional): Subdirectory name for images (default: "images").
-        verify_ssl (bool, optional): Whether to verify SSL certificates. Defaults to True.
-            Applies to the provided session as well as newly created ones.
-        include_metadata (bool, optional): Prepend deterministic YAML front matter.
-        render_js (bool, optional): Execute the page in the optional browser renderer.
-
-    Returns:
-        str or None: Markdown content if successful, None otherwise.
-    """
-    document_url = url
-    if render_js:
-        logger.info("Rendering URL with isolated Chromium: %s", url)
-        rendered = render_html(
-            url,
-            headers=headers,
-            verify_ssl=verify_ssl,
-            allow_private_network=allow_private_network,
-            storage_state=storage_state,
-        )
-        html_content = rendered.html
-        document_url = rendered.final_url
-    else:
-        # Use provided session or initialize a new one
-        session = session or get_session()
-        if not verify_ssl:
-            disable_ssl_verification(session)
-
-    if not render_js:
-        # Retrieve HTML through the shared guarded transport.
-        try:
-            logger.info(f"Fetching URL: {url}")
-            # Send GET request to fetch the HTML content
-            policy = network_policy or DestinationPolicy(
-                allow_private=allow_private_network
-            )
-            response = guarded_request(
-                session,
-                "GET",
+    """Acquire one URL and return Markdown, preserving the legacy optional API."""
+    owned_session = None
+    active_session = session
+    try:
+        if render_js:
+            page = acquire_rendered_page(
                 url,
-                policy=policy,
                 headers=headers,
-                timeout=30,
-                max_body_bytes=max_html_bytes,
+                verify_ssl=verify_ssl,
+                allow_private_network=allow_private_network,
+                max_html_bytes=max_html_bytes,
+                storage_state=storage_state,
             )
-            response.raise_for_status()
-
-            # Detect encoding if possible
-            if response.encoding is None:
-                # Default to UTF-8 if encoding can't be determined
-                response.encoding = "utf-8"
-
-            # Log content type and encoding info for debugging
-            logger.info(
-                f"Response Content-Type: {response.headers.get('Content-Type', 'Not specified')}"
+        else:
+            if active_session is None:
+                owned_session = get_session(verify_ssl=verify_ssl)
+                active_session = owned_session
+            elif not verify_ssl:
+                disable_ssl_verification(active_session)
+            page = acquire_http_page(
+                url,
+                session=active_session,
+                headers=headers,
+                network_policy=network_policy,
+                allow_private_network=allow_private_network,
+                max_html_bytes=max_html_bytes,
             )
-            logger.info(
-                f"Response Content-Encoding: {response.headers.get('Content-Encoding', 'Not specified')}"
-            )
-            logger.info(f"Response encoding detected: {response.encoding}")
-
-            # The requests library automatically handles decompression based on Content-Encoding header
-            # So we should just use response.text which gives us the decoded content
-            html_content = response.text
-
-            # Log raw content info for debugging
-            # Requests decodes every advertised Content-Encoding when the
-            # corresponding decoder is installed. Brotli is a runtime
-            # dependency, so no byte-prefix guessing or double-decompression
-            # should happen here.
-            if html_content.lstrip().lower().startswith(("<!doctype", "<html")):
-                logger.debug("Content appears to be valid HTML")
-
-            # Log response details
-            logger.info(f"Received {len(html_content)} bytes of HTML from {url}.")
-            logger.info(f"Response status code: {response.status_code}")
-            logger.info(f"Response encoding: {response.encoding}")
-            logger.debug(f"Response headers: {redact_mapping(response.headers)}")
-
-            response_url = getattr(response, "url", None)
-            if isinstance(response_url, str) and response_url:
-                document_url = response_url
-
-        except requests.exceptions.Timeout:
-            logger.error(f"Timeout while fetching {url}")
-            return None
-        except requests.exceptions.TooManyRedirects:
-            logger.error(f"Too many redirects while fetching {url}")
-            return None
-        except requests.exceptions.SSLError as e:
-            logger.error(
-                f"SSL certificate verification failed for {url}: {e}. "
-                "If you trust this host (e.g. an internal server with a "
-                "self-signed certificate), retry with --insecure."
-            )
-            return None
-        except requests.exceptions.ConnectionError as e:
-            logger.error(f"Connection error while fetching {url}: {e}")
-            return None
-        except requests.exceptions.HTTPError as e:
-            status_code = (
-                e.response.status_code if hasattr(e, "response") else "unknown"
-            )
-            logger.error(f"HTTP error {status_code} while fetching {url}: {e}")
-            return None
-        except requests.RequestException as e:
-            logger.error(f"Failed to retrieve {url}: {e}")
-            return None
-
-    return html_content_to_markdown(
-        html_content,
-        document_url,
-        session=session,
-        content_mode=content_mode,
-        selector=selector,
-        download_images=download_images,
-        output_dir=output_dir,
-        images_dir=images_dir,
-        include_metadata=include_metadata,
-        allow_private_network=allow_private_network,
-    )
+        document = PagePipeline().convert(
+            page,
+            content_mode=content_mode,
+            selector=selector,
+            include_metadata=include_metadata,
+            download_images=download_images,
+            output_dir=Path(output_dir) if output_dir is not None else None,
+            images_dir=images_dir,
+            session=active_session,
+            allow_private_network=allow_private_network,
+        )
+        logger.info("Successfully converted HTML from %s to Markdown.", page.final_url)
+        return document.markdown
+    except (AcquisitionFailure, ConversionFailure) as error:
+        logger.error("%s", error)
+        return None
+    finally:
+        if owned_session is not None:
+            owned_session.close()
 
 
 def html_content_to_markdown(
@@ -190,46 +100,42 @@ def html_content_to_markdown(
     include_metadata=False,
     allow_private_network=False,
 ):
-    """Convert an already-fetched HTML document to Markdown."""
+    """Convert an already-acquired HTML document through the shared pipeline."""
     if not html_content or not html_content.strip():
-        logger.warning(f"Empty HTML response from {base_url}")
+        logger.warning("Empty HTML response from %s", base_url)
         return None
-
-    # Check for tiny responses that are likely error pages
-    if len(html_content) < 100:
-        logger.warning(
-            f"Very small response ({len(html_content)} bytes) from {base_url}, might be an error page"
-        )
-        # We'll still try to convert it, but log a warning
-
-    prepared_html, metadata = prepare_document(html_content, base_url)
-    selected_html = extract_content_html(
-        prepared_html, mode=content_mode, selector=selector
+    page = AcquiredPage(
+        requested_url=base_url,
+        final_url=base_url,
+        html=html_content,
+        status_code=None,
+        headers={},
+        media_type="text/html",
+        charset="utf-8",
+        source_path=(
+            Path(base_url.removeprefix("file://"))
+            if base_url.startswith("file://")
+            else None
+        ),
     )
-
-    # Convert HTML to Markdown using markdownify
-    markdown_content = md(selected_html, heading_style="ATX")
-
-    # Apply formatting rules to clean up the generated markdown
-    formatted_markdown = format_markdown(markdown_content)
-
-    if include_metadata:
-        formatted_markdown = metadata.front_matter() + formatted_markdown
-
-    # Download images if requested
-    if download_images and output_dir:
-        logger.info(f"Downloading images from {base_url}")
-        image_downloader = ImageDownloader(
-            session=session,
-            images_dir=images_dir,
-            allow_private_network=allow_private_network,
+    try:
+        return (
+            PagePipeline()
+            .convert(
+                page,
+                content_mode=content_mode,
+                selector=selector,
+                include_metadata=include_metadata,
+                download_images=download_images,
+                output_dir=Path(output_dir) if output_dir is not None else None,
+                images_dir=images_dir,
+                session=session,
+                allow_private_network=allow_private_network,
+            )
+            .markdown
         )
-        formatted_markdown = image_downloader.process_markdown_with_images(
-            formatted_markdown, selected_html, base_url, Path(output_dir)
-        )
-
-    logger.info(f"Successfully converted HTML from {base_url} to Markdown.")
-    return formatted_markdown
+    except ConversionFailure:
+        raise
 
 
 def local_html_to_markdown(
@@ -243,77 +149,30 @@ def local_html_to_markdown(
     include_metadata=False,
     allow_private_network=False,
 ):
-    """
-    Convert HTML from a local file to Markdown.
-
-    Args:
-        file_path (str): Path to the local HTML file.
-        content_mode: Full document, inferred main content, or explicit selector.
-        selector: CSS selector required by selector mode.
-        download_images (bool, optional): Whether to download images from the page.
-        output_dir (Path, optional): Output directory for saving images.
-        images_dir (str, optional): Subdirectory name for images (default: "images").
-        verify_ssl (bool, optional): Whether to verify SSL certificates when
-            downloading remote images referenced by the local file. Defaults to True.
-
-    Returns:
-        str or None: Markdown content if successful, None otherwise.
-    """
+    """Acquire one local UTF-8 HTML file and return Markdown if successful."""
+    asset_session: requests.Session | None = None
     try:
-        # Check if file exists
-        if not os.path.exists(file_path):
-            logger.error(f"File not found: {file_path}")
-            return None
-
-        logger.info(f"Reading local file: {file_path}")
-
-        # Read the HTML content from the file
-        with open(file_path, "r", encoding="utf-8") as f:
-            html_content = f.read()
-
-        logger.info(f"Read {len(html_content)} bytes of HTML from {file_path}.")
-
-        # Handle empty HTML file
-        if not html_content.strip():
-            logger.warning(f"Empty HTML file: {file_path}")
-            return None
-
-        prepared_html, metadata = prepare_document(
-            html_content, Path(file_path).resolve().as_uri()
-        )
-        selected_html = extract_content_html(
-            prepared_html, mode=content_mode, selector=selector
-        )
-
-        # Convert HTML to Markdown using markdownify
-        markdown_content = md(selected_html, heading_style="ATX")
-
-        # Apply formatting rules to clean up the generated markdown
-        formatted_markdown = format_markdown(markdown_content)
-
-        if include_metadata:
-            formatted_markdown = metadata.front_matter() + formatted_markdown
-
-        # Download images if requested
-        if download_images and output_dir:
-            logger.info(f"Downloading images from local file {file_path}")
-            source_path = Path(file_path).resolve()
-            base_url = source_path.as_uri()
-            image_downloader = ImageDownloader(
-                session=get_session(verify_ssl=verify_ssl),
+        page = acquire_local_page(file_path)
+        if download_images:
+            asset_session = get_session(verify_ssl=verify_ssl)
+        return (
+            PagePipeline()
+            .convert(
+                page,
+                content_mode=content_mode,
+                selector=selector,
+                include_metadata=include_metadata,
+                download_images=download_images,
+                output_dir=Path(output_dir) if output_dir is not None else None,
                 images_dir=images_dir,
-                local_root=source_path.parent,
+                session=asset_session,
                 allow_private_network=allow_private_network,
             )
-            formatted_markdown = image_downloader.process_markdown_with_images(
-                formatted_markdown, selected_html, base_url, Path(output_dir)
-            )
-
-        logger.info(f"Successfully converted HTML from {file_path} to Markdown.")
-        return formatted_markdown
-
-    except ContentExtractionError:
-        raise
-    except Exception as e:
-        logger.error(f"Error processing local file {file_path}: {str(e)}")
+            .markdown
+        )
+    except AcquisitionFailure as error:
+        logger.error("%s", error)
         return None
+    finally:
+        if asset_session is not None:
+            asset_session.close()

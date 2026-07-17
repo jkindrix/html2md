@@ -11,7 +11,13 @@ from html2md.cli.runtime import build_header_config
 from html2md.config.loader import load_config
 from html2md.cookies.session_manager import apply_browser_cookies, get_session
 from html2md.markdown.content_extractor import ContentMode, validate_content_request
-from html2md.markdown.converter import html_to_markdown, local_html_to_markdown
+from html2md.markdown.pipeline import (
+    ConvertedDocument,
+    PagePipeline,
+    acquire_http_page,
+    acquire_local_page,
+    acquire_rendered_page,
+)
 from html2md.network.auth_inputs import load_private_headers, load_storage_state
 from html2md.network.header_manager import HeaderManager
 from html2md.utils.parser import is_url
@@ -30,6 +36,7 @@ class ConversionResult:
     markdown: Optional[str]
     is_remote: bool
     error: Optional[str] = None
+    document: Optional[ConvertedDocument] = None
 
     @property
     def succeeded(self) -> bool:
@@ -171,9 +178,9 @@ def _convert_url(
 
         on_status(f"Fetching content from {source}")
         session = None
-        if not no_cookies and not render_js:
+        if not render_js:
             session = get_session(verify_ssl=not insecure)
-            if browser_cookies and session:
+            if not no_cookies and browser_cookies:
                 if cookie_json:
                     on_status(f"Loading cookies from JSON file for {source}")
                 else:
@@ -181,31 +188,53 @@ def _convert_url(
                         "preferred", "chrome"
                     )
                     on_status(f"Extracting cookies from {browser_name} for {source}")
-                session = apply_browser_cookies(
+                cookie_session = apply_browser_cookies(
                     session, source, cookie_json, browser=browser
                 )
+                if cookie_session is not session:
+                    session.close()
+                session = cookie_session
 
         output_dir = None
         if download_images:
             output_dir = output.parent.resolve() if output else Path.cwd()
 
-        markdown = html_to_markdown(
-            source,
-            session=session,
-            headers=headers,
-            content_mode=content_mode,
-            selector=selector,
-            download_images=download_images,
-            output_dir=output_dir,
-            images_dir=images_dir,
-            verify_ssl=not insecure,
-            include_metadata=include_metadata,
-            render_js=render_js,
-            allow_private_network=allow_private_network,
-            storage_state=loaded_storage_state,
-        )
+        try:
+            if render_js:
+                page = acquire_rendered_page(
+                    source,
+                    headers=headers,
+                    verify_ssl=not insecure,
+                    allow_private_network=allow_private_network,
+                    storage_state=loaded_storage_state,
+                )
+            else:
+                if session is None:  # guarded by the branch above
+                    raise RuntimeError("Static acquisition requires an HTTP session")
+                page = acquire_http_page(
+                    source,
+                    session=session,
+                    headers=headers,
+                    allow_private_network=allow_private_network,
+                )
+            document = PagePipeline().convert(
+                page,
+                content_mode=content_mode,
+                selector=selector,
+                download_images=download_images,
+                output_dir=output_dir,
+                images_dir=images_dir,
+                include_metadata=include_metadata,
+                session=session,
+                allow_private_network=allow_private_network,
+            )
+        finally:
+            if session is not None:
+                session.close()
         on_status(f"Converting {source} to markdown")
-        return ConversionResult(source, source, markdown, True)
+        return ConversionResult(
+            source, source, document.markdown, True, document=document
+        )
     except Exception as error:
         logger.error("Failed to process URL %s: %s", source, error)
         return ConversionResult(source, source, None, True, str(error))
@@ -233,19 +262,33 @@ def _convert_file(
         if download_images:
             output_dir = output.parent.resolve() if output else file_path.parent
 
-        markdown = local_html_to_markdown(
-            file_path,
-            content_mode=content_mode,
-            selector=selector,
-            download_images=download_images,
-            output_dir=output_dir,
-            images_dir=images_dir,
-            verify_ssl=not insecure,
-            include_metadata=include_metadata,
-            allow_private_network=allow_private_network,
+        page = acquire_local_page(file_path)
+        asset_session = (
+            get_session(verify_ssl=not insecure) if download_images else None
         )
+        try:
+            document = PagePipeline().convert(
+                page,
+                content_mode=content_mode,
+                selector=selector,
+                download_images=download_images,
+                output_dir=output_dir,
+                images_dir=images_dir,
+                include_metadata=include_metadata,
+                session=asset_session,
+                allow_private_network=allow_private_network,
+            )
+        finally:
+            if asset_session is not None:
+                asset_session.close()
         on_status(f"Converting {file_path} to markdown")
-        return ConversionResult(source, str(file_path), markdown, False)
+        return ConversionResult(
+            source,
+            str(file_path),
+            document.markdown,
+            False,
+            document=document,
+        )
     except Exception as error:
         logger.error("Failed to process local file %s: %s", source, error)
         return ConversionResult(source, str(file_path), None, False, str(error))

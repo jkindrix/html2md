@@ -14,9 +14,9 @@ from html2md.markdown.converter import (
 
 @pytest.fixture(autouse=True)
 def route_mock_sessions_through_conversion_boundary(monkeypatch):
-    from html2md.markdown import converter
+    from html2md.markdown import pipeline
 
-    original = converter.guarded_request
+    original = pipeline.guarded_request
 
     def request(session, method, url, **kwargs):
         if isinstance(session, Mock):
@@ -27,7 +27,7 @@ def route_mock_sessions_through_conversion_boundary(monkeypatch):
             )
         return original(session, method, url, **kwargs)
 
-    monkeypatch.setattr(converter, "guarded_request", request)
+    monkeypatch.setattr(pipeline, "guarded_request", request)
 
 
 def test_html_content_conversion_preserves_core_markdown_structures():

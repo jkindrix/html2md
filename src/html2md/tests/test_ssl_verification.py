@@ -122,7 +122,7 @@ class TestHtmlToMarkdownVerifySsl:
                 timeout=kwargs.get("timeout"),
             )
 
-        monkeypatch.setattr("html2md.markdown.converter.guarded_request", request)
+        monkeypatch.setattr("html2md.markdown.pipeline.guarded_request", request)
 
     def test_verify_ssl_false_disables_on_provided_session(self):
         session = self._mock_session()

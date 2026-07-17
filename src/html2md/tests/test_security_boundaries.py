@@ -195,14 +195,14 @@ def test_chrome_cookie_temp_storage_cleans_up_on_failure_and_interruption(
         ),
         patch("html2md.cookies.session_manager.sqlite3.connect", side_effect=failure),
     ):
-            if isinstance(failure, KeyboardInterrupt):
-                with pytest.raises(KeyboardInterrupt):
-                    session_manager.get_chrome_cookies("example.com")
-            else:
-                with pytest.raises(
-                    session_manager.CookieSourceError, match="broken sqlite"
-                ):
-                    session_manager.get_chrome_cookies("example.com")
+        if isinstance(failure, KeyboardInterrupt):
+            with pytest.raises(KeyboardInterrupt):
+                session_manager.get_chrome_cookies("example.com")
+        else:
+            with pytest.raises(
+                session_manager.CookieSourceError, match="broken sqlite"
+            ):
+                session_manager.get_chrome_cookies("example.com")
 
     assert not captured["directory"].exists()
 

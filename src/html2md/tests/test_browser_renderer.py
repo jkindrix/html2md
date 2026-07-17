@@ -67,7 +67,7 @@ def test_rendered_conversion_uses_browser_html_and_final_url():
     session = Mock()
 
     with patch(
-        "html2md.markdown.converter.render_html", return_value=rendered
+        "html2md.markdown.pipeline.render_html", return_value=rendered
     ) as render:
         markdown = html_to_markdown(
             "https://example.com/start",
@@ -84,6 +84,7 @@ def test_rendered_conversion_uses_browser_html_and_final_url():
         headers={"User-Agent": "fixture"},
         verify_ssl=True,
         allow_private_network=False,
+        max_html_bytes=10 * 1024 * 1024,
         storage_state=None,
     )
     session.get.assert_not_called()
