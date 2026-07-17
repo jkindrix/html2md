@@ -14,16 +14,29 @@ python -m playwright install chromium
 html2md convert https://example.com/app --render-js --output app.md
 ```
 
+For a page requiring an existing browser session, create Playwright storage
+state in a separate login process, restrict it to the current user, and pass it
+explicitly:
+
+```bash
+chmod 600 session-state.json
+html2md convert https://example.com/app --render-js \
+  --storage-state session-state.json
+```
+
 Playwright versions require matching browser binaries. Re-run the browser
 installation after upgrading the render extra. The browser cache requires a few
 hundred megabytes; the base/static installation downloads none of it.
 
 ## Resource and security boundary
 
-Rendered pages execute untrusted JavaScript in a fresh, headless,
-non-persistent Chromium context. The context:
+Rendered pages execute untrusted JavaScript in a fresh, headless Chromium
+context. By default the context is non-persistent; `--storage-state` can seed it
+from an owner-only Playwright state file created by a separate login process.
+The context:
 
-- has no imported browser profile, cookies, OAuth tokens, or persistent storage;
+- never modifies the supplied storage-state file and does not persist resulting
+  cookies or local storage;
 - blocks service workers, downloads, images, media, and fonts;
 - resolves the requested hostname once, validates every returned address, and
   pins Chromium to one validated numeric address while retaining the URL

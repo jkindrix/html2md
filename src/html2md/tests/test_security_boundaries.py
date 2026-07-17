@@ -205,21 +205,17 @@ def test_chrome_cookie_temp_storage_cleans_up_on_failure_and_interruption(
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX mode assertions")
-def test_private_config_tokens_and_state_use_owner_only_modes(tmp_path, monkeypatch):
+def test_private_config_and_state_use_owner_only_modes(tmp_path):
     config_file = tmp_path / "config" / "config.json"
-    atomic_write_json(config_file, {"oauth": {"CLIENT_SECRET": "secret"}}, private=True)
+    atomic_write_json(config_file, {"headers": {"custom_headers": {}}}, private=True)
     os.chmod(config_file, 0o644)
     atomic_write_json(
-        config_file, {"oauth": {"CLIENT_SECRET": "updated"}}, private=True
+        config_file,
+        {"headers": {"custom_headers": {"X-Test": "updated"}}},
+        private=True,
     )
     assert config_file.stat().st_mode & 0o777 == 0o600
     assert config_file.parent.stat().st_mode & 0o777 == 0o700
-
-    token_file = tmp_path / "tokens" / "tokens.json"
-    monkeypatch.setattr(session_manager, "TOKENS_FILE", token_file)
-    session_manager.save_tokens(Mock(to_json=lambda: '{"token":"secret"}'))
-    assert token_file.stat().st_mode & 0o777 == 0o600
-    assert token_file.parent.stat().st_mode & 0o777 == 0o700
 
     manager = StateManager(state_dir=tmp_path / "states")
     state = manager.create_new_state(

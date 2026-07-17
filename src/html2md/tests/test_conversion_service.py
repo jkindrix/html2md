@@ -156,3 +156,79 @@ def test_browser_rendering_rejects_local_files_and_cookie_import(tmp_path):
     assert "only for HTTP(S)" in (local.error or "")
     assert authenticated.succeeded is False
     assert "does not import" in (authenticated.error or "")
+
+
+def test_remote_conversion_loads_private_headers_and_render_storage_state(
+    monkeypatch, tmp_path
+):
+    headers_path = tmp_path / "headers.json"
+    state_path = tmp_path / "state.json"
+    loaded_headers = {"Authorization": "Bearer secret"}
+    convert = Mock(return_value="# rendered")
+    header_manager = Mock()
+    header_manager.get_headers.return_value = {"User-Agent": "html2md-test"}
+    monkeypatch.setattr(conversion_service, "load_config", lambda: {})
+    monkeypatch.setattr(conversion_service, "build_header_config", Mock())
+    monkeypatch.setattr(
+        conversion_service, "HeaderManager", Mock(return_value=header_manager)
+    )
+    monkeypatch.setattr(
+        conversion_service, "load_private_headers", Mock(return_value=loaded_headers)
+    )
+    monkeypatch.setattr(
+        conversion_service,
+        "load_storage_state",
+        Mock(return_value={"cookies": [], "origins": []}),
+    )
+    monkeypatch.setattr(conversion_service, "html_to_markdown", convert)
+
+    result = conversion_service.convert_source(
+        "https://example.com",
+        trim=False,
+        output=None,
+        no_cookies=True,
+        browser_cookies=False,
+        browser=None,
+        render_js=True,
+        headers_file=headers_path,
+        storage_state=state_path,
+    )
+
+    assert result.succeeded
+    assert convert.call_args.kwargs["headers"] == {
+        "User-Agent": "html2md-test",
+        "Authorization": "Bearer secret",
+    }
+    assert convert.call_args.kwargs["storage_state"] == {
+        "cookies": [],
+        "origins": [],
+    }
+
+
+def test_storage_state_requires_rendering_and_auth_inputs_reject_local_files(tmp_path):
+    remote = conversion_service.convert_source(
+        "https://example.com",
+        trim=False,
+        output=None,
+        no_cookies=True,
+        browser_cookies=False,
+        browser=None,
+        storage_state=tmp_path / "state.json",
+    )
+    source = tmp_path / "page.html"
+    source.write_text("<h1>Local</h1>", encoding="utf-8")
+    local = conversion_service.convert_source(
+        str(source),
+        trim=False,
+        output=None,
+        no_cookies=True,
+        browser_cookies=False,
+        browser=None,
+        local=True,
+        headers_file=tmp_path / "headers.json",
+    )
+
+    assert remote.succeeded is False
+    assert "requires --render-js" in (remote.error or "")
+    assert local.succeeded is False
+    assert "only for HTTP(S)" in (local.error or "")

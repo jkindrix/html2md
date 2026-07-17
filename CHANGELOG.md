@@ -6,6 +6,18 @@ All notable changes are documented here. This project follows
 
 ## [Unreleased]
 
+### Added
+
+- Added generic owner-private request-header input for authenticated static and
+  rendered conversion, plus owner-private Playwright storage-state input for
+  rendered conversion.
+
+### Removed
+
+- Removed the unreachable provider-specific OAuth flow, token storage, and its
+  runtime dependencies; login and credential acquisition remain outside the
+  converter.
+
 ## [0.1.2] - 2026-07-16
 
 Third alpha release, extending the guarded outbound-network boundary to every

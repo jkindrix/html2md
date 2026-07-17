@@ -38,6 +38,7 @@ def html_to_markdown(
     allow_private_network=False,
     network_policy=None,
     max_html_bytes=DEFAULT_MAX_BODY_BYTES,
+    storage_state=None,
 ):
     """
     Fetch HTML and convert to Markdown.
@@ -66,6 +67,7 @@ def html_to_markdown(
             headers=headers,
             verify_ssl=verify_ssl,
             allow_private_network=allow_private_network,
+            storage_state=storage_state,
         )
         html_content = rendered.html
         document_url = rendered.final_url

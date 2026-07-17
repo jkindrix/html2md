@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Mapping, Optional
+from typing import Any, Mapping, Optional, cast
 from urllib.parse import urlsplit
 
 from html2md.network.safe_http import DestinationPolicy, UnsafeNetworkTarget
@@ -94,6 +94,7 @@ def render_html(
     max_html_bytes: int = 10 * 1024 * 1024,
     executable_path: Optional[str] = None,
     allow_private_network: bool = False,
+    storage_state: Optional[Mapping[str, Any]] = None,
 ) -> RenderedPage:
     """Render one URL in a fresh non-persistent Chromium context."""
     if timeout_ms <= 0 or not 0 <= settle_ms <= 5_000 or max_html_bytes <= 0:
@@ -111,10 +112,23 @@ def render_html(
     policy = BrowserRequestPolicy(url, allow_private_network=allow_private_network)
     supplied_headers = dict(headers or {})
     user_agent = supplied_headers.get("User-Agent")
+    browser_managed_headers = {
+        "accept-encoding",
+        "connection",
+        "content-length",
+        "cookie",
+        "host",
+        "proxy-authorization",
+        "te",
+        "trailer",
+        "transfer-encoding",
+        "upgrade",
+        "user-agent",
+    }
     safe_headers = {
         key: value
         for key, value in supplied_headers.items()
-        if key.casefold() in {"accept-language", "dnt"}
+        if key.casefold() not in browser_managed_headers
     }
 
     try:
@@ -137,6 +151,9 @@ def render_html(
                     service_workers="block",
                     extra_http_headers=safe_headers,
                     user_agent=user_agent,
+                    storage_state=cast(
+                        Any, dict(storage_state) if storage_state else None
+                    ),
                 )
                 context.set_default_timeout(timeout_ms)
                 context.set_default_navigation_timeout(timeout_ms)

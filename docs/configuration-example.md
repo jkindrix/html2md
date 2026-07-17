@@ -55,7 +55,6 @@ Example config file with CLI defaults:
 {
   "domains": {},
   "logging": {"level": "WARNING"},
-  "oauth": {"CLIENT_ID": "", "CLIENT_SECRET": ""},
   "browser": {"preferred": "chrome"},
   "cli_defaults": {
     "batch": {

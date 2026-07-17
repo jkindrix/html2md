@@ -18,8 +18,6 @@ urllib3 = "^2.4.0"
 brotli = "^1.1.0"
 pycryptodomex = "^3.22.0"
 python-json-logger = "^3.3.0"
-google-auth-oauthlib = "^1.2.1"
-google-auth = "^2.38.0"
 typer = "^0.27.0"
 rich = "^13.7.0"
 playwright = {version = "^1.61.0", optional = true}
@@ -55,7 +53,7 @@ skip_covered = true
 omit = ["*/html2md/tests/*"]
 
 [[tool.mypy.overrides]]
-module = ["brotli", "google_auth_oauthlib.*", "markdownify", "playwright.*"]
+module = ["brotli", "markdownify", "playwright.*"]
 ignore_missing_imports = true
 
 [build-system]

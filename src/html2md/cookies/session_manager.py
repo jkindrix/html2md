@@ -13,7 +13,6 @@ from typing import Any, Iterable, Mapping, Optional, cast
 from urllib.parse import urlparse
 
 import requests
-from html2md.network.safe_http import guarded_request
 
 # Optional dependencies for browser cookie extraction
 try:
@@ -24,18 +23,7 @@ try:
 except ImportError:
     HAS_CRYPTO = False
 
-# Optional dependencies for OAuth
-try:
-    from google.auth.transport.requests import Request
-    from google.oauth2.credentials import Credentials
-    from google_auth_oauthlib.flow import InstalledAppFlow
-
-    HAS_GOOGLE_AUTH = True
-except ImportError:
-    HAS_GOOGLE_AUTH = False
-
-from html2md.config.loader import TOKENS_FILE, load_config
-from html2md.utils.secure_files import atomic_write_private_text
+from html2md.config.loader import load_config
 from html2md.utils.redaction import get_redacting_logger
 
 logger = get_redacting_logger("session_manager")
@@ -189,157 +177,6 @@ def _set_cookie_record(session: requests.Session, cookie: CookieRecord) -> None:
 
 # Load configuration
 config = load_config()
-
-# Load OAuth credentials from config
-CLIENT_ID = config.get("oauth", {}).get("CLIENT_ID", "")
-CLIENT_SECRET = config.get("oauth", {}).get("CLIENT_SECRET", "")
-
-
-# Defer validation until OAuth is actually needed
-def validate_oauth_config():
-    """Validate OAuth configuration when needed."""
-    if not CLIENT_ID or not CLIENT_SECRET:
-        logger.error("Missing OAuth credentials in config file.")
-        raise ValueError(
-            "OAuth credentials (CLIENT_ID, CLIENT_SECRET) must be set in config.json. "
-            "Run 'html2md --init-config' to create a config file with placeholders."
-        )
-
-
-REDIRECT_URI = "http://localhost"
-SCOPES = [
-    "openid",
-    "https://www.googleapis.com/auth/userinfo.email",
-    "https://www.googleapis.com/auth/userinfo.profile",
-]
-
-
-# -------------------------------
-# OAuth Token Management
-# -------------------------------
-
-
-def load_tokens():
-    """Load OAuth tokens from a local file."""
-    if not HAS_GOOGLE_AUTH:
-        raise ImportError(
-            "Google auth libraries are required for OAuth. Install html2md-cli with its declared dependencies."
-        )
-
-    validate_oauth_config()  # Validate when tokens are actually needed
-    if not TOKENS_FILE.exists():
-        logger.warning(
-            f"Token file not found at {TOKENS_FILE}. Performing fresh authentication."
-        )
-        return None
-
-    try:
-        with TOKENS_FILE.open("r", encoding="utf-8") as f:
-            token_data = json.load(f)
-        logger.info(f"Loaded OAuth tokens from {TOKENS_FILE}")
-        return Credentials.from_authorized_user_info(token_data)
-    except (json.JSONDecodeError, IOError) as e:
-        logger.error(f"Failed to load tokens from {TOKENS_FILE}: {e}")
-        return None
-
-
-def save_tokens(creds):
-    """Save OAuth tokens to a local file."""
-    try:
-        atomic_write_private_text(TOKENS_FILE, creds.to_json())
-        logger.info(f"Saved OAuth tokens to {TOKENS_FILE}")
-    except IOError as e:
-        logger.error(f"Failed to save tokens to {TOKENS_FILE}: {e}")
-
-
-def authenticate_google():
-    """Authenticate using Google OAuth and obtain an access token."""
-    if not HAS_GOOGLE_AUTH:
-        raise ImportError(
-            "Google auth libraries are required for OAuth. Install html2md-cli with its declared dependencies."
-        )
-
-    validate_oauth_config()  # Validate when OAuth is actually needed
-    creds = None
-
-    # Load existing credentials if available
-    creds = load_tokens()
-
-    # Refresh the token if it's expired and refresh_token is available
-    if creds and creds.expired and creds.refresh_token:
-        try:
-            creds.refresh(Request())
-            logger.info("Access token refreshed using the refresh token.")
-            save_tokens(creds)
-            return creds
-        except Exception as e:
-            logger.warning(
-                f"Token refresh failed: {e}. Proceeding with re-authentication."
-            )
-            creds = None
-
-    # Perform fresh OAuth if no valid credentials are available
-    if not creds or not creds.valid:
-        try:
-            # Run local server for OAuth authorization with browser
-            flow = InstalledAppFlow.from_client_config(
-                {
-                    "installed": {
-                        "client_id": CLIENT_ID,
-                        "client_secret": CLIENT_SECRET,
-                        "redirect_uris": [REDIRECT_URI],
-                        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                        "token_uri": "https://oauth2.googleapis.com/token",
-                    }
-                },
-                SCOPES,
-            )
-
-            creds = flow.run_local_server(port=0)
-            logger.info("Google OAuth authentication successful via local server.")
-            save_tokens(creds)
-
-        except Exception as e:
-            logger.error(f"OAuth authentication failed: {e}")
-            raise ValueError(
-                "OAuth authentication failed. No valid access token found."
-            )
-
-    return creds
-
-
-def refresh_token_if_expired(creds):
-    """Refresh access token if it has expired."""
-    if creds.expired and creds.refresh_token:
-        try:
-            creds.refresh(Request())
-            logger.info("Access token refreshed using refresh token.")
-            save_tokens(creds)
-        except Exception as e:
-            logger.error(f"Token refresh failed: {e}. Performing fresh authentication.")
-            return authenticate_google()
-    return creds
-
-
-def get_credentials():
-    """Get credentials using stored tokens or authenticate fresh."""
-    if not HAS_GOOGLE_AUTH:
-        raise ImportError(
-            "Google auth libraries are required for OAuth. Install html2md-cli with its declared dependencies."
-        )
-
-    validate_oauth_config()  # Validate when OAuth is actually needed
-    creds = load_tokens()
-
-    # Refresh or authenticate if necessary
-    if not creds or not creds.valid:
-        creds = authenticate_google()
-
-    if creds.expired:
-        creds = refresh_token_if_expired(creds)
-
-    return creds
-
 
 # -------------------------------
 # Browser Cookie Management
@@ -1066,39 +903,3 @@ def apply_browser_cookies(session, url, cookie_json=None, browser=None):
     logger.info(f"Applied cookies to session for {url}")
 
     return session
-
-
-# -------------------------------
-# Utility for Testing
-# -------------------------------
-
-
-def test_google_authentication():
-    """Test OAuth authentication and session initialization."""
-    try:
-        get_credentials()
-        logger.info("Testing OAuth authentication. Token obtained successfully.")
-    except Exception as e:
-        logger.error(f"OAuth test failed: {e}")
-        raise
-
-    session = get_session()
-    try:
-        response = guarded_request(
-            session,
-            "GET",
-            "https://www.googleapis.com/oauth2/v1/userinfo",
-            timeout=5,
-        )
-        if response.status_code == 200:
-            logger.info("Test API call successful.")
-        else:
-            logger.warning(
-                f"Test API call failed with status code: {response.status_code}"
-            )
-    except requests.RequestException as e:
-        logger.error(f"Failed to connect to Google API: {e}")
-
-
-if __name__ == "__main__":
-    test_google_authentication()

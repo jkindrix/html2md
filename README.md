@@ -114,6 +114,8 @@ Useful options include:
 - `--trim/--no-trim` for domain-specific trimming rules;
 - `--output/-o` to write a file instead of stdout;
 - `--browser-cookies` or `--cookie-json` for authenticated pages;
+- `--headers-file` for an owner-only JSON object of target request headers;
+- `--storage-state` with `--render-js` for owner-only Playwright session state;
 - `--enhanced-headers/--basic-headers`, `--user-agent-contact`, and
   `--simulate-browser` for request identity;
 - `--download-images` with a configurable `--images-dir`;
@@ -196,10 +198,14 @@ See [`extension/README.md`](./extension/README.md) for installation and testing.
   traversal and symlink escapes are rejected or sanitized.
 - Browser cookie databases are copied into unpredictable owner-private
   temporary directories and removed after success, failure, or interruption.
-- Configuration, OAuth tokens, and crawl states are atomically replaced using
+- Configuration and crawl states are atomically replaced using
   `0600` files in `0700` directories on POSIX systems.
 - Diagnostic logs redact credential-bearing headers, cookie values, and
   token-like data.
+- Target authentication accepts scoped browser cookies, an owner-only JSON
+  header file, or an owner-only Playwright storage-state file for rendered
+  conversion. Login flows remain outside html2md, and authentication files are
+  rejected when group- or world-readable on POSIX systems.
 - Remote pages, crawl targets, robots files, and images
   allow only HTTP(S), resolve each origin once, connect only to validated
   numeric addresses, and manually revalidate redirects. Private, loopback,

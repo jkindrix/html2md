@@ -21,8 +21,6 @@ VALUE_TYPES: dict[ConfigPath, tuple[type, ...]] = {
     ("concurrent", "respect_retry_after"): (bool,),
     ("concurrent", "polite_delay_multiplier"): (float,),
     ("logging", "level"): (str,),
-    ("oauth", "CLIENT_ID"): (str,),
-    ("oauth", "CLIENT_SECRET"): (str,),
     ("browser", "preferred"): (str,),
     ("headers", "enhanced_user_agent"): (bool,),
     ("headers", "contact_email"): (str, NoneType),

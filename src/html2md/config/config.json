@@ -73,10 +73,6 @@
       }
     }
   },
-  "oauth": {
-    "CLIENT_ID": "YOUR_GOOGLE_CLIENT_ID",
-    "CLIENT_SECRET": "YOUR_GOOGLE_CLIENT_SECRET"
-  },
   "logging": {
     "level": "DEBUG"
   }

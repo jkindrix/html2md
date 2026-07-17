@@ -84,6 +84,7 @@ def test_rendered_conversion_uses_browser_html_and_final_url():
         headers={"User-Agent": "fixture"},
         verify_ssl=True,
         allow_private_network=False,
+        storage_state=None,
     )
     session.get.assert_not_called()
 

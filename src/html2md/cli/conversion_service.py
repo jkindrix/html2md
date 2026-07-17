@@ -11,6 +11,7 @@ from html2md.cli.runtime import build_header_config
 from html2md.config.loader import load_config
 from html2md.cookies.session_manager import apply_browser_cookies, get_session
 from html2md.markdown.converter import html_to_markdown, local_html_to_markdown
+from html2md.network.auth_inputs import load_private_headers, load_storage_state
 from html2md.network.header_manager import HeaderManager
 from html2md.utils.parser import is_url
 
@@ -47,6 +48,8 @@ def convert_source(
     browser_cookies: bool,
     browser: Optional[str],
     cookie_json: Optional[Path] = None,
+    headers_file: Optional[Path] = None,
+    storage_state: Optional[Path] = None,
     local: bool = False,
     download_images: bool = False,
     images_dir: str = "images",
@@ -71,6 +74,8 @@ def convert_source(
             browser_cookies=browser_cookies,
             browser=browser,
             cookie_json=cookie_json,
+            headers_file=headers_file,
+            storage_state=storage_state,
             download_images=download_images,
             images_dir=images_dir,
             enhanced_headers=enhanced_headers,
@@ -90,6 +95,14 @@ def convert_source(
             None,
             False,
             "JavaScript rendering is available only for HTTP(S) URLs.",
+        )
+    if headers_file or storage_state:
+        return ConversionResult(
+            source,
+            str(Path(source).expanduser().resolve()),
+            None,
+            False,
+            "Authentication inputs are available only for HTTP(S) URLs.",
         )
 
     return _convert_file(
@@ -114,6 +127,8 @@ def _convert_url(
     browser_cookies: bool,
     browser: Optional[str],
     cookie_json: Optional[Path],
+    headers_file: Optional[Path],
+    storage_state: Optional[Path],
     download_images: bool,
     images_dir: str,
     enhanced_headers: bool,
@@ -132,6 +147,11 @@ def _convert_url(
                 "JavaScript rendering does not import browser or JSON cookies; "
                 "use the static authenticated path."
             )
+        if storage_state and not render_js:
+            raise ValueError("Browser storage state requires --render-js.")
+        loaded_storage_state = (
+            load_storage_state(storage_state) if storage_state else None
+        )
         config = load_config()
         header_config = build_header_config(
             config,
@@ -140,6 +160,8 @@ def _convert_url(
             simulate_browser=simulate_browser,
         )
         headers = HeaderManager(header_config).get_headers(source)
+        if headers_file:
+            headers.update(load_private_headers(headers_file))
 
         on_status(f"Fetching content from {source}")
         session = None
@@ -173,6 +195,7 @@ def _convert_url(
             include_metadata=include_metadata,
             render_js=render_js,
             allow_private_network=allow_private_network,
+            storage_state=loaded_storage_state,
         )
         on_status(f"Converting {source} to markdown")
         return ConversionResult(source, source, markdown, True)

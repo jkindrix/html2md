@@ -33,7 +33,6 @@ DEFAULT_CONFIG = {
         "polite_delay_multiplier": 2.0,
     },
     "logging": {"level": "WARNING"},
-    "oauth": {"CLIENT_ID": "", "CLIENT_SECRET": ""},
     "browser": {"preferred": "chrome"},
     "headers": {
         "enhanced_user_agent": True,
@@ -123,10 +122,6 @@ def get_config_path():
 # Allow external configuration path override
 CONFIG_FILE = Path(os.getenv("HTML2MD_CONFIG_PATH", get_config_path()))
 CONFIG_PATH = CONFIG_FILE  # Alias for external use
-
-# Set the token file location according to best practice
-CONFIG_DIR = CONFIG_FILE.parent
-TOKENS_FILE = CONFIG_DIR / "tokens.json"
 
 _cached_config = None  # Cached configuration
 
