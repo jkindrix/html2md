@@ -6,19 +6,6 @@ All notable changes are documented here. This project follows
 
 ## [Unreleased]
 
-### Added
-
-- Optional `--metadata` YAML front matter for convert, batch, and crawl output.
-- An isolated `render` extra and `convert --render-js` mode for pages whose DOM
-  requires JavaScript, with required Chromium end-to-end CI coverage.
-
-### Changed
-
-- Remote relative links and images now resolve against the final response URL
-  and valid HTML base element while local-file references remain relative.
-- The historical enterprise/distributed roadmap is superseded by an accepted
-  measured-need, benchmark, architecture, resource, and security gate.
-
 ## [0.1.0] - 2026-07-16
 
 First alpha release after the stabilization and integrity remediation cycle.
@@ -30,6 +17,9 @@ First alpha release after the stabilization and integrity remediation cycle.
 - Required Python 3.11–3.13 CI, production coverage, static quality, wheel,
   extension, security, and dependency-audit gates.
 - Metadata-backed `--version` support and a non-mutating deployment dry run.
+- Optional `--metadata` YAML front matter for convert, batch, and crawl output.
+- An isolated `render` extra and `convert --render-js` mode for pages whose DOM
+  requires JavaScript, with required Chromium end-to-end CI coverage.
 
 ### Changed
 
@@ -39,6 +29,10 @@ First alpha release after the stabilization and integrity remediation cycle.
   conversion orchestration, and extension behavior were stabilized and tested.
 - Runtime dependencies now contain only direct requirements with compatible
   bounds and an audited lockfile.
+- Remote relative links and images resolve against the final response URL and
+  valid HTML base element while local-file references remain relative.
+- The historical enterprise/distributed roadmap is superseded by an accepted
+  measured-need, benchmark, architecture, resource, and security gate.
 
 ### Security
 
