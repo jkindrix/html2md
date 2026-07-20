@@ -39,10 +39,21 @@ var TurndownService = (function () {
     return string.replace(/\n*$/, '');
   }
 
-  // Escape markdown syntax characters
-  function escapeMarkdown(string, characters) {
-    var pattern = new RegExp('([' + characters.join('\\') + '])', 'g');
-    return string.replace(pattern, '\\$1');
+  // Preserve authored Markdown punctuation as literal text. Line-leading
+  // escapes are intentionally narrower so ordinary prose punctuation remains
+  // readable in the generated source.
+  function escapeMarkdown(string) {
+    return string
+      .replace(/\\/g, '\\\\')
+      .replace(/\*/g, '\\*')
+      .replace(/_/g, '\\_')
+      .replace(/`/g, '\\`')
+      .replace(/\[/g, '\\[')
+      .replace(/\]/g, '\\]')
+      .replace(/^(\s*)([-+]) /gm, '$1\\$2 ')
+      .replace(/^(\s*)(#{1,6}) /gm, '$1\\$2 ')
+      .replace(/^(\s*)> /gm, '$1\\> ')
+      .replace(/^(\s*)(\d+)\. /gm, '$1$2\\. ');
   }
   
   // Detect if string content appears to be code for proper code fence handling
@@ -504,8 +515,15 @@ var TurndownService = (function () {
     var root;
 
     if (typeof input === 'string') {
-      root = document.createElement('div');
-      root.innerHTML = cleanInput(input);
+      // Parse page-controlled markup in an inert document. Assigning to an
+      // element owned by the extension popup document can initiate passive
+      // resource requests even while the element is detached. Process the
+      // parsed body directly instead of wrapping page input in a sentinel
+      // element: page markup could otherwise close that wrapper early and
+      // silently omit the remaining content.
+      var parser = new DOMParser();
+      var parsed = parser.parseFromString(cleanInput(input), 'text/html');
+      root = parsed.body;
     } else {
       root = input.cloneNode(true);
     }
@@ -515,7 +533,7 @@ var TurndownService = (function () {
     // Clean up extra newlines
     output = output
       .replace(/\n{3,}/g, '\n\n')  // replace 3+ newlines with just 2
-      .trim();
+      .replace(/^\n+|\n+$/g, '');
 
     // Fix common markdown formatting issues
     output = output
@@ -568,7 +586,10 @@ var TurndownService = (function () {
       }
     } else if (node.nodeType === 3) {
       // Text node
-      output = node.nodeValue;
+      var parentName = node.parentNode && node.parentNode.nodeName;
+      output = parentName === 'CODE' || parentName === 'PRE'
+        ? node.nodeValue
+        : escapeMarkdown(node.nodeValue);
     }
 
     return output;

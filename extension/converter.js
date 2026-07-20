@@ -15,14 +15,11 @@ class Html2MdConverter {
     this.service = new this.Turndown({
       headingStyle: markdown.headingStyle,
       bulletListMarker: markdown.bulletMarker,
-      linkStyle: markdown.linkStyle,
+      linkStyle: 'inlined',
       codeBlockStyle: content.codeBlocks ? 'fenced' : 'indented'
     });
 
     if (!content.preserveImages) this.service.remove('img');
-    if (content.includeTables) {
-      this.service.keep(['table', 'tr', 'td', 'th', 'thead', 'tbody']);
-    }
     this.service.addRule('codeBlock', {
       filter(node) {
         return (
@@ -34,7 +31,11 @@ class Html2MdConverter {
           ))
         );
       },
-      replacement(contentValue, node) {
+      replacement(contentValue, node, options) {
+        const code = contentValue.trim();
+        if (options.codeBlockStyle !== 'fenced') {
+          return `\n\n    ${code.replace(/\n/g, '\n    ')}\n\n`;
+        }
         let language = '';
         for (const className of [node.className, node.firstChild?.className]) {
           const match = className && className.match(/language-(\w+)/);
@@ -43,7 +44,7 @@ class Html2MdConverter {
             break;
           }
         }
-        return `\n\n\`\`\`${language}\n${contentValue.trim()}\n\`\`\`\n\n`;
+        return `\n\n\`\`\`${language}\n${code}\n\`\`\`\n\n`;
       }
     });
   }
@@ -56,4 +57,3 @@ class Html2MdConverter {
 
 globalThis.Html2MdConverter = Html2MdConverter;
 if (typeof module !== 'undefined') module.exports = { Html2MdConverter };
-

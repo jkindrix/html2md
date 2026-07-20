@@ -18,7 +18,10 @@ This extension contains the following third-party code.
 - Version used as the derivation baseline: 7.1.1
 - Upstream source: https://github.com/mixmark-io/turndown/tree/v7.1.1
 - Vendored derivative: `turndown.js`
-- Local modifications: HTML2MD-specific formatting, escaping, and conversion rules
+- Local modifications: HTML2MD-specific inert parsing, formatting, escaping,
+  and conversion rules
+- Integrity model: maintained and regression-tested as a local derivative; it
+  is not represented as an unmodified, upstream-hash-pinned asset
 
 MIT License
 

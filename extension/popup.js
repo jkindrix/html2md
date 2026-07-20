@@ -18,14 +18,11 @@ const defaultSettings = {
   theme: 'light',
   markdownOptions: {
     headingStyle: 'atx',
-    linkStyle: 'inline',
     bulletMarker: '-',
   },
   contentOptions: {
     preserveImages: true,
-    includeTables: true,
-    codeBlocks: true,
-    inlineLinks: true
+    codeBlocks: true
   }
 };
 
@@ -39,9 +36,6 @@ const settingsStore = new Html2MdSettingsStore(chrome.storage.sync);
 document.addEventListener('DOMContentLoaded', () => {
   // Load saved settings
   loadSettings();
-
-  // Initialize the UI
-  initializeUI();
 
   // Set up event listeners
   setupEventListeners();
@@ -77,23 +71,12 @@ function applySettings() {
 
   // Set form values based on settings
   document.getElementById('heading-style').value = settings.markdownOptions.headingStyle;
-  document.getElementById('link-style').value = settings.markdownOptions.linkStyle;
   document.getElementById('bullet-marker').value = settings.markdownOptions.bulletMarker;
 
   document.getElementById('preserve-images').checked = settings.contentOptions.preserveImages;
-  document.getElementById('include-tables').checked = settings.contentOptions.includeTables;
   document.getElementById('code-blocks').checked = settings.contentOptions.codeBlocks;
-  document.getElementById('inline-links').checked = settings.contentOptions.inlineLinks;
 
   converter.configure(settings);
-}
-
-// Initialize UI elements
-function initializeUI() {
-  // Set chrome extension version in the CLI link
-  chrome.management.getSelf((info) => {
-    cliLink.setAttribute('title', `Download HTML2MD CLI Tool v${info.version}`);
-  });
 }
 
 // Set up all event listeners
@@ -141,7 +124,8 @@ function setupEventListeners() {
 
   // Download button
   downloadBtn.addEventListener('click', () => {
-    downloadMarkdown();
+    // downloadMarkdown reports its own user-facing failure before rejecting.
+    downloadMarkdown().catch(() => {});
   });
 
   // Tab navigation with accessibility support
@@ -215,15 +199,12 @@ function setupEventListeners() {
 function updateSettingsFromForm() {
   settings.markdownOptions = {
     headingStyle: document.getElementById('heading-style').value,
-    linkStyle: document.getElementById('link-style').value,
     bulletMarker: document.getElementById('bullet-marker').value
   };
 
   settings.contentOptions = {
     preserveImages: document.getElementById('preserve-images').checked,
-    includeTables: document.getElementById('include-tables').checked,
-    codeBlocks: document.getElementById('code-blocks').checked,
-    inlineLinks: document.getElementById('inline-links').checked
+    codeBlocks: document.getElementById('code-blocks').checked
   };
 
   converter.configure(settings);
@@ -243,9 +224,9 @@ function handleConversion() {
 
     const extract = () => chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      function: extractPageContent,
+      func: extractPageContent,
       args: [conversionMode]
-    }, (results) => {
+    }, async (results) => {
       if (chrome.runtime.lastError) {
         showStatus('Error: ' + chrome.runtime.lastError.message, 'error');
         showSpinner(false);
@@ -265,11 +246,20 @@ function handleConversion() {
       // Convert HTML to Markdown
       const markdown = convertToMarkdown(htmlContent);
 
-      // Handle the output based on user selection
-      handleOutput(markdown, outputAction, tab.title);
-
-      showStatus('Conversion complete', 'success');
-      showSpinner(false);
+      try {
+        // Await output so an asynchronous clipboard/download error remains the
+        // terminal status instead of being overwritten by generic success.
+        await handleOutput(markdown, outputAction, tab.title);
+        if (outputAction === 'show') {
+          showStatus('Conversion complete', 'success');
+        }
+      } catch (err) {
+        if (!statusMessage.classList.contains('error')) {
+          showStatus('Output failed: ' + err, 'error');
+        }
+      } finally {
+        showSpinner(false);
+      }
     });
 
     if (conversionMode === 'article') {
@@ -366,7 +356,7 @@ function downloadMarkdown(markdown = null, pageTitle = 'page') {
   const blob = new Blob([markdown], { type: 'text/markdown' });
   const url = URL.createObjectURL(blob);
 
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
     chrome.downloads.download({
       url: url,
       filename: filename,
@@ -375,6 +365,9 @@ function downloadMarkdown(markdown = null, pageTitle = 'page') {
       const error = chrome.runtime.lastError?.message || null;
       if (error) {
         showStatus('Error saving file: ' + error, 'error');
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        reject(new Error(error));
+        return;
       } else {
         showStatus('File saved', 'success');
       }

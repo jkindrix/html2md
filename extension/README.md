@@ -48,15 +48,19 @@ The supported alpha surface is intentionally limited to converting the active ta
 ### Markdown Formatting Options
 
 - **Heading Style**: Choose between ATX (`# Heading`) or Setext (`Heading\n=====`) style headings
-- **Link Style**: Choose between inline (`[text](url)`) or reference (`[text][id]`) style links
 - **List Marker**: Select your preferred list marker (-, *, or +)
 
 ### Content Processing Options
 
 - **Include Images**: Toggle whether images should be included in the Markdown output
-- **Format Tables**: Enable special handling for HTML tables
-- **Format Code Blocks**: Enable fenced code blocks for code sections
-- **Keep Links Inline**: Control how links are formatted
+- **Use Fenced Code Blocks**: Choose fenced blocks when enabled and indented
+  blocks when disabled
+
+HTML tables are always converted to Markdown tables. Authored Markdown
+punctuation in page text is escaped so it remains literal in the result.
+
+Links are emitted in inline Markdown form. The alpha does not expose a
+reference-link mode.
 
 ## Permissions
 
@@ -66,7 +70,7 @@ The extension requests no persistent host access and exposes no resources to arb
 |---|---|
 | `activeTab` | Limit conversion access to the tab on which the user invoked the popup |
 | `scripting` | Extract the selected active-tab content |
-| `storage` | Persist local formatting preferences |
+| `storage` | Persist formatting preferences in Chrome synchronized extension storage; signed-in Chrome profiles may synchronize them through the user's browser account |
 | `downloads` | Save generated Markdown when requested |
 | `clipboardWrite` | Copy generated Markdown when requested |
 
@@ -75,14 +79,18 @@ The extension requests no persistent host access and exposes no resources to arb
 ### Project Structure
 
 ```
-html2md-extension/
+extension/
 ├── manifest.json       # Extension manifest
 ├── popup.html          # Main extension popup
-├── popup.js            # Popup functionality
+├── popup.js            # Popup controller, tab extraction, and output actions
+├── conversion-utils.js # Shared conversion helpers
+├── converter.js        # HTML-to-Markdown conversion controller and rules
+├── settings-store.js   # Defaults and chrome.storage.sync persistence
 ├── styles.css          # Styles for the popup
 ├── logger.js           # Production-safe diagnostic boundary
-├── readability.js      # Vendored Mozilla Readability 0.6.0
-├── turndown.js         # HTML to Markdown conversion library
+├── readability.js      # Unmodified, SHA-256-pinned Mozilla Readability 0.6.0
+├── turndown.js         # Maintained derivative of Turndown 7.1.1
+├── READABILITY_LICENSE.md # Vendored Readability license
 ├── THIRD_PARTY_NOTICES.md # Upstream copyright, license, and provenance
 └── images/             # Extension icons and images
 ```
@@ -102,7 +110,14 @@ node --test extension/tests/*.test.js
 node extension/tests/chromium-smoke.js
 ```
 
-The Chromium smoke test loads the directory as an unpacked extension under Xvfb and verifies popup controls/settings, full-page/article/selection extraction, HTML conversion, user-content preservation, preview, clipboard, download, the declared permission set, and denial without an active-tab host grant.
+The Chromium smoke test loads a temporary copy as an unpacked extension under
+Xvfb and verifies clean popup startup, settings branches,
+full-page/article/selection extraction, the real popup scripting/conversion
+chain, inert conversion of adversarial HTML without resource loads, preview,
+clipboard, and download. The temporary test copy receives access only to one
+loopback fixture origin; the committed manifest is separately asserted to have
+no persistent host permissions, and the runtime test proves another origin is
+denied.
 
 ## License
 

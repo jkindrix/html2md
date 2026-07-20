@@ -52,8 +52,8 @@ test('conversion and settings persistence are isolated controllers', () => {
   }
   const converter = new Html2MdConverter(FakeTurndown);
   converter.configure({
-    markdownOptions: { headingStyle: 'atx', bulletMarker: '-', linkStyle: 'inline' },
-    contentOptions: { codeBlocks: true, preserveImages: true, includeTables: false }
+    markdownOptions: { headingStyle: 'atx', bulletMarker: '-' },
+    contentOptions: { codeBlocks: true, preserveImages: true }
   });
   assert.equal(converter.convert('<h1>Title</h1>'), 'converted:<h1>Title</h1>');
   assert.deepEqual(converter.service.rules, ['codeBlock']);
@@ -76,6 +76,38 @@ test('conversion and settings persistence are isolated controllers', () => {
     store.save(loaded, () => {});
   });
   assert.equal(storage.saved.html2mdSettings.markdownOptions.headingStyle, 'setext');
+});
+
+test('popup exposes only implemented link and code formatting controls', () => {
+  const popup = fs.readFileSync(path.join(extensionRoot, 'popup.html'), 'utf8');
+  const popupScript = fs.readFileSync(path.join(extensionRoot, 'popup.js'), 'utf8');
+  const converter = fs.readFileSync(path.join(extensionRoot, 'converter.js'), 'utf8');
+
+  assert.doesNotMatch(popup, /id="(?:link-style|inline-links)"/);
+  assert.doesNotMatch(popupScript, /cliLink|inlineLinks|link-style/);
+  assert.match(popup, /Use Fenced Code Blocks/);
+  assert.match(converter, /options\.codeBlockStyle !== 'fenced'/);
+  assert.match(converter, /linkStyle: 'inlined'/);
+  assert.match(popupScript, /await handleOutput\(/);
+  assert.match(popupScript, /func: extractPageContent/);
+  assert.doesNotMatch(popupScript, /function: extractPageContent/);
+  assert.doesNotMatch(popup, /include-tables|Format Tables/);
+  assert.doesNotMatch(popupScript, /includeTables|include-tables/);
+  assert.doesNotMatch(converter, /includeTables|\.keep\(/);
+  assert.doesNotMatch(
+    popupScript,
+    /handleOutput\(markdown, outputAction, tab\.title\);\s*showStatus\('Conversion complete'/
+  );
+});
+
+test('vendored Turndown uses an inert parser for untrusted HTML strings', () => {
+  const turndown = fs.readFileSync(path.join(extensionRoot, 'turndown.js'), 'utf8');
+
+  assert.match(turndown, /new DOMParser\(\)/);
+  assert.match(turndown, /parseFromString\(cleanInput\(input\), ['"]text\/html['"]\)/);
+  assert.match(turndown, /root = parsed\.body/);
+  assert.doesNotMatch(turndown, /document\.createElement\(['"]div['"]\)[\s\S]{0,120}\.innerHTML/);
+  assert.doesNotMatch(turndown, /x-turndown|turndown-root/);
 });
 
 test('shared generic semantics fixture preserves authored phrases', () => {

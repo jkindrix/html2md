@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const http = require('node:http');
 const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
@@ -80,6 +81,31 @@ async function unusedPort() {
   return port;
 }
 
+async function resourceProbe() {
+  const requests = [];
+  const pages = new Map();
+  const server = http.createServer((request, response) => {
+    requests.push(request.url);
+    if (pages.has(request.url)) {
+      response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      response.end(pages.get(request.url));
+      return;
+    }
+    response.writeHead(204, { 'Content-Type': 'image/png' });
+    response.end();
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  return {
+    requests,
+    origin: `http://127.0.0.1:${server.address().port}`,
+    setPage: (url, html) => pages.set(url, html),
+    close: () => new Promise(resolve => server.close(resolve))
+  };
+}
+
 async function waitFor(callback, description, timeout = 15000) {
   const deadline = Date.now() + timeout;
   let lastError;
@@ -105,12 +131,17 @@ async function createTarget(port, url) {
 }
 
 async function evaluate(client, expression, options = {}) {
-  const result = await client.send('Runtime.evaluate', {
-    expression,
-    awaitPromise: true,
-    returnByValue: true,
-    ...options
-  });
+  let result;
+  try {
+    result = await client.send('Runtime.evaluate', {
+      expression,
+      awaitPromise: true,
+      returnByValue: true,
+      ...options
+    });
+  } catch (error) {
+    throw new Error(`${error.message} while evaluating ${expression.slice(0, 120)}`);
+  }
   if (result.exceptionDetails) {
     throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
   }
@@ -126,6 +157,13 @@ async function main() {
   const downloads = path.join(profile, 'downloads');
   fs.mkdirSync(downloads);
   const port = await unusedPort();
+  const probe = await resourceProbe();
+  const loadedExtensionRoot = path.join(profile, 'extension-under-test');
+  fs.cpSync(extensionRoot, loadedExtensionRoot, { recursive: true });
+  const testManifestPath = path.join(loadedExtensionRoot, 'manifest.json');
+  const testManifest = JSON.parse(fs.readFileSync(testManifestPath, 'utf8'));
+  testManifest.host_permissions = [`${probe.origin}/*`];
+  fs.writeFileSync(testManifestPath, `${JSON.stringify(testManifest, null, 2)}\n`);
   const child = spawn(
     xvfb,
     [
@@ -138,8 +176,8 @@ async function main() {
       '--disable-default-apps',
       `--user-data-dir=${profile}`,
       `--remote-debugging-port=${port}`,
-      `--disable-extensions-except=${extensionRoot}`,
-      `--load-extension=${extensionRoot}`,
+      `--disable-extensions-except=${loadedExtensionRoot}`,
+      `--load-extension=${loadedExtensionRoot}`,
       'about:blank'
     ],
     { detached: true, stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, HOME: profile } }
@@ -148,6 +186,7 @@ async function main() {
   let browserClient;
   let popupClient;
   let fixtureClient;
+  let deniedClient;
   try {
     const version = await waitFor(async () => {
       const response = await fetch(`http://127.0.0.1:${port}/json/version`);
@@ -160,7 +199,7 @@ async function main() {
       const preferences = JSON.parse(fs.readFileSync(preferencesPath, 'utf8'));
       const settings = preferences.extensions?.settings || {};
       return Object.entries(settings).find(([_id, value]) => {
-        return value.path && path.resolve(value.path) === extensionRoot;
+        return value.path && path.resolve(value.path) === loadedExtensionRoot;
       })?.[0];
     }, 'the unpacked extension registration');
 
@@ -180,7 +219,11 @@ async function main() {
     await popupClient.connect();
 
     const exceptions = [];
+    const consoleErrors = [];
     popupClient.on('Runtime.exceptionThrown', event => exceptions.push(event));
+    popupClient.on('Runtime.consoleAPICalled', event => {
+      if (event.type === 'error' || event.type === 'assert') consoleErrors.push(event);
+    });
     await popupClient.send('Runtime.enable');
     await popupClient.send('Page.enable');
     await popupClient.send('Page.reload');
@@ -188,6 +231,8 @@ async function main() {
       () => evaluate(popupClient, 'document.readyState === "complete"'),
       'popup reload'
     );
+    await new Promise(resolve => setTimeout(resolve, 250));
+    assert.equal(exceptions.length, 0, 'popup raised a runtime exception at startup');
 
     assert.equal(await evaluate(popupClient, 'typeof TurndownService'), 'function');
     assert.equal(await evaluate(popupClient, 'typeof Html2MdLogger'), 'object');
@@ -225,12 +270,82 @@ async function main() {
     assert.match(markdown, /Search indexing uses a model\./);
     assert.match(markdown, /```text\nmodel Search API\n```/);
 
+    const escapedMarkdown = await evaluate(
+      popupClient,
+      `convertToMarkdown('<p>*literal* _underscored_ [brackets] and 1. list text</p><pre><code>*code*</code></pre>')`
+    );
+    assert.match(escapedMarkdown, /\\\*literal\\\*/);
+    assert.match(escapedMarkdown, /\\_underscored\\_/);
+    assert.match(escapedMarkdown, /\\\[brackets\\\]/);
+    assert.match(escapedMarkdown, /```\n\*code\*\n```/);
+
+    const tableMarkdown = await evaluate(
+      popupClient,
+      `convertToMarkdown('<table><tr><th>Name</th><th>Value</th></tr><tr><td>one</td><td>1</td></tr></table>')`
+    );
+    assert.match(tableMarkdown, /\| Name \| Value \|/);
+    assert.match(tableMarkdown, /\| --- \| --- \|/);
+    assert.doesNotMatch(tableMarkdown, /<table|<tr|<td|<th/i);
+
+    await evaluate(
+      popupClient,
+      `document.getElementById('code-blocks').checked = false; saveSettingsBtn.click()`
+    );
+    const indentedCode = await evaluate(
+      popupClient,
+      `convertToMarkdown('<pre><code>alpha\\nbeta</code></pre>')`
+    );
+    assert.match(indentedCode, /^    alpha\n    beta$/m);
+    await evaluate(
+      popupClient,
+      `document.getElementById('code-blocks').checked = true; saveSettingsBtn.click()`
+    );
+
+    probe.requests.length = 0;
+    await evaluate(
+      popupClient,
+      `globalThis.html2mdCustomElementRuns = 0;
+       if (!customElements.get('html2md-probe')) {
+         customElements.define('html2md-probe', class extends HTMLElement {
+           constructor() { super(); globalThis.html2mdCustomElementRuns += 1; }
+         });
+       }`
+    );
+    const passiveMarkdown = await evaluate(
+      popupClient,
+      `convertToMarkdown(
+        '<p>Passive fixture</p>' +
+        '</x-turndown><p>Content after a forged sentinel close</p>' +
+        '<img src="${probe.origin}/image.png" alt="Probe" onerror="globalThis.html2mdCustomElementRuns += 1">' +
+        '<iframe src="${probe.origin}/frame"></iframe>' +
+        '<audio src="${probe.origin}/audio"></audio>' +
+        '<video src="${probe.origin}/video" poster="${probe.origin}/poster.png"></video>' +
+        '<source src="${probe.origin}/source" srcset="${probe.origin}/set.png 1x">' +
+        '<link rel="stylesheet" href="${probe.origin}/style.css">' +
+        '<object data="${probe.origin}/object"></object>' +
+        '<script>globalThis.html2mdCustomElementRuns += 1<\/script>' +
+        '<html2md-probe></html2md-probe>' +
+        '<meta http-equiv="refresh" content="0;url=${probe.origin}/navigate">'
+      )`
+    );
+    assert.match(passiveMarkdown, /!\[Probe\]/);
+    assert.match(passiveMarkdown, /Content after a forged sentinel close/);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    assert.deepEqual(
+      probe.requests,
+      [],
+      `conversion initiated passive resource requests: ${JSON.stringify(probe.requests)}`
+    );
+    assert.equal(await evaluate(popupClient, `globalThis.html2mdCustomElementRuns`), 0);
+    assert.match(
+      await evaluate(popupClient, `location.href`),
+      new RegExp(`^chrome-extension://${extensionId}/popup\\.html`)
+    );
+
     const articleText = 'A substantial article sentence with concrete evidence and punctuation. '.repeat(12);
     const fixtureHtml = `<html><body><nav>Full navigation</nav><article><h1>Injected Article</h1><p id="selection">Selected text. ${articleText}</p><p>${articleText}</p></article><section class="comments">Full comments</section><footer>Full footer</footer></body></html>`;
-    const fixtureTarget = await createTarget(
-      port,
-      `data:text/html,${encodeURIComponent(fixtureHtml)}`
-    );
+    probe.setPage('/fixture.html', fixtureHtml);
+    const fixtureTarget = await createTarget(port, `${probe.origin}/fixture.html`);
     fixtureClient = new CdpClient(fixtureTarget.webSocketDebuggerUrl);
     await fixtureClient.connect();
     await fixtureClient.send('Runtime.enable');
@@ -266,6 +381,24 @@ async function main() {
     assert.match(selection, /Selected text/);
     assert.doesNotMatch(selection, /Injected Article/);
 
+    await fixtureClient.send('Page.bringToFront');
+    await evaluate(
+      popupClient,
+      `conversionModeSelect.value = 'full-page'; outputActionSelect.value = 'show'; convertBtn.click()`
+    );
+    await waitFor(async () => {
+      const state = await evaluate(
+        popupClient,
+        `({ markdown: markdownResult.textContent, status: statusMessage.textContent, error: statusMessage.classList.contains('error') })`
+      );
+      if (state.error) throw new Error(state.status);
+      return state.markdown.includes('Injected Article');
+    }, 'real popup conversion through chrome.scripting.executeScript');
+    assert.match(
+      await evaluate(popupClient, 'markdownResult.textContent'),
+      /Injected Article/
+    );
+
     const turndownSource = fs.readFileSync(path.join(extensionRoot, 'turndown.js'), 'utf8');
     await evaluate(fixtureClient, turndownSource);
     const injectedMarkdown = await evaluate(
@@ -288,25 +421,51 @@ async function main() {
     );
     assert.equal(await evaluate(popupClient, `statusMessage.textContent`), 'Copied to clipboard');
 
+    await evaluate(
+      popupClient,
+      `Object.defineProperty(navigator, 'clipboard', {
+         configurable: true,
+         value: { writeText: () => Promise.reject(new Error('fixture clipboard denial')) }
+       });
+       handleOutput('# Copy failure', 'copy', 'Fixture').catch(() => {});`
+    );
+    await waitFor(
+      () => evaluate(popupClient, `statusMessage.textContent.includes('fixture clipboard denial')`),
+      'clipboard failure status'
+    );
+    assert.equal(
+      await evaluate(popupClient, `statusMessage.classList.contains('error')`),
+      true
+    );
+
     const permissions = await evaluate(
       popupClient,
       'new Promise(resolve => chrome.permissions.getAll(resolve))'
     );
-    assert.deepEqual(permissions.origins, []);
+    assert.deepEqual(permissions.origins, [`${probe.origin}/*`]);
     assert.deepEqual(
       [...permissions.permissions].sort(),
       ['activeTab', 'clipboardWrite', 'downloads', 'scripting', 'storage'].sort()
     );
 
+    const deniedOrigin = probe.origin.replace('127.0.0.1', 'localhost');
+    const deniedTarget = await createTarget(port, `${deniedOrigin}/fixture.html`);
+    deniedClient = new CdpClient(deniedTarget.webSocketDebuggerUrl);
+    await deniedClient.connect();
+    await deniedClient.send('Page.bringToFront');
+    const deniedTabId = await waitFor(
+      () => evaluate(
+        popupClient,
+        `new Promise(resolve => chrome.tabs.query({ active: true, currentWindow: true }, tabs => resolve(tabs[0]?.id || null)))`
+      ),
+      'the ungranted-origin fixture tab'
+    );
     const denied = await evaluate(
       popupClient,
-      `new Promise(resolve => chrome.tabs.query({}, tabs => {
-        const target = tabs.find(tab => !tab.active);
-        chrome.scripting.executeScript(
-          { target: { tabId: target.id }, func: () => document.title },
-          result => resolve({ result, error: chrome.runtime.lastError?.message || null })
-        );
-      }))`
+      `new Promise(resolve => chrome.scripting.executeScript(
+        { target: { tabId: ${deniedTabId} }, func: () => document.title },
+        result => resolve({ result, error: chrome.runtime.lastError?.message || null })
+      ))`
     );
     assert.match(denied.error, /Cannot access contents|respective host/);
 
@@ -332,8 +491,10 @@ async function main() {
 
     await new Promise(resolve => setTimeout(resolve, 250));
     assert.equal(exceptions.length, 0, 'popup raised a runtime exception after reload');
+    assert.equal(consoleErrors.length, 0, 'popup emitted a console error');
     process.stdout.write('Chromium extension smoke: popup controls, extraction, conversion, output, and permissions passed\n');
   } finally {
+    deniedClient?.close();
     popupClient?.close();
     fixtureClient?.close();
     browserClient?.close();
@@ -343,6 +504,7 @@ async function main() {
       child.kill('SIGTERM');
     }
     await new Promise(resolve => setTimeout(resolve, 250));
+    await probe.close();
     fs.rmSync(profile, { recursive: true, force: true });
   }
 }
