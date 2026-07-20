@@ -100,6 +100,7 @@ def run_cli(
     env.update(
         {
             "HOME": str(home),
+            "USERPROFILE": str(home),
             "XDG_CONFIG_HOME": str(home / ".config"),
             "HTML2MD_CONFIG_PATH": str(config),
             "PYTHONPATH": str(Path(__file__).parents[3] / "src"),
