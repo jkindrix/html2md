@@ -1,5 +1,8 @@
-import logging
 import re
+
+from grab2md.utils.redaction import get_redacting_logger
+
+logger = get_redacting_logger(__name__)
 
 
 def format_markdown(markdown_content):
@@ -15,22 +18,22 @@ def format_markdown(markdown_content):
     if not isinstance(markdown_content, str):
         raise ValueError("Expected markdown_content to be a string")
 
-    logging.info("Applying markdown formatting...")
+    logger.info("Applying markdown formatting...")
 
     # Fix improperly formatted headers with links
     markdown_content = re.sub(
         r"(#{1,6} )([^\[]+)\[\]\((#[^\)]+)\)", r"\1[\2](\3)", markdown_content
     )
-    logging.info("Fixed markdown headers with links")
+    logger.info("Fixed markdown headers with links")
 
     # Convert <pre><code> blocks to Markdown-style code blocks
     markdown_content = markdown_content.replace("<pre><code>", "```\n").replace(
         "</code></pre>", "\n```"
     )
-    logging.info("Converted HTML <pre><code> to markdown code blocks")
+    logger.info("Converted HTML <pre><code> to markdown code blocks")
 
     # Collapse excessive newlines
     markdown_content = re.sub(r"\n{3,}", "\n\n", markdown_content)
-    logging.info("Collapsed excessive newlines")
+    logger.info("Collapsed excessive newlines")
 
     return markdown_content

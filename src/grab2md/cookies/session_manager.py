@@ -29,7 +29,7 @@ from grab2md.cookies.replay import (
 from grab2md.cookies.sources import CookieSource
 from grab2md.utils.redaction import get_redacting_logger
 
-logger = get_redacting_logger("session_manager")
+logger = get_redacting_logger(__name__)
 
 __all__ = [
     "CookieRecord",

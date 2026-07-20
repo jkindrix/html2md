@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import codecs
-import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -27,8 +26,9 @@ from grab2md.network.safe_http import (
     guarded_request,
 )
 from grab2md.utils.formatter import format_markdown
+from grab2md.utils.redaction import get_redacting_logger
 
-logger = logging.getLogger("grab2md")
+logger = get_redacting_logger(__name__)
 
 HTML_MEDIA_TYPES = frozenset({"text/html", "application/xhtml+xml"})
 _META_CHARSET = re.compile(

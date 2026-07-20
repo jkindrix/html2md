@@ -235,7 +235,7 @@ async function main() {
     assert.equal(exceptions.length, 0, 'popup raised a runtime exception at startup');
 
     assert.equal(await evaluate(popupClient, 'typeof TurndownService'), 'function');
-    assert.equal(await evaluate(popupClient, 'typeof Html2MdLogger'), 'object');
+    assert.equal(await evaluate(popupClient, 'typeof Grab2MdLogger'), 'object');
     assert.equal(
       await evaluate(popupClient, 'new Set([...document.querySelectorAll("[id]")].map(node => node.id)).size === document.querySelectorAll("[id]").length'),
       true

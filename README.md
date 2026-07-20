@@ -226,13 +226,18 @@ See [`extension/README.md`](https://github.com/jkindrix/grab2md/blob/main/extens
   temporary directories and removed after success, failure, or interruption.
 - Configuration and crawl states are atomically replaced using
   `0600` files in `0700` directories on POSIX systems.
-- Diagnostic logs redact credential-bearing headers, cookie values, and
-  token-like data.
+- Project-owned diagnostic logs are owner-only on POSIX systems and redact URL
+  userinfo, credential-bearing headers, complete cookie values, and recognized
+  credential query/fragment fields before emission. The rotating log defaults
+  to the platform's per-user application-log/state directory; set
+  `GRAB2MD_LOG_PATH` to choose an explicit file. Embedding applications remain
+  responsible for handlers they attach to third-party or root loggers.
 - Target authentication accepts scoped browser cookies, an owner-only JSON
   cookie export, header file, or Playwright storage-state file for rendered
   conversion. Login flows remain outside grab2md, and authentication files are
-  rejected when group- or world-readable or when supplied through symlinks on
-  POSIX systems.
+  rejected when group- or world-readable or when the supplied final path is a
+  symlink on POSIX systems. Resolution of caller-owned ancestor directories
+  remains an operating-system/filesystem trust boundary.
 - Remote pages, crawl targets, robots files, and images
   allow only HTTP(S), resolve each origin once, connect only to validated
   numeric addresses, and manually revalidate redirects. Private, loopback,

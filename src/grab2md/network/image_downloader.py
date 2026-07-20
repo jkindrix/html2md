@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import hashlib
-import logging
 import os
 import re
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import unquote, urlparse
 from urllib.request import url2pathname
 
@@ -22,10 +21,11 @@ from grab2md.network.safe_http import (
     guarded_stream,
 )
 from grab2md.utils.path_safety import contained_output_file, contained_path
+from grab2md.utils.redaction import get_redacting_logger
 
 __all__ = ["ImageDownloader", "UnsafeImageSource"]
 
-logger = logging.getLogger("grab2md")
+logger = get_redacting_logger(__name__)
 
 
 class UnsafeImageSource(ValueError):
@@ -120,13 +120,16 @@ class ImageDownloader:
                 )
         return detected
 
-    def _destination(self, output_dir: Path, url: str, mime_type: str) -> Path:
+    def _destination_directory(self, output_dir: Path) -> tuple[Path, Path]:
         output_root = Path(output_dir).resolve()
         images_path = contained_path(output_root, self.images_dir)
         images_path.mkdir(parents=True, exist_ok=True)
-        # Recheck after creation to catch a concurrently substituted symlink.
         images_path = contained_path(output_root, images_path)
+        return output_root, images_path
 
+    def _destination_name(
+        self, url: str, mime_type: str, exists: Callable[[str], bool]
+    ) -> str:
         parsed = urlparse(url)
         raw_filename = os.path.basename(unquote(parsed.path))
         name = os.path.splitext(raw_filename)[0] if raw_filename else ""
@@ -137,16 +140,51 @@ class ImageDownloader:
         name = name[: self.MAX_FILENAME_LENGTH - len(extension)]
         filename = f"{name}{extension}"
 
-        destination = contained_output_file(output_root, self.images_dir, filename)
         counter = 1
-        while destination.exists():
+        while exists(filename):
             suffix = f"_{counter}"
             truncated = name[: self.MAX_FILENAME_LENGTH - len(extension) - len(suffix)]
-            destination = contained_output_file(
-                output_root, self.images_dir, f"{truncated}{suffix}{extension}"
-            )
+            filename = f"{truncated}{suffix}{extension}"
             counter += 1
+        return filename
+
+    def _commit_staged(
+        self, staged_path: Path, output_dir: Path, url: str, mime_type: str
+    ) -> Path:
+        """Finalize a staged image against an anchored destination directory."""
+        output_root, images_path = self._destination_directory(output_dir)
+        if os.name == "posix":
+            flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+            flags |= getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+            directory_fd = os.open(images_path, flags)
+            try:
+                filename = self._destination_name(
+                    url,
+                    mime_type,
+                    lambda candidate: self._entry_exists(directory_fd, candidate),
+                )
+                os.replace(staged_path, filename, dst_dir_fd=directory_fd)
+            finally:
+                os.close(directory_fd)
+            return contained_output_file(output_root, self.images_dir, filename)
+
+        # Windows has no portable no-follow directory handle for os.replace.
+        # Revalidate immediately before the atomic replacement.
+        output_root, images_path = self._destination_directory(output_dir)
+        filename = self._destination_name(
+            url, mime_type, lambda candidate: (images_path / candidate).exists()
+        )
+        destination = contained_output_file(output_root, self.images_dir, filename)
+        os.replace(staged_path, destination)
         return destination
+
+    @staticmethod
+    def _entry_exists(directory_fd: int, filename: str) -> bool:
+        try:
+            os.stat(filename, dir_fd=directory_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            return False
+        return True
 
     def _stage_chunks(self, chunks, output_dir: Path) -> tuple[Path, int]:
         output_root = Path(output_dir).resolve()
@@ -215,8 +253,9 @@ class ImageDownloader:
                     response.iter_content(chunk_size=8192), output_dir
                 )
             mime_type = self._verify_image(staged_path, declared_type)
-            destination = self._destination(output_dir, response.url, mime_type)
-            os.replace(staged_path, destination)
+            destination = self._commit_staged(
+                staged_path, output_dir, response.url, mime_type
+            )
             staged_path = None
             self.total_downloaded_bytes += byte_count
             return destination
@@ -248,8 +287,7 @@ class ImageDownloader:
             )
         try:
             mime_type = self._verify_image(staged_path)
-            destination = self._destination(output_dir, url, mime_type)
-            os.replace(staged_path, destination)
+            destination = self._commit_staged(staged_path, output_dir, url, mime_type)
             self.total_downloaded_bytes += byte_count
             return destination
         finally:

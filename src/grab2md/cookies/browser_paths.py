@@ -8,7 +8,7 @@ from pathlib import Path
 from grab2md.config.loader import load_config
 from grab2md.utils.redaction import get_redacting_logger
 
-logger = get_redacting_logger("browser_paths")
+logger = get_redacting_logger(__name__)
 
 
 def _default_browser_cookie_path(

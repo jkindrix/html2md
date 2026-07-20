@@ -17,7 +17,7 @@ from grab2md.cookies.replay import (
 )
 from grab2md.utils.redaction import get_redacting_logger
 
-logger = get_redacting_logger("firefox_cookies")
+logger = get_redacting_logger(__name__)
 
 
 def _resolve_firefox_profile_path(

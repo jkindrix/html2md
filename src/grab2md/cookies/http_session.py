@@ -6,7 +6,7 @@ from grab2md.cookies.replay import ScopedCookieSession, _ScopedCookiePolicy
 from grab2md.network.header_manager import HeaderManager
 from grab2md.utils.redaction import get_redacting_logger
 
-logger = get_redacting_logger("session_manager")
+logger = get_redacting_logger(__name__)
 _insecure_warning_emitted = False
 
 

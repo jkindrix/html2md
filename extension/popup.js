@@ -29,8 +29,8 @@ const defaultSettings = {
 // Current settings - will be loaded from storage
 let settings = {...defaultSettings};
 
-const converter = new Html2MdConverter();
-const settingsStore = new Html2MdSettingsStore(chrome.storage.sync);
+const converter = new Grab2MdConverter();
+const settingsStore = new Grab2MdSettingsStore(chrome.storage.sync);
 
 // Initialize the extension
 document.addEventListener('DOMContentLoaded', () => {
@@ -242,7 +242,7 @@ function handleConversion() {
       }
       
       try {
-        const htmlContent = Html2MdConversionUtils.normalizeExtractedHtml(extractedContent);
+        const htmlContent = Grab2MdConversionUtils.normalizeExtractedHtml(extractedContent);
 
         // Convert HTML to Markdown
         const markdown = convertToMarkdown(htmlContent);

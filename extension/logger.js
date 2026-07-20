@@ -1,15 +1,15 @@
 /** Production-safe extension logger. Diagnostic output is disabled by default. */
 
-const Html2MdLogger = Object.freeze({
+const Grab2MdLogger = Object.freeze({
   debug() {},
   warn() {},
   error() {}
 });
 
 if (typeof globalThis !== 'undefined') {
-  globalThis.Html2MdLogger = Html2MdLogger;
+  globalThis.Grab2MdLogger = Grab2MdLogger;
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = Html2MdLogger;
+  module.exports = Grab2MdLogger;
 }

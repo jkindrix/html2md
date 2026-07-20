@@ -1,6 +1,5 @@
 """HTTP request helpers used by the crawler."""
 
-import logging
 import time
 from dataclasses import dataclass, field
 from typing import Dict, Optional
@@ -12,8 +11,9 @@ from grab2md.network.safe_http import (
     DestinationPolicy,
     guarded_request,
 )
+from grab2md.utils.redaction import get_redacting_logger
 
-logger = logging.getLogger("grab2md")
+logger = get_redacting_logger(__name__)
 
 
 @dataclass(frozen=True)

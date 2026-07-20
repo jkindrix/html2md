@@ -3,6 +3,9 @@
 import logging
 import os
 import shutil
+import sqlite3
+import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -19,6 +22,7 @@ from grab2md.utils.redaction import (
     redact_mapping,
     redact_text,
 )
+from grab2md.utils.logger import default_log_file
 from grab2md.utils.state_manager import StateManager
 
 
@@ -94,6 +98,125 @@ def test_redaction_covers_headers_tokens_passwords_and_url_queries():
     assert headers["Accept"] == "text/html"
 
 
+def test_redaction_covers_url_userinfo_presigned_keys_and_all_cookie_values():
+    secrets = {
+        "user-password",
+        "oauth-code",
+        "api-secret",
+        "signed-value",
+        "credential-value",
+        "cookie-one",
+        "cookie-two",
+    }
+    text = (
+        "Failed https://user:user-password@example.com/callback"
+        "?code=oauth-code&api_key=api-secret&safe=visible"
+        "&X-Amz-Signature=signed-value"
+        "&X-Amz-Credential=credential-value "
+        "Cookie: a=cookie-one; b=cookie-two"
+    )
+
+    redacted = redact_text(text)
+
+    assert not any(secret in redacted for secret in secrets)
+    assert "safe=visible" in redacted
+    assert "example.com/callback" in redacted
+    assert redacted.count(REDACTED) >= 6
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX mode assertions")
+def test_rotating_diagnostic_logs_are_private_and_structurally_redacted(tmp_path):
+    log_path = tmp_path / "logs" / "grab2md.log"
+    script = """
+import logging
+from logging.handlers import RotatingFileHandler
+from grab2md.utils.logger import setup_logging
+
+logger = setup_logging(console_output=False)
+logger.error(
+    "Failed URL %s Cookie: a=first-cookie; b=second-cookie",
+    "https://user:user-password@example.com/cb?code=oauth-code&api_key=api-secret&safe=visible",
+)
+try:
+    raise RuntimeError("request failed with token=exception-secret")
+except RuntimeError:
+    logger.exception("conversion exception")
+handler = next(item for item in logger.handlers if isinstance(item, RotatingFileHandler))
+handler.doRollover()
+logger.error("Authorization: Bearer bearer-secret")
+for item in logger.handlers:
+    item.flush()
+"""
+    environment = os.environ.copy()
+    environment["GRAB2MD_LOG_PATH"] = str(log_path)
+    subprocess.run([sys.executable, "-c", script], env=environment, check=True)
+
+    current = log_path.read_text(encoding="utf-8")
+    rotated = log_path.with_suffix(".log.1").read_text(encoding="utf-8")
+    combined = current + rotated
+
+    for secret in (
+        "first-cookie",
+        "second-cookie",
+        "user-password",
+        "oauth-code",
+        "api-secret",
+        "bearer-secret",
+        "exception-secret",
+    ):
+        assert secret not in combined
+    assert "safe=visible" in rotated
+    assert log_path.stat().st_mode & 0o777 == 0o600
+    assert log_path.with_suffix(".log.1").stat().st_mode & 0o777 == 0o600
+    assert log_path.parent.stat().st_mode & 0o777 == 0o700
+
+
+def test_default_log_file_uses_per_user_platform_locations(tmp_path):
+    assert (
+        default_log_file(platform="linux", home=tmp_path, environ={})
+        == tmp_path / ".local" / "state" / "grab2md" / "grab2md.log"
+    )
+    assert default_log_file(
+        platform="linux",
+        home=tmp_path,
+        environ={"XDG_STATE_HOME": "/state"},
+    ) == Path("/state/grab2md/grab2md.log")
+    assert (
+        default_log_file(platform="darwin", home=tmp_path, environ={})
+        == tmp_path / "Library" / "Logs" / "grab2md" / "grab2md.log"
+    )
+    assert default_log_file(
+        platform="win32",
+        home=tmp_path,
+        environ={"LOCALAPPDATA": "C:/Users/test/AppData/Local"},
+    ) == Path("C:/Users/test/AppData/Local/grab2md/Logs/grab2md.log")
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX mode assertions")
+def test_logging_secures_old_rotated_files_without_chmoding_custom_parent(tmp_path):
+    log_directory = tmp_path / "shared-logs"
+    log_directory.mkdir(mode=0o750)
+    old_log = log_directory / "grab2md.log.1"
+    old_log.write_text("old diagnostic\n", encoding="utf-8")
+    old_log.chmod(0o644)
+    log_path = log_directory / "grab2md.log"
+    script = """
+from grab2md.utils.logger import setup_logging
+logger = setup_logging(console_output=False)
+logger.error("rotation trigger")
+for item in logger.handlers:
+    item.flush()
+"""
+    environment = os.environ.copy()
+    environment["GRAB2MD_LOG_PATH"] = str(log_path)
+
+    subprocess.run([sys.executable, "-c", script], env=environment, check=True)
+
+    assert log_directory.stat().st_mode & 0o777 == 0o750
+    assert old_log.stat().st_mode & 0o777 == 0o600
+    assert log_path.stat().st_mode & 0o777 == 0o600
+
+
 def test_redacting_logger_sanitizes_every_log_level(caplog):
     logger = get_redacting_logger("grab2md.security-test")
     secret = "level-secret"
@@ -132,6 +255,25 @@ def test_private_cookie_copy_is_unique_owner_only_and_cleanup_is_explicit(tmp_pa
 
     assert not first_path.exists()
     assert not second_path.exists()
+
+
+def test_cookie_snapshot_includes_committed_wal_records(tmp_path):
+    source = tmp_path / "cookies.sqlite"
+    writer = sqlite3.connect(source)
+    try:
+        assert writer.execute("PRAGMA journal_mode=WAL").fetchone() == ("wal",)
+        writer.execute("PRAGMA wal_autocheckpoint=0")
+        writer.execute("CREATE TABLE cookies (name TEXT NOT NULL)")
+        writer.commit()
+        writer.execute("INSERT INTO cookies VALUES ('wal-cookie')")
+        writer.commit()
+
+        with database.copied_cookie_connection(source) as snapshot:
+            rows = snapshot.execute("SELECT name FROM cookies").fetchall()
+
+        assert rows == [("wal-cookie",)]
+    finally:
+        writer.close()
 
 
 def test_cookie_copy_rejects_preexisting_symlink_destination(tmp_path):

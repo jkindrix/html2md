@@ -12,12 +12,12 @@ function normalizeExtractedHtml(html) {
   return html;
 }
 
-const Html2MdConversionUtils = Object.freeze({ normalizeExtractedHtml });
+const Grab2MdConversionUtils = Object.freeze({ normalizeExtractedHtml });
 
 if (typeof globalThis !== 'undefined') {
-  globalThis.Html2MdConversionUtils = Html2MdConversionUtils;
+  globalThis.Grab2MdConversionUtils = Grab2MdConversionUtils;
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = Html2MdConversionUtils;
+  module.exports = Grab2MdConversionUtils;
 }

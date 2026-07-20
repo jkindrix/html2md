@@ -8,15 +8,15 @@ This module provides:
 - Honest crawler headers that identify the installed tool version
 """
 
-import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Dict, Optional, Any
 
 from grab2md import __version__
+from grab2md.utils.redaction import get_redacting_logger
 
-logger = logging.getLogger("grab2md")
+logger = get_redacting_logger(__name__)
 
 
 @dataclass

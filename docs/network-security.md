@@ -55,6 +55,14 @@ route policy permits only that source origin, so cross-origin subresources and
 top-level redirects are blocked. `--allow-private-network` may authorize a
 trusted private source but does not relax the same-origin boundary.
 
+This optional path does not use the Requests transport's socket-level adapter.
+Its pinning boundary depends on the supported Chromium runtime honoring
+`--host-resolver-rules`; grab2md also launches with `--no-proxy-server`, blocks
+service workers, and intercepts every browser request through the origin route
+policy. The adversarial Chromium gate verifies that runtime contract. These two
+pinning mechanisms are intentionally documented separately rather than treated
+as identical enforcement.
+
 ## Maintainer rule
 
 New code that retrieves an untrusted or remotely controlled URL must reuse

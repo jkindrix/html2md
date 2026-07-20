@@ -7,7 +7,6 @@ terminal vs automated script) and provides user-friendly recovery options.
 """
 
 import json
-import logging
 import sys
 from enum import Enum
 from pathlib import Path
@@ -16,7 +15,9 @@ from typing import Any, Dict
 from rich.console import Console
 from rich.prompt import Confirm, Prompt
 
-logger = logging.getLogger(__name__)
+from grab2md.utils.redaction import get_redacting_logger
+
+logger = get_redacting_logger(__name__)
 console = Console()
 
 

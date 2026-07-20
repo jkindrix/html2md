@@ -6,8 +6,8 @@ const test = require('node:test');
 
 const extensionRoot = path.resolve(__dirname, '..');
 const { normalizeExtractedHtml } = require('../conversion-utils.js');
-const { Html2MdConverter } = require('../converter.js');
-const { Html2MdSettingsStore } = require('../settings-store.js');
+const { Grab2MdConverter } = require('../converter.js');
+const { Grab2MdSettingsStore } = require('../settings-store.js');
 
 test('normalizes short and malformed extracted HTML without reassigning inputs', () => {
   const complete = '<html><body>' + 'content '.repeat(20) + '</body></html>';
@@ -50,7 +50,7 @@ test('conversion and settings persistence are isolated controllers', () => {
     addRule(name) { this.rules.push(name); }
     turndown(html) { return `converted:${html}`; }
   }
-  const converter = new Html2MdConverter(FakeTurndown);
+  const converter = new Grab2MdConverter(FakeTurndown);
   converter.configure({
     markdownOptions: { headingStyle: 'atx', bulletMarker: '-' },
     contentOptions: { codeBlocks: true, preserveImages: true }
@@ -64,7 +64,7 @@ test('conversion and settings persistence are isolated controllers', () => {
     },
     set(value, callback) { this.saved = value; callback(); }
   };
-  const store = new Html2MdSettingsStore(storage);
+  const store = new Grab2MdSettingsStore(storage);
   const defaults = {
     theme: 'light',
     markdownOptions: { headingStyle: 'atx', bulletMarker: '-' },
@@ -91,7 +91,7 @@ test('popup exposes only implemented link and code formatting controls', () => {
   assert.match(popupScript, /await handleOutput\(/);
   assert.match(
     popupScript,
-    /try\s*{\s*const htmlContent = Html2MdConversionUtils\.normalizeExtractedHtml\([\s\S]*?const markdown = convertToMarkdown\([\s\S]*?finally\s*{\s*showSpinner\(false\)/
+    /try\s*{\s*const htmlContent = Grab2MdConversionUtils\.normalizeExtractedHtml\([\s\S]*?const markdown = convertToMarkdown\([\s\S]*?finally\s*{\s*showSpinner\(false\)/
   );
   assert.match(popupScript, /func: extractPageContent/);
   assert.doesNotMatch(popupScript, /function: extractPageContent/);

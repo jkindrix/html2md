@@ -51,6 +51,13 @@ The pending first public alpha uses `grab2md` consistently.
 - Removed dead batch path/filename helpers and their non-production tests.
 - Ratcheted the production coverage floor from 75% to 85% and added a stricter
   mypy pass over untyped production function bodies.
+- Moved diagnostic logs from the installed package tree to conventional
+  per-user platform locations while preserving `GRAB2MD_LOG_PATH`, and unified
+  every project logger under one always-redacting `grab2md.*` namespace.
+- Renamed the extension's remaining first-party `Html2Md*` controller and
+  utility identifiers to `Grab2Md*`.
+- Snapshot browser cookie databases through SQLite's backup API so committed
+  records still resident in a WAL file are included consistently.
 
 ### Fixed
 
@@ -92,6 +99,12 @@ The pending first public alpha uses `grab2md` consistently.
   IPv6 addresses and made redirect credential-header removal case-insensitive.
 - Fsynced parent directories after atomic JSON replacement so successful state
   and configuration renames have a durable directory entry on POSIX.
+- Made current and rotated diagnostic logs owner-only, rejected non-regular log
+  targets, and structurally redacted URL userinfo, OAuth/presigned credential
+  parameters, bearer/header values, and complete multi-value cookie headers.
+- Anchored POSIX image finalization to a validated no-follow destination
+  directory handle so concurrent directory substitution cannot redirect the
+  atomic write outside its selected output directory.
 
 ## [0.3.0] - 2026-07-17
 

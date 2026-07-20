@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 
 import requests
@@ -19,8 +18,9 @@ from grab2md.markdown.pipeline import (
     acquire_rendered_page,
 )
 from grab2md.network.safe_http import DEFAULT_MAX_BODY_BYTES
+from grab2md.utils.redaction import get_redacting_logger
 
-logger = logging.getLogger("grab2md")
+logger = get_redacting_logger(__name__)
 
 
 def html_to_markdown(

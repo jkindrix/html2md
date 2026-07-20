@@ -1,6 +1,6 @@
 /** Side-effect-free HTML-to-Markdown conversion controller. */
 
-class Html2MdConverter {
+class Grab2MdConverter {
   constructor(Turndown = globalThis.TurndownService) {
     if (typeof Turndown !== 'function') {
       throw new TypeError('TurndownService is required');
@@ -55,5 +55,5 @@ class Html2MdConverter {
   }
 }
 
-globalThis.Html2MdConverter = Html2MdConverter;
-if (typeof module !== 'undefined') module.exports = { Html2MdConverter };
+globalThis.Grab2MdConverter = Grab2MdConverter;
+if (typeof module !== 'undefined') module.exports = { Grab2MdConverter };

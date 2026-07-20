@@ -7,7 +7,7 @@ from grab2md.cookies.replay import CookieRecord, target_hostname
 from grab2md.utils.private_json import load_private_json
 from grab2md.utils.redaction import get_redacting_logger
 
-logger = get_redacting_logger("session_manager")
+logger = get_redacting_logger(__name__)
 
 
 def load_cookies_from_json(json_file, url=None) -> list[CookieRecord]:

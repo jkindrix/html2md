@@ -1,4 +1,6 @@
+import os
 from contextlib import contextmanager
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -265,6 +267,40 @@ def test_output_images_directory_cannot_escape_root(tmp_path):
         )
 
     assert not (tmp_path.parent / "escaped").exists()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX directory-fd hardening")
+def test_destination_directory_substitution_cannot_redirect_final_write(
+    tmp_path, monkeypatch
+):
+    response = FakeResponse(200, {"Content-Type": "image/png"}, [PNG])
+    downloader = ImageDownloader(session=FakeSession(response))
+    output = tmp_path / "output"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    images_path = output / "images"
+    displaced_path = output / "original-images"
+    real_open = os.open
+    substituted = False
+
+    def substitute_before_directory_open(path, flags, *args, **kwargs):
+        nonlocal substituted
+        if not substituted and Path(path) == images_path:
+            substituted = True
+            images_path.rename(displaced_path)
+            images_path.symlink_to(outside, target_is_directory=True)
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(
+        "grab2md.network.image_downloader.os.open", substitute_before_directory_open
+    )
+    with patch("grab2md.network.safe_http.socket.getaddrinfo", public_dns):
+        result = downloader.download_image("https://example.com/image.png", output)
+
+    assert substituted is True
+    assert result is None
+    assert list(outside.iterdir()) == []
+    assert not list(output.glob(".grab2md-image-*"))
 
 
 def test_local_conversion_copies_contained_image_and_rewrites_markdown(tmp_path):

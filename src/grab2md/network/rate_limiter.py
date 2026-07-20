@@ -9,7 +9,6 @@ This module provides:
 - Comprehensive monitoring and statistics
 """
 
-import logging
 import time
 import threading
 from collections import deque
@@ -17,7 +16,9 @@ from dataclasses import dataclass
 from enum import Enum
 from urllib.parse import urlparse
 
-logger = logging.getLogger("grab2md")
+from grab2md.utils.redaction import get_redacting_logger
+
+logger = get_redacting_logger(__name__)
 
 
 class CircuitState(Enum):

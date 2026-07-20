@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import os
 import shutil
 import time
@@ -13,9 +12,10 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from grab2md.config.writer import atomic_write_json
+from grab2md.utils.redaction import get_redacting_logger
 from grab2md.utils.state_schema import CrawlState
 
-logger = logging.getLogger(__name__)
+logger = get_redacting_logger(__name__)
 
 
 class CrawlStateStore:

@@ -7,13 +7,14 @@ restore capabilities.
 """
 
 import json
-import logging
 import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
-logger = logging.getLogger(__name__)
+from grab2md.utils.redaction import get_redacting_logger
+
+logger = get_redacting_logger(__name__)
 
 
 class ConfigBackupManager:

@@ -1,4 +1,3 @@
-import logging
 import os
 import re
 from urllib.parse import urljoin, urlparse
@@ -8,9 +7,9 @@ from bs4 import BeautifulSoup, Tag
 from grab2md.utils.html_references import resolve_document_base
 
 from grab2md.markdown.markdown_links import scan_inline_links
+from grab2md.utils.redaction import get_redacting_logger
 
-# Setup logger
-logger = logging.getLogger("grab2md")
+logger = get_redacting_logger(__name__)
 
 
 def find_nth_occurrence(text: str, substring: str, n: int) -> int:

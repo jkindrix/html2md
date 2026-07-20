@@ -1,4 +1,3 @@
-import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Iterable
@@ -16,9 +15,9 @@ from grab2md.markdown.link_rewriter import rewrite_archived_files
 from grab2md.markdown.pipeline import PagePipeline, acquire_http_page
 from grab2md.network.header_manager import HeaderManager
 from grab2md.utils.parser import extract_urls_from_markdown
+from grab2md.utils.redaction import get_redacting_logger
 
-# Setup logger
-logger = logging.getLogger("grab2md")
+logger = get_redacting_logger(__name__)
 
 
 @dataclass(frozen=True)

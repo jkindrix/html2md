@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
@@ -26,9 +25,10 @@ from grab2md.network.request_scheduler import SequentialRequestScheduler
 from grab2md.network.robots_parser import RobotsChecker
 from grab2md.network.safe_http import DestinationPolicy
 from grab2md.utils.state_manager import StateManager
+from grab2md.utils.redaction import get_redacting_logger
 from grab2md.utils.state_schema import CrawlState
 
-logger = logging.getLogger("grab2md")
+logger = get_redacting_logger(__name__)
 
 ProgressCallback = Callable[[str, Optional[str], Optional[str]], None]
 

@@ -8,7 +8,6 @@ This module provides functionality to:
 - Cache robots.txt content for efficiency
 """
 
-import logging
 import threading
 import time
 from dataclasses import dataclass
@@ -19,8 +18,9 @@ from urllib.robotparser import RobotFileParser
 import requests
 
 from grab2md.network.safe_http import DestinationPolicy, guarded_request
+from grab2md.utils.redaction import get_redacting_logger
 
-logger = logging.getLogger("grab2md")
+logger = get_redacting_logger(__name__)
 
 
 @dataclass(frozen=True)

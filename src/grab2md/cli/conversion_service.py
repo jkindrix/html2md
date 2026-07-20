@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
@@ -21,8 +20,9 @@ from grab2md.markdown.pipeline import (
 from grab2md.network.auth_inputs import load_private_headers, load_storage_state
 from grab2md.network.header_manager import HeaderManager
 from grab2md.utils.parser import is_url
+from grab2md.utils.redaction import get_redacting_logger
 
-logger = logging.getLogger(__name__)
+logger = get_redacting_logger(__name__)
 
 StatusCallback = Callable[[str], None]
 

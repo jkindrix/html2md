@@ -10,8 +10,7 @@ import time
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any, Callable
-import logging
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from grab2md.utils.state_schema import (
     CheckpointInfo,
@@ -19,9 +18,10 @@ from grab2md.utils.state_schema import (
     CrawlStatistics,
     json_safe as _json_safe,
 )
+from grab2md.utils.redaction import get_redacting_logger
 from grab2md.utils.state_store import CrawlStateStore
 
-logger = logging.getLogger(__name__)
+logger = get_redacting_logger(__name__)
 
 __all__ = ["CheckpointInfo", "CrawlState", "CrawlStatistics", "StateManager"]
 
