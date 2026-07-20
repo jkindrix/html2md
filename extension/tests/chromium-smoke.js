@@ -301,6 +301,32 @@ async function main() {
       `document.getElementById('code-blocks').checked = true; saveSettingsBtn.click()`
     );
 
+    const authoredCode = [
+      '',
+      'if (ready) {',
+      '    call(  one, two  );',
+      '\treturn "``````";',
+      '',
+      '',
+      '}',
+      ''
+    ].join('\n');
+    const preservedCode = await evaluate(
+      popupClient,
+      `convertToMarkdown(${JSON.stringify(
+        '<pre><code class="language-js">' + authoredCode + '</code></pre>'
+      )})`
+    );
+    assert.ok(
+      preservedCode.includes(authoredCode),
+      `preformatted whitespace changed: ${JSON.stringify(preservedCode)}`
+    );
+    const fenceLines = preservedCode.split('\n').filter(line => /^`{3,}(?:js)?$/.test(line));
+    assert.equal(fenceLines.length, 2);
+    assert.equal(fenceLines[0], '```````js');
+    assert.equal(fenceLines[1], '```````');
+    assert.equal(preservedCode, `\`\`\`\`\`\`\`js\n${authoredCode}\`\`\`\`\`\`\``);
+
     probe.requests.length = 0;
     await evaluate(
       popupClient,
@@ -398,6 +424,13 @@ async function main() {
       await evaluate(popupClient, 'markdownResult.textContent'),
       /Injected Article/
     );
+    assert.deepEqual(
+      await evaluate(
+        popupClient,
+        `({ inFlight: conversionInFlight, disabled: convertBtn.disabled })`
+      ),
+      { inFlight: false, disabled: false }
+    );
 
     await evaluate(
       fixtureClient,
@@ -426,6 +459,13 @@ async function main() {
     assert.match(
       await evaluate(popupClient, 'statusMessage.textContent'),
       /non-empty string/
+    );
+    assert.deepEqual(
+      await evaluate(
+        popupClient,
+        `({ inFlight: conversionInFlight, disabled: convertBtn.disabled })`
+      ),
+      { inFlight: false, disabled: false }
     );
 
     const turndownSource = fs.readFileSync(path.join(extensionRoot, 'turndown.js'), 'utf8');

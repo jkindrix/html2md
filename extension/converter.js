@@ -32,7 +32,7 @@ class Grab2MdConverter {
         );
       },
       replacement(contentValue, node, options) {
-        const code = contentValue.trim();
+        const code = contentValue;
         if (options.codeBlockStyle !== 'fenced') {
           return `\n\n    ${code.replace(/\n/g, '\n    ')}\n\n`;
         }
@@ -44,7 +44,13 @@ class Grab2MdConverter {
             break;
           }
         }
-        return `\n\n\`\`\`${language}\n${code}\n\`\`\`\n\n`;
+        const authoredFence = Math.max(
+          0,
+          ...[...code.matchAll(/`+/g)].map(match => match[0].length)
+        );
+        const fence = '`'.repeat(Math.max(3, authoredFence + 1));
+        const closingSeparator = code.endsWith('\n') ? '' : '\n';
+        return `\n\n${fence}${language}\n${code}${closingSeparator}${fence}\n\n`;
       }
     });
   }

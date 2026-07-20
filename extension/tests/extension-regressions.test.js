@@ -89,9 +89,12 @@ test('popup exposes only implemented link and code formatting controls', () => {
   assert.match(converter, /options\.codeBlockStyle !== 'fenced'/);
   assert.match(converter, /linkStyle: 'inlined'/);
   assert.match(popupScript, /await handleOutput\(/);
+  assert.match(popupScript, /if \(conversionInFlight\) return/);
+  assert.match(popupScript, /function finishConversion\(\)[\s\S]*conversionInFlight = false/);
+  assert.match(popupScript, /convertBtn\.disabled = show/);
   assert.match(
     popupScript,
-    /try\s*{\s*const htmlContent = Grab2MdConversionUtils\.normalizeExtractedHtml\([\s\S]*?const markdown = convertToMarkdown\([\s\S]*?finally\s*{\s*showSpinner\(false\)/
+    /try\s*{\s*const htmlContent = Grab2MdConversionUtils\.normalizeExtractedHtml\([\s\S]*?const markdown = convertToMarkdown\([\s\S]*?finally\s*{\s*finishConversion\(\)/
   );
   assert.match(popupScript, /func: extractPageContent/);
   assert.doesNotMatch(popupScript, /function: extractPageContent/);
@@ -108,8 +111,10 @@ test('vendored Turndown uses an inert parser for untrusted HTML strings', () => 
   const turndown = fs.readFileSync(path.join(extensionRoot, 'turndown.js'), 'utf8');
 
   assert.match(turndown, /new DOMParser\(\)/);
-  assert.match(turndown, /parseFromString\(cleanInput\(input\), ['"]text\/html['"]\)/);
+  assert.match(turndown, /parseFromString\(input, ['"]text\/html['"]\)/);
   assert.match(turndown, /root = parsed\.body/);
+  assert.doesNotMatch(turndown, /function cleanInput|html\.replace\(/);
+  assert.doesNotMatch(turndown, /output = output[\s\S]{0,200}replace\(\/\\n\{3,/);
   assert.doesNotMatch(turndown, /document\.createElement\(['"]div['"]\)[\s\S]{0,120}\.innerHTML/);
   assert.doesNotMatch(turndown, /x-turndown|turndown-root/);
 });

@@ -28,6 +28,7 @@ const defaultSettings = {
 
 // Current settings - will be loaded from storage
 let settings = {...defaultSettings};
+let conversionInFlight = false;
 
 const converter = new Grab2MdConverter();
 const settingsStore = new Grab2MdSettingsStore(chrome.storage.sync);
@@ -212,6 +213,8 @@ function updateSettingsFromForm() {
 
 // Handle the conversion process
 function handleConversion() {
+  if (conversionInFlight) return;
+  conversionInFlight = true;
   const conversionMode = conversionModeSelect.value;
   const outputAction = outputActionSelect.value;
 
@@ -221,6 +224,12 @@ function handleConversion() {
   // Get the active tab
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     const tab = tabs[0];
+    if (chrome.runtime.lastError || !tab) {
+      const message = chrome.runtime.lastError?.message || 'No active tab available';
+      showStatus('Error: ' + message, 'error');
+      finishConversion();
+      return;
+    }
 
     const extract = () => chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -229,15 +238,15 @@ function handleConversion() {
     }, async (results) => {
       if (chrome.runtime.lastError) {
         showStatus('Error: ' + chrome.runtime.lastError.message, 'error');
-        showSpinner(false);
+        finishConversion();
         return;
       }
 
-      const extractedContent = results[0].result;
+      const extractedContent = results?.[0]?.result;
 
       if (!extractedContent) {
         showStatus('Error: Could not extract content', 'error');
-        showSpinner(false);
+        finishConversion();
         return;
       }
       
@@ -258,7 +267,7 @@ function handleConversion() {
           showStatus('Conversion failed: ' + err, 'error');
         }
       } finally {
-        showSpinner(false);
+        finishConversion();
       }
     });
 
@@ -269,7 +278,7 @@ function handleConversion() {
       }, () => {
         if (chrome.runtime.lastError) {
           showStatus('Error: ' + chrome.runtime.lastError.message, 'error');
-          showSpinner(false);
+          finishConversion();
           return;
         }
         extract();
@@ -278,6 +287,11 @@ function handleConversion() {
       extract();
     }
   });
+}
+
+function finishConversion() {
+  conversionInFlight = false;
+  showSpinner(false);
 }
 
 // Extract content from the page based on mode
@@ -413,4 +427,5 @@ function showStatus(message, type = 'info') {
 // Show or hide the spinner
 function showSpinner(show) {
   spinner.style.display = show ? 'block' : 'none';
+  convertBtn.disabled = show;
 }

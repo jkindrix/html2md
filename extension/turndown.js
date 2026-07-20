@@ -522,7 +522,7 @@ var TurndownService = (function () {
       // element: page markup could otherwise close that wrapper early and
       // silently omit the remaining content.
       var parser = new DOMParser();
-      var parsed = parser.parseFromString(cleanInput(input), 'text/html');
+      var parsed = parser.parseFromString(input, 'text/html');
       root = parsed.body;
     } else {
       root = input.cloneNode(true);
@@ -530,20 +530,10 @@ var TurndownService = (function () {
 
     var output = this.process(root);
 
-    // Clean up extra newlines
-    output = output
-      .replace(/\n{3,}/g, '\n\n')  // replace 3+ newlines with just 2
-      .replace(/^\n+|\n+$/g, '');
-
-    // Fix common markdown formatting issues
-    output = output
-      // Fix list item spacing - remove extra blank lines between list items
-      .replace(/\n\s*\n(\s*[*\-+]\s)/g, '\n$1')
-      .replace(/\n\s*\n(\s*\d+\.\s)/g, '\n$1')
-      // Remove extra blank lines between content inside list items
-      .replace(/(\s*[*\-+]\s.*)\n\s*\n(\s{4})/g, '$1\n$2');
-
-    return output;
+    // Remove only conversion-boundary line breaks. Global Markdown cleanup is
+    // deliberately avoided because it cannot distinguish prose/list spacing
+    // from authored whitespace inside generated code blocks.
+    return output.replace(/^[\r\n]+|[\r\n]+$/g, '');
   };
 
   /**
@@ -654,26 +644,6 @@ var TurndownService = (function () {
     };
     return this;
   };
-
-  /**
-   * Clean input HTML to make conversion better
-   * @param {String} html - Raw HTML input
-   * @returns {String} - Cleaned HTML
-   */
-  function cleanInput(html) {
-    // Remove extra spaces and line breaks
-    html = html.replace(/\s{2,}/g, ' ');
-
-    // Fix common HTML issues
-    html = html.replace(/<(\/?)span>/gi, '');  // Remove empty spans
-    html = html.replace(/<(\/?)div>/gi, '<$1div>\n');  // Add newlines after divs
-
-    // Fix common code block issues
-    html = html.replace(/```{6,}/g, '```');  // Normalize excessive backticks in code fences
-    html = html.replace(/~~~~{6,}/g, '~~~');  // Normalize excessive tildes in code fences
-
-    return html;
-  }
 
   return TurndownService;
 })();
