@@ -26,10 +26,10 @@ def test_package_metadata_and_readmes_point_to_mit_grant():
         encoding="utf-8"
     )
 
-    assert metadata["tool"]["poetry"]["license"] == "MIT"
+    assert metadata["project"]["license"] == "MIT"
     assert "grab2md/blob/main/LICENSE" in root_readme
     assert "[MIT License](../LICENSE)" in extension_readme
-    urls = metadata["tool"]["poetry"]["urls"]
+    urls = metadata["project"]["urls"]
     assert set(urls) == {"Repository", "Issues", "Changelog", "Documentation"}
     assert all(
         value.startswith("https://github.com/jkindrix/grab2md")
@@ -37,7 +37,7 @@ def test_package_metadata_and_readmes_point_to_mit_grant():
     )
     assert (
         "Programming Language :: Python :: 3.13"
-        in metadata["tool"]["poetry"]["classifiers"]
+        in metadata["project"]["classifiers"]
     )
     assert "](./" not in root_readme
 

@@ -15,7 +15,7 @@ if [[ ! -f pyproject.toml ]]; then
 fi
 
 echo "Running release gates..."
-poetry check
+poetry check --lock
 poetry run ruff check src/grab2md tests/config
 poetry run black --check src/grab2md tests/config
 poetry run mypy src/grab2md tests/config

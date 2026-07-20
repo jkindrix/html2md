@@ -1,19 +1,17 @@
-[tool.poetry]
+[project]
 name = "grab2md"
 version = "0.3.0"
 description = "Local-first CLI for converting HTML, web pages, batches, and crawls to Markdown"
-authors = ["Justin Kindrix <jkindrix@gmail.com>"]
+authors = [{ name = "Justin Kindrix", email = "jkindrix@gmail.com" }]
 license = "MIT"
 readme = "README.md"
+requires-python = ">=3.11,<4.0"
 keywords = ["html", "markdown", "converter", "crawler", "cli"]
-packages = [{ include = "grab2md", from = "src" }]
-exclude = ["src/grab2md/tests"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
     "Intended Audience :: Developers",
     "Intended Audience :: Information Technology",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: MacOS",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
@@ -25,31 +23,36 @@ classifiers = [
     "Topic :: Internet :: WWW/HTTP",
     "Topic :: Text Processing :: Markup",
 ]
+dependencies = [
+    "beautifulsoup4>=4.13.4,<5.0.0",
+    "markdownify>=1.1.0,<2.0.0",
+    "requests>=2.32.3,<3.0.0",
+    "urllib3>=2.4.0,<3.0.0",
+    "brotli>=1.1.0,<2.0.0",
+    "pycryptodomex>=3.22.0,<4.0.0",
+    "python-json-logger>=3.3.0,<4.0.0",
+    "typer>=0.27.0,<0.28.0",
+    "rich>=13.7.0,<14.0.0",
+    "pywin32>=306,<307; sys_platform == 'win32'",
+    "readability-lxml>=0.8.4.1,<0.9.0",
+    "lxml-html-clean>=0.4.5,<0.5.0",
+]
 
-[tool.poetry.urls]
+[project.urls]
 Repository = "https://github.com/jkindrix/grab2md"
 Issues = "https://github.com/jkindrix/grab2md/issues"
 Changelog = "https://github.com/jkindrix/grab2md/blob/main/CHANGELOG.md"
 Documentation = "https://github.com/jkindrix/grab2md#readme"
 
-[tool.poetry.dependencies]
-python = ">=3.11,<4.0"
-beautifulsoup4 = "^4.13.4"
-markdownify = "^1.1.0"
-requests = "^2.32.3"
-urllib3 = "^2.4.0"
-brotli = "^1.1.0"
-pycryptodomex = "^3.22.0"
-python-json-logger = "^3.3.0"
-typer = "^0.27.0"
-rich = "^13.7.0"
-playwright = {version = "^1.61.0", optional = true}
-pywin32 = {version = "^306", markers = "sys_platform == 'win32'"}
-readability-lxml = "^0.8.4.1"
-lxml-html-clean = "^0.4.5"
+[project.optional-dependencies]
+render = ["playwright>=1.61.0,<2.0.0"]
 
-[tool.poetry.extras]
-render = ["playwright"]
+[project.scripts]
+grab2md = "grab2md.cli.cli:entry_point"
+
+[tool.poetry]
+packages = [{ include = "grab2md", from = "src" }]
+exclude = ["src/grab2md/tests"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "9.1.1"
@@ -57,14 +60,11 @@ pytest-cov = "^6.1.1"
 pre-commit = "^4.2.0"
 black = "26.5.1"
 mypy = "1.15.0"
-ruff = "0.11.2"
+ruff = "0.15.22"
 types-requests = "^2.32.0.20250328"
 bandit = "1.8.3"
 twine = "6.2.0"
 pip-audit = "2.10.1"
-
-[tool.poetry.scripts]
-grab2md = "grab2md.cli.cli:entry_point"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
@@ -79,6 +79,9 @@ fail_under = 85
 show_missing = true
 skip_covered = true
 omit = ["*/grab2md/tests/*"]
+
+[tool.black]
+target-version = ["py311"]
 
 [[tool.mypy.overrides]]
 module = ["brotli", "markdownify", "playwright.*", "readability"]

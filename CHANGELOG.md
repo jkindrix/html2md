@@ -58,6 +58,10 @@ The pending first public alpha uses `grab2md` consistently.
   utility identifiers to `Grab2Md*`.
 - Snapshot browser cookie databases through SQLite's backup API so committed
   records still resident in a WAL file are included consistently.
+- Restored strict utility-layer dependency direction, centralized dotted config
+  traversal, and derive CLI option help from the canonical defaults and schema.
+- Updated Ruff and Poetry to their current verified releases, migrated package
+  metadata to PEP 621, and added weekly Python and pre-commit update automation.
 
 ### Fixed
 
@@ -78,6 +82,12 @@ The pending first public alpha uses `grab2md` consistently.
 - Made crawl persistence/counting terminal only after successful link discovery,
   isolated malformed Firefox cookie rows, and guaranteed popup conversion errors
   restore terminal error and spinner state.
+- Preserved authored indentation, repeated whitespace, blank lines, and long
+  backtick runs in extension code blocks, and serialized popup conversions with
+  one terminal cleanup path.
+- Replaced the crawler's optimizer-strippable response invariant with an
+  explicit failure and made generic config updates use the same typed schema as
+  command-default updates.
 
 ### Security
 
@@ -105,6 +115,10 @@ The pending first public alpha uses `grab2md` consistently.
 - Anchored POSIX image finalization to a validated no-follow destination
   directory handle so concurrent directory substitution cannot redirect the
   atomic write outside its selected output directory.
+- Redacted complete Basic, Digest, proxy-authorization, and quoted header values
+  and excluded cookie secrets from generated record representations.
+- Added a 50 MiB aggregate decoded-transfer budget to optional Chromium
+  rendering and directory-fd-anchored POSIX Markdown artifact replacement.
 
 ## [0.3.0] - 2026-07-17
 

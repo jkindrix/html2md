@@ -8,13 +8,13 @@ library APIs require an evidence-backed design decision before implementation.
 
 ## Set up a development checkout
 
-Requirements are Python 3.11 or newer, Poetry 1.8.3, and Node.js for extension
+Requirements are Python 3.11 or newer, Poetry 2.4.1, and Node.js for extension
 tests. Chromium is required only for the runtime extension/rendering checks.
 
 ```bash
 git clone https://github.com/jkindrix/grab2md.git
 cd grab2md
-poetry install --with dev --sync
+poetry sync --with dev
 poetry check
 ```
 

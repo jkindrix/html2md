@@ -17,7 +17,7 @@ authorize publishing packages, creating remote releases, or pushing tags.
 ## Verify and build
 
 ```bash
-poetry install --with dev --sync
+poetry sync --with dev
 poetry check
 poetry run pre-commit run --all-files
 poetry run pre-commit run --all-files --hook-stage pre-push
