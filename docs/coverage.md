@@ -8,12 +8,12 @@ poetry run pytest src/grab2md/tests tests/config \
   --cov=grab2md --cov-report=term-missing:skip-covered
 ```
 
-On 2026-07-19, Python 3.11.2 measured **4,846 production statements, 582
-missed, and 87.99% total coverage** (`484 passed, 4 skipped`) at
-`9a497c9a29cb03b564ed0508c955145ca0db4f21`. The enforced floor is 85%, preserving an
-interpreter-dependent buffer without allowing coverage to fall far below the
-earlier stabilization baseline. The floor must not be lowered merely to make a
-change pass.
+On 2026-07-19, Python 3.11.2 measured **5,014 production statements, 592
+missed, and 88.19% total coverage** (`490 passed, 4 skipped`) at
+`17b935232cc66ba3c2f03ea7753ca59a55fdda99`. The enforced floor is 85%,
+preserving an interpreter-dependent buffer without allowing coverage to fall
+far below the earlier stabilization baseline. The floor must not be lowered
+merely to make a change pass.
 
 The denominator differs from the pre-remediation 4,773-statement review
 snapshot because command callbacks, crawler setup, batch stages, browser-cookie
@@ -25,7 +25,7 @@ The largest gaps are concentrated in:
 
 | Module | Statements | Missed | Coverage | Tracked work |
 |---|---:|---:|---:|---|
-| `cli/cli.py` | 236 | 70 | 70% | Keep callbacks limited to dispatch, option translation, rendering, and exit status |
+| `cli/cli.py` | 237 | 70 | 70% | Keep callbacks limited to dispatch, option translation, rendering, and exit status |
 | `cli/command_runtime.py` | 154 | 4 | 97% | Preserve direct presentation-neutral command tests |
 | `cli/conversion_presenter.py` | 53 | 10 | 81% | Preserve success/failure/output presentation fixtures |
 | `cli/config_commands.py` | 238 | 37 | 84% | Add remaining interactive/error fixtures |
