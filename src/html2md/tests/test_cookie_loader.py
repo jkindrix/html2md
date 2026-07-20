@@ -25,8 +25,8 @@ from html2md.cookies.session_manager import (
     get_domain_cookies,
     get_firefox_cookies,
     load_cookies_from_json,
-    _find_firefox_profile,
 )
+from html2md.cookies.firefox import find_firefox_profile
 
 
 def write_private_cookie_file(path, payload, *, encode=True):
@@ -224,7 +224,7 @@ def test_domain_cookie_loader_routes_to_configured_browser():
             return_value={"browser": {"preferred": "firefox"}},
         ),
         patch(
-            "html2md.cookies.session_manager.get_firefox_cookies",
+            "html2md.cookies.firefox.get_firefox_cookies",
             return_value=[
                 CookieRecord("firefox", "cookie", "www.example.com", host_only=True)
             ],
@@ -284,7 +284,7 @@ def test_macos_chrome_source_fails_closed_before_cookie_decryption(tmp_path):
     with (
         patch("html2md.cookies.sources.sys.platform", "darwin"),
         patch(
-            "html2md.cookies.session_manager.get_browser_cookie_path",
+            "html2md.cookies.browser_paths.get_browser_cookie_path",
             return_value=database,
         ),
     ):
@@ -293,7 +293,7 @@ def test_macos_chrome_source_fails_closed_before_cookie_decryption(tmp_path):
     assert capability.available is False
     assert "unavailable on macOS" in capability.detail
 
-    with patch.object(session_manager.sys, "platform", "darwin"):
+    with patch("html2md.cookies.chrome.sys.platform", "darwin"):
         with pytest.raises(CookieSourceError, match="owner-private JSON"):
             session_manager.get_chrome_encryption_key()
 
@@ -321,9 +321,9 @@ def test_browser_cookie_default_paths_are_explicit_platform_contracts(
     tmp_path, platform, browser, relative_path
 ):
     with (
-        patch("html2md.cookies.session_manager.load_config", return_value={}),
-        patch("html2md.cookies.session_manager.sys.platform", platform),
-        patch("html2md.cookies.session_manager.Path.home", return_value=tmp_path),
+        patch("html2md.cookies.browser_paths.load_config", return_value={}),
+        patch("html2md.cookies.browser_paths.sys.platform", platform),
+        patch("html2md.cookies.browser_paths.Path.home", return_value=tmp_path),
     ):
         path = get_browser_cookie_path(browser)
 
@@ -343,7 +343,7 @@ def test_chrome_capability_rejects_unimplemented_key_stores(
     with (
         patch("html2md.cookies.sources.sys.platform", platform),
         patch(
-            "html2md.cookies.session_manager.get_browser_cookie_path",
+            "html2md.cookies.browser_paths.get_browser_cookie_path",
             return_value=database,
         ),
     ):
@@ -362,11 +362,11 @@ def test_windows_chrome_capability_probes_the_key_boundary(tmp_path):
     with (
         patch("html2md.cookies.sources.sys.platform", "win32"),
         patch(
-            "html2md.cookies.session_manager.get_browser_cookie_path",
+            "html2md.cookies.browser_paths.get_browser_cookie_path",
             return_value=database,
         ),
         patch(
-            "html2md.cookies.session_manager.get_chrome_encryption_key",
+            "html2md.cookies.chrome.get_chrome_encryption_key",
             side_effect=CookieSourceError("DPAPI permission denied"),
         ) as retrieve_key,
     ):
@@ -390,8 +390,8 @@ def test_windows_chrome_key_decodes_and_removes_dpapi_prefix(tmp_path):
         CryptUnprotectData=Mock(return_value=(None, b"decrypted-key"))
     )
     with (
-        patch("html2md.cookies.session_manager.sys.platform", "win32"),
-        patch("html2md.cookies.session_manager.Path.home", return_value=tmp_path),
+        patch("html2md.cookies.chrome.sys.platform", "win32"),
+        patch("html2md.cookies.chrome.Path.home", return_value=tmp_path),
         patch.dict(sys.modules, {"win32crypt": crypt}),
     ):
         key = get_chrome_encryption_key()
@@ -403,11 +403,6 @@ def test_windows_chrome_key_decodes_and_removes_dpapi_prefix(tmp_path):
 def test_chrome_app_bound_cookie_format_fails_explicitly():
     with pytest.raises(CookieSourceError, match="app-bound"):
         decrypt_chrome_cookie(b"v20opaque", b"unused")
-
-
-class _CopiedDatabase:
-    def cleanup(self):
-        return None
 
 
 def _create_chrome_database(path: Path):
@@ -440,16 +435,12 @@ def test_chrome_lookup_enforces_boundaries_and_preserves_scope(tmp_path):
 
     with (
         patch(
-            "html2md.cookies.session_manager.get_browser_cookie_path",
+            "html2md.cookies.chrome.get_browser_cookie_path",
             return_value=database,
         ),
         patch(
-            "html2md.cookies.session_manager.get_chrome_encryption_key",
+            "html2md.cookies.chrome.get_chrome_encryption_key",
             return_value=b"key",
-        ),
-        patch(
-            "html2md.cookies.session_manager._copy_cookie_database",
-            return_value=(_CopiedDatabase(), database),
         ),
     ):
         records = get_chrome_cookies("docs.example.com")
@@ -483,6 +474,7 @@ def test_firefox_lookup_enforces_boundaries_and_preserves_scope(tmp_path):
     connection.executemany(
         "INSERT INTO moz_cookies VALUES (?, ?, ?, ?, ?, ?, ?)",
         [
+            ("malformed", "ignored", ".example.com", "not-a-time", "/", 0, 0),
             ("shared", "good", ".example.com", future, "/", 1, 1),
             ("lookalike", "bad", "evilexample.com", future, "/", 0, 0),
         ],
@@ -492,12 +484,8 @@ def test_firefox_lookup_enforces_boundaries_and_preserves_scope(tmp_path):
 
     with (
         patch(
-            "html2md.cookies.session_manager.get_browser_cookie_path",
+            "html2md.cookies.firefox.get_browser_cookie_path",
             return_value=firefox_root,
-        ),
-        patch(
-            "html2md.cookies.session_manager._copy_cookie_database",
-            return_value=(_CopiedDatabase(), database),
         ),
     ):
         records = get_firefox_cookies("docs.example.com")
@@ -541,7 +529,7 @@ Path=Profiles/profile-default
         encoding="utf-8",
     )
 
-    assert _find_firefox_profile(firefox_root) == install_default
+    assert find_firefox_profile(firefox_root) == install_default
 
 
 def test_firefox_profile_selection_reads_install_defaults_from_installs_ini(tmp_path):
@@ -553,4 +541,4 @@ def test_firefox_profile_selection_reads_install_defaults_from_installs_ini(tmp_
         encoding="utf-8",
     )
 
-    assert _find_firefox_profile(firefox_root) == selected
+    assert find_firefox_profile(firefox_root) == selected

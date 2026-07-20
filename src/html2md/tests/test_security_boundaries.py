@@ -9,7 +9,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from html2md.config.writer import atomic_write_json
-from html2md.cookies import session_manager
+from html2md.cookies import database, session_manager
 from html2md.markdown.archive import OutputPlanner
 from html2md.markdown.crawler import crawl_website
 from html2md.network.request_handler import FetchResult
@@ -116,8 +116,8 @@ def test_private_cookie_copy_is_unique_owner_only_and_cleanup_is_explicit(tmp_pa
     source = tmp_path / "cookies.sqlite"
     source.write_bytes(b"sqlite fixture")
 
-    first_directory, first_copy = session_manager._copy_cookie_database(source)
-    second_directory, second_copy = session_manager._copy_cookie_database(source)
+    first_directory, first_copy = database.copy_cookie_database(source)
+    second_directory, second_copy = database.copy_cookie_database(source)
     try:
         assert first_copy != second_copy
         assert first_copy.read_bytes() == b"sqlite fixture"
@@ -148,12 +148,12 @@ def test_cookie_copy_rejects_preexisting_symlink_destination(tmp_path):
     fake_directory.cleanup.side_effect = lambda: shutil.rmtree(temp_dir)
     with (
         patch(
-            "html2md.cookies.session_manager.tempfile.TemporaryDirectory",
+            "html2md.cookies.database.tempfile.TemporaryDirectory",
             return_value=fake_directory,
         ),
         pytest.raises(FileExistsError),
     ):
-        session_manager._copy_cookie_database(source)
+        database.copy_cookie_database(source)
 
     assert target.read_bytes() == b"do not overwrite"
     fake_directory.cleanup.assert_called_once()
@@ -168,7 +168,7 @@ def test_chrome_cookie_temp_storage_cleans_up_on_failure_and_interruption(
     source = tmp_path / "cookies.sqlite"
     source.write_bytes(b"fixture")
     captured = {}
-    real_copy = session_manager._copy_cookie_database
+    real_copy = database.copy_cookie_database
 
     def capture_copy(path):
         directory, copied = real_copy(path)
@@ -177,18 +177,18 @@ def test_chrome_cookie_temp_storage_cleans_up_on_failure_and_interruption(
 
     with (
         patch(
-            "html2md.cookies.session_manager.get_browser_cookie_path",
+            "html2md.cookies.chrome.get_browser_cookie_path",
             return_value=source,
         ),
         patch(
-            "html2md.cookies.session_manager.get_chrome_encryption_key",
+            "html2md.cookies.chrome.get_chrome_encryption_key",
             return_value=b"key",
         ),
         patch(
-            "html2md.cookies.session_manager._copy_cookie_database",
+            "html2md.cookies.database.copy_cookie_database",
             side_effect=capture_copy,
         ),
-        patch("html2md.cookies.session_manager.sqlite3.connect", side_effect=failure),
+        patch("html2md.cookies.database.sqlite3.connect", side_effect=failure),
     ):
         if isinstance(failure, KeyboardInterrupt):
             with pytest.raises(KeyboardInterrupt):
