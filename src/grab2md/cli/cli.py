@@ -591,7 +591,10 @@ def crawl_command(
     rate_limit: Optional[int] = typer.Option(
         get_cli_default("crawl", "rate_limit", None),
         "--rate-limit",
-        help="Hard maximum requests per minute (e.g., 30), plus adaptive slowing.",
+        help=(
+            "Hard maximum requests per minute for each destination origin "
+            "(e.g., 30), plus adaptive slowing."
+        ),
     ),
     enhanced_headers: bool = typer.Option(
         get_cli_default("crawl", "enhanced_headers", True),

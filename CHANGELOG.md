@@ -68,6 +68,8 @@ The pending first public `0.4.0` alpha uses `grab2md` consistently.
   and made coverage.py's subprocess patch explicit for pytest-cov 7.
 - Made `--max-pages` a cumulative attempt budget, made `--rate-limit` a literal
   no-burst maximum, and gave `--polite` a documented one-second delay floor.
+- Defined `--rate-limit` explicitly as an independent hard maximum for each
+  destination origin instead of implying an aggregate crawl-wide ceiling.
 
 ### Fixed
 
@@ -99,6 +101,9 @@ The pending first public `0.4.0` alpha uses `grab2md` consistently.
   every archive identity before committing Markdown bytes.
 - Treated hostile or malformed document canonical links as absent and refreshed
   committed runtime/development requirement exports from the lock.
+- Persisted cumulative page-attempt and per-URL retry counts in crawl-state
+  schema 1.1 so resumes cannot reset either `--max-pages` or the retry ceiling;
+  version 1.0 and unversioned states migrate conservatively.
 
 ### Security
 

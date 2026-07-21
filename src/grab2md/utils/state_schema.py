@@ -9,7 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-CURRENT_STATE_VERSION = "1.0"
+CURRENT_STATE_VERSION = "1.1"
+LEGACY_STATE_VERSION = "1.0"
 
 
 def json_safe(value: Any) -> Any:
@@ -25,14 +26,22 @@ def json_safe(value: Any) -> Any:
 def migrate_state_document(document: Dict[str, Any]) -> Dict[str, Any]:
     """Normalize supported historical documents without mutating caller data."""
     migrated = json_safe(document)
-    version = str(migrated.get("version", CURRENT_STATE_VERSION))
-    if version != CURRENT_STATE_VERSION:
+    version = str(migrated.get("version", LEGACY_STATE_VERSION))
+    if version not in {LEGACY_STATE_VERSION, CURRENT_STATE_VERSION}:
         raise ValueError(f"Unsupported crawl-state version: {version}")
-    migrated["version"] = CURRENT_STATE_VERSION
     migrated.setdefault("progress", {})
-    migrated["progress"].setdefault("urls_queued", [])
-    migrated["progress"].setdefault("urls_visited", {})
-    migrated["progress"].setdefault("urls_failed", {})
+    progress = migrated["progress"]
+    progress.setdefault("urls_queued", [])
+    progress.setdefault("urls_visited", {})
+    progress.setdefault("urls_failed", {})
+    if version == LEGACY_STATE_VERSION:
+        terminal_urls = set(progress["urls_visited"]) | set(progress["urls_failed"])
+        progress.setdefault("attempted_count", len(terminal_urls))
+        progress.setdefault("retry_attempts", {})
+    else:
+        progress.setdefault("attempted_count", 0)
+        progress.setdefault("retry_attempts", {})
+    migrated["version"] = CURRENT_STATE_VERSION
     migrated.setdefault("checkpoints", [])
     return migrated
 
@@ -81,6 +90,8 @@ class CrawlState:
     urls_queued: List[Tuple[str, int]] = field(default_factory=list)
     urls_visited: Dict[str, str] = field(default_factory=dict)
     urls_failed: Dict[str, str] = field(default_factory=dict)
+    attempted_count: int = 0
+    retry_attempts: Dict[str, int] = field(default_factory=dict)
     statistics: CrawlStatistics = field(default_factory=CrawlStatistics)
     checkpoints: List[CheckpointInfo] = field(default_factory=list)
 
@@ -97,6 +108,8 @@ class CrawlState:
                 "urls_queued": json_safe(self.urls_queued),
                 "urls_visited": json_safe(self.urls_visited),
                 "urls_failed": json_safe(self.urls_failed),
+                "attempted_count": self.attempted_count,
+                "retry_attempts": json_safe(self.retry_attempts),
                 "statistics": self.statistics.to_dict(),
             },
             "checkpoints": [checkpoint.to_dict() for checkpoint in self.checkpoints],
@@ -118,6 +131,14 @@ class CrawlState:
         state.urls_queued = [tuple(item) for item in progress["urls_queued"]]
         state.urls_visited = progress["urls_visited"]
         state.urls_failed = progress["urls_failed"]
+        state.attempted_count = int(progress["attempted_count"])
+        state.retry_attempts = {
+            str(url): int(count) for url, count in progress["retry_attempts"].items()
+        }
+        if state.attempted_count < 0 or any(
+            count < 0 for count in state.retry_attempts.values()
+        ):
+            raise ValueError("Crawl-state attempt counts cannot be negative")
         if "statistics" in progress:
             state.statistics = CrawlStatistics.from_dict(progress["statistics"])
         state.checkpoints = [

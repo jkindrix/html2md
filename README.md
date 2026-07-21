@@ -170,8 +170,8 @@ Crawls are intentionally sequential. Available controls include:
 - `--max-depth`, a cumulative per-start `--max-pages` page-attempt budget that
   includes failures and explicit retries, and jittered `--delay`;
 - `--respect-robots/--ignore-robots`;
-- hard-maximum requests-per-minute `--rate-limit` with adaptive slowing and a
-  circuit breaker;
+- hard-maximum requests-per-minute `--rate-limit` for each destination origin
+  (host and port), with adaptive slowing and a circuit breaker;
 - `--polite` for at least one second between sequential requests and twice any
   larger explicit delay;
 - content selection, progress, output layout, visualization, and quiet-mode switches.

@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from grab2md.utils.state_manager import CrawlState, CrawlStatistics, StateManager
+from grab2md.utils.state_schema import CURRENT_STATE_VERSION
 
 
 class TestCrawlStatistics:
@@ -46,7 +47,7 @@ class TestCrawlState:
         """Test creating crawl state."""
         state = CrawlState(start_url="https://example.com", output_dir="/tmp/output")
 
-        assert state.version == "1.0"
+        assert state.version == CURRENT_STATE_VERSION
         assert state.crawl_id  # Should have UUID
         assert state.start_url == "https://example.com"
         assert state.output_dir == "/tmp/output"
@@ -69,7 +70,7 @@ class TestCrawlState:
 
         # Serialize
         data = state.to_dict()
-        assert data["version"] == "1.0"
+        assert data["version"] == CURRENT_STATE_VERSION
         assert data["start_url"] == "https://example.com"
         assert len(data["progress"]["urls_queued"]) == 1
         assert len(data["progress"]["urls_visited"]) == 1

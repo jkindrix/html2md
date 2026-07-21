@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict, deque
 from dataclasses import dataclass
-from typing import Callable, Iterable, MutableMapping, Optional
+from typing import Callable, Iterable, Mapping, MutableMapping, Optional
 
 import requests
 
@@ -45,12 +45,18 @@ class CrawlFrontier:
         items: Iterable[tuple[str, int]],
         *,
         terminal_urls: Iterable[str] = (),
+        retry_attempts: Mapping[str, int] | None = None,
     ) -> None:
         self._queue: deque[FrontierItem] = deque()
         self._queued: set[str] = set()
         self._active: set[str] = set()
         self._terminal = {canonical_url_identity(url) for url in terminal_urls}
         self._retryable_attempts: dict[str, int] = defaultdict(int)
+        for url, count in (retry_attempts or {}).items():
+            identity = canonical_url_identity(url)
+            self._retryable_attempts[identity] = max(
+                self._retryable_attempts[identity], count
+            )
         for url, depth in items:
             self.enqueue(url, depth)
 
@@ -60,6 +66,10 @@ class CrawlFrontier:
     @property
     def terminal_count(self) -> int:
         return len(self._terminal)
+
+    @property
+    def retry_attempts(self) -> dict[str, int]:
+        return dict(self._retryable_attempts)
 
     def pop(self) -> Optional[FrontierItem]:
         while self._queue:
@@ -100,6 +110,7 @@ class CrawlFrontier:
         identity = canonical_url_identity(url)
         self._active.discard(identity)
         self._terminal.add(identity)
+        self._retryable_attempts.pop(identity, None)
 
     def snapshot(self, active: Optional[FrontierItem] = None) -> list[tuple[str, int]]:
         queued = [(item.url, item.depth) for item in self._queue]
@@ -123,11 +134,18 @@ class CrawlCheckpointStore:
         self.enabled = enabled
 
     def sync(
-        self, frontier: CrawlFrontier, active: Optional[FrontierItem] = None
+        self,
+        frontier: CrawlFrontier,
+        active: Optional[FrontierItem] = None,
+        *,
+        attempted_count: int | None = None,
     ) -> None:
         state = self.state_manager.current_state
         if self.enabled and state is not None:
             state.urls_queued = frontier.snapshot(active)
+            state.retry_attempts = frontier.retry_attempts
+            if attempted_count is not None:
+                state.attempted_count = attempted_count
 
     def succeeded(self, url: str, output_file: str, frontier: CrawlFrontier) -> None:
         if self.enabled:
@@ -187,6 +205,7 @@ class SequentialCrawlEngine:
         fetch_page: FetchPage,
         options: CrawlOptions,
         initial_processed: int = 0,
+        initial_attempted: int = 0,
     ) -> None:
         self.frontier = frontier
         self.scope = scope
@@ -212,7 +231,7 @@ class SequentialCrawlEngine:
         # Terminal URLs were already attempted in a previous resumable run.
         # Count every new dequeue, including failures and explicit retries, so
         # max_pages is a hard page-attempt budget instead of a success target.
-        self.attempted_count = frontier.terminal_count
+        self.attempted_count = max(initial_attempted, frontier.terminal_count)
 
     def _redirect_validator(self, item: FrontierItem) -> Callable[[str, str], None]:
         starting_navigation = item.url == self.scope.root_url and item.depth == 0
@@ -362,7 +381,9 @@ class SequentialCrawlEngine:
             if item is None:
                 break
             self.attempted_count += 1
-            self.checkpoints.sync(self.frontier, item)
+            self.checkpoints.sync(
+                self.frontier, item, attempted_count=self.attempted_count
+            )
             try:
                 self._process(item)
             except Exception as error:
