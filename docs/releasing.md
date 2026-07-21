@@ -61,3 +61,17 @@ test totals, and checksums in the release notes.
 
 If any artifact, version, checksum, or smoke result differs, stop the release;
 do not rebuild under the same version.
+
+## Post-alpha provenance hardening
+
+After the first authorized alpha establishes the `grab2md` project identity on
+PyPI, replace long-lived upload credentials with
+[PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/) through a
+protected GitHub release environment. Add
+[GitHub artifact attestations](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations)
+for the distributions built by that workflow.
+
+That automation must preserve this release policy: a maintainer explicitly
+authorizes publication, and the workflow publishes the exact artifacts that
+passed the protected release gates without rebuilding them. This is
+post-alpha hardening, not authorization to publish the first alpha.

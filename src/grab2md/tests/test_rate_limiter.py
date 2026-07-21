@@ -233,6 +233,18 @@ class TestGlobalRateLimiter:
         can_proceed, _ = limiter.can_make_request("https://other.com/page")
         assert can_proceed is True
 
+    def test_hard_maximum_is_independent_for_each_destination_origin(self):
+        config = RateLimitConfig(requests_per_minute=1, burst_allowance=0)
+        limiter = GlobalRateLimiter(config)
+
+        for url in ("https://a.example/page", "https://b.example/page"):
+            can_proceed, _ = limiter.can_make_request(url)
+            assert can_proceed is True
+            limiter.record_request_start(url)
+
+        assert limiter.can_make_request("https://a.example/next")[0] is False
+        assert limiter.can_make_request("https://b.example/next")[0] is False
+
     def test_config_update(self):
         """Test configuration updates."""
         config1 = RateLimitConfig(requests_per_minute=10)

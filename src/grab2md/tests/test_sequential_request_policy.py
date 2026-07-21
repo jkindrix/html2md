@@ -16,6 +16,8 @@ def test_crawl_help_exposes_sequential_policy_not_concurrency_controls():
     assert result.exit_code == 0
     assert "--max-concurrent" not in result.stdout
     assert "sequential" in result.stdout
+    assert "destination" in result.stdout
+    assert "origin" in result.stdout
 
 
 def test_polite_mode_has_a_nonzero_floor_and_doubles_larger_delays():

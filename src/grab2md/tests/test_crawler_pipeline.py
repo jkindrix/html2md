@@ -276,6 +276,65 @@ def test_429_response_is_requeued_and_retried(tmp_path):
     assert fetch.call_count == 2
 
 
+def test_resumed_retry_cannot_exceed_cumulative_max_pages(tmp_path):
+    manager = StateManager(state_dir=tmp_path / "states")
+    throttled = fetch_result(429, "slow down", {"Retry-After": "7"})
+    with patch(
+        "grab2md.markdown.crawler.fetch_html",
+        side_effect=[throttled, fetch_result()],
+    ) as fetch:
+        first = crawl_website(
+            "https://example.com",
+            tmp_path / "output",
+            max_pages=1,
+            max_depth=0,
+            respect_robots=False,
+            state_manager=manager,
+        )
+        resumed = crawl_website(
+            "https://example.com",
+            tmp_path / "output",
+            max_pages=1,
+            max_depth=0,
+            respect_robots=False,
+            state_manager=manager,
+            resume_crawl_id=first.crawl_id,
+        )
+
+    assert fetch.call_count == 1
+    assert resumed.processed_count == 0
+    assert manager.current_state is not None
+    assert manager.current_state.attempted_count == 1
+    assert manager.current_state.retry_attempts == {"https://example.com/": 1}
+    assert manager.current_state.urls_queued == [("https://example.com", 0)]
+
+
+def test_retry_ceiling_survives_repeated_resumes(tmp_path):
+    manager = StateManager(state_dir=tmp_path / "states")
+    throttled = fetch_result(429, "slow down", {"Retry-After": "7"})
+    crawl_id = None
+
+    with patch("grab2md.markdown.crawler.fetch_html", return_value=throttled) as fetch:
+        for cumulative_budget in (1, 2, 3):
+            result = crawl_website(
+                "https://example.com",
+                tmp_path / "output",
+                max_pages=cumulative_budget,
+                max_depth=0,
+                respect_robots=False,
+                state_manager=manager,
+                resume_crawl_id=crawl_id,
+            )
+            crawl_id = result.crawl_id
+
+    assert fetch.call_count == 3
+    assert manager.current_state is not None
+    assert manager.current_state.attempted_count == 3
+    assert manager.current_state.retry_attempts == {}
+    assert manager.current_state.urls_queued == []
+    assert manager.current_state.urls_failed == {"https://example.com": "HTTP 429"}
+
+
 def test_max_pages_is_a_hard_attempt_budget_including_failures(tmp_path):
     manager = StateManager(state_dir=tmp_path / "states")
     state = manager.create_new_state(

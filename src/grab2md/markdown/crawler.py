@@ -86,6 +86,8 @@ class CrawlRunContext:
     terminal_urls: set[str]
     queue: list[tuple[str, int]]
     initial_processed: int
+    initial_attempted: int
+    retry_attempts: dict[str, int]
 
 
 @dataclass
@@ -166,6 +168,8 @@ def initialize_crawl_context(
             terminal_urls=set(),
             queue=[(request.start_url, 0)],
             initial_processed=0,
+            initial_attempted=0,
+            retry_attempts={},
         )
 
     emit(f"Resuming crawl {request.resume_crawl_id}", state.start_url, "info")
@@ -178,6 +182,8 @@ def initialize_crawl_context(
         terminal_urls=set(state.urls_visited) | set(state.urls_failed),
         queue=list(state.urls_queued),
         initial_processed=len(state.urls_visited),
+        initial_attempted=state.attempted_count,
+        retry_attempts=state.retry_attempts.copy(),
     )
 
 
@@ -250,7 +256,8 @@ def build_crawl_runtime(
 
     if request.rate_limit and request.rate_limit > 0:
         emit(
-            f"Rate limiting enabled: {request.rate_limit} requests/minute",
+            "Rate limiting enabled: "
+            f"{request.rate_limit} requests/minute per destination origin",
             context.start_url,
             "info",
         )
@@ -262,7 +269,11 @@ def build_crawl_runtime(
         )
 
     engine = SequentialCrawlEngine(
-        frontier=CrawlFrontier(context.queue, terminal_urls=context.terminal_urls),
+        frontier=CrawlFrontier(
+            context.queue,
+            terminal_urls=context.terminal_urls,
+            retry_attempts=context.retry_attempts,
+        ),
         scope=CrawlScope(context.scope_url, request.follow_option),
         robots=robots,
         scheduler=scheduler,
@@ -294,6 +305,7 @@ def build_crawl_runtime(
             allow_private_network=request.allow_private_network,
         ),
         initial_processed=context.initial_processed,
+        initial_attempted=context.initial_attempted,
     )
     return CrawlRuntime(engine, session, scheduler), None
 

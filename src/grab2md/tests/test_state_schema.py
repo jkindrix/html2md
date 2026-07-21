@@ -18,15 +18,37 @@ def test_unversioned_legacy_fixture_migrates_to_current_schema():
         "crawl_id": "legacy-id",
         "start_url": "https://example.com",
         "output_dir": "/tmp/output",
-        "progress": {"urls_queued": [["https://example.com/next", 1]]},
+        "progress": {
+            "urls_queued": [["https://example.com/next", 1]],
+            "urls_visited": {"https://example.com": "index.md"},
+            "urls_failed": {"https://example.com/missing": "HTTP 404"},
+        },
     }
 
     state = CrawlState.from_dict(legacy)
 
     assert state.version == CURRENT_STATE_VERSION
     assert state.urls_queued == [("https://example.com/next", 1)]
-    assert state.urls_visited == {}
-    assert state.urls_failed == {}
+    assert state.urls_visited == {"https://example.com": "index.md"}
+    assert state.urls_failed == {"https://example.com/missing": "HTTP 404"}
+    assert state.attempted_count == 2
+    assert state.retry_attempts == {}
+
+
+def test_version_1_state_migrates_attempt_accounting():
+    state = CrawlState.from_dict(
+        {
+            "version": "1.0",
+            "progress": {
+                "urls_visited": {"https://example.com": "index.md"},
+                "urls_failed": {},
+            },
+        }
+    )
+
+    assert state.version == CURRENT_STATE_VERSION
+    assert state.attempted_count == 1
+    assert state.retry_attempts == {}
 
 
 def test_future_state_version_fails_closed():
@@ -41,12 +63,16 @@ def test_store_round_trip_is_independent_of_checkpoint_or_signal_policy(tmp_path
         start_url="https://example.com",
         output_dir=str(tmp_path / "output"),
     )
+    state.attempted_count = 3
+    state.retry_attempts = {"https://example.com/retry": 2}
 
     store.save(state)
     loaded = store.load("fixture")
 
     assert loaded is not None
     assert loaded.start_url == state.start_url
+    assert loaded.attempted_count == 3
+    assert loaded.retry_attempts == {"https://example.com/retry": 2}
     assert not hasattr(store, "checkpoint_interval")
     assert not hasattr(store, "install_signal_handlers")
 

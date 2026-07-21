@@ -100,7 +100,7 @@ CLI_OPTION_DESCRIPTIONS = {
     "no_cookies": "Disable cookie loading by default",
     "polite": "Enable the preset polite crawl delay",
     "quiet": "Reduce output verbosity",
-    "rate_limit": "Maximum requests per minute",
+    "rate_limit": "Maximum requests per minute for each destination origin",
     "render_js": "Render JavaScript with optional Chromium",
     "respect_robots": "Honor robots.txt rules and crawl delay",
     "selector": "CSS selector used in selector content mode",
