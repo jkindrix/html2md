@@ -8,9 +8,9 @@ poetry run pytest src/grab2md/tests tests/config \
   --cov=grab2md --cov-report=term-missing:skip-covered
 ```
 
-On 2026-07-20, Python 3.11.2 measured **5,113 production statements, 616
-missed, and 87.95% total coverage** (`507 passed, 4 skipped`) at
-`6a707bdc2151e4636e7bd711b923dd55ffdac3a5`. The enforced floor is 85%,
+On 2026-07-21, Python 3.11.2 measured **5,177 production statements, 619
+missed, and 88.04% total coverage** (`516 passed, 4 skipped`) at
+`23dbbfaec2d3779e3c23ad2590f75be1cffe67d0`. The enforced floor is 85%,
 preserving an interpreter-dependent buffer without allowing coverage to fall
 far below the earlier stabilization baseline. The floor must not be lowered
 merely to make a change pass.
@@ -21,14 +21,16 @@ adapters, image redirect handling, and direct-source dispatch were decomposed
 or consolidated, and the browser transfer budget, schema-backed configuration
 paths, and anchored text writer added explicit production boundaries. Tests and
 configuration fixtures moved with the import package from `html2md` to
-`grab2md`; production modules remain the measured denominator.
+`grab2md`; the guarded state-ID/prefix boundary added another explicit storage
+contract. Production modules remain the measured denominator.
 
 The largest gaps are concentrated in:
 
 | Module | Statements | Missed | Coverage | Tracked work |
 |---|---:|---:|---:|---|
-| `cli/cli.py` | 237 | 70 | 70% | Keep callbacks limited to dispatch, option translation, rendering, and exit status |
-| `cli/command_runtime.py` | 154 | 4 | 97% | Preserve direct presentation-neutral command tests |
+| `cli/cli.py` | 237 | 65 | 73% | Keep callbacks limited to dispatch, option translation, rendering, and exit status |
+| `cli/command_runtime.py` | 156 | 4 | 97% | Preserve direct presentation-neutral command tests |
+| `cli/state_commands.py` | 96 | 31 | 68% | Add remaining interactive/error presentation fixtures without duplicating store tests |
 | `cli/conversion_presenter.py` | 53 | 10 | 81% | Preserve success/failure/output presentation fixtures |
 | `cli/config_commands.py` | 216 | 33 | 85% | Add remaining interactive/error fixtures |
 | `cookies/browser_paths.py` | 45 | 18 | 60% | Preserve platform/config path contracts and add WSL edge fixtures as behavior evolves |
