@@ -9,10 +9,12 @@ authorize publishing packages, creating remote releases, or pushing tags.
    `CHANGELOG.md` into a dated version section.
 2. Confirm `pyproject.toml`, `grab2md --version`, `python -m grab2md --version`,
    wheel metadata, and extension metadata have the intended versions.
-3. Recheck `grab2md` availability and ownership on TestPyPI and PyPI. The
-   name returned no registered project when checked on 2026-07-19, but that is not a
-   reservation.
+3. Recheck `grab2md` availability and ownership on TestPyPI and PyPI. A 404
+   observed before release is not a reservation.
 4. Start from a clean checkout with only the intended release commit.
+5. Confirm the exact release commit is on protected `main` with every required
+   hosted check successful; a green run on a different SHA is not evidence for
+   the artifact being published.
 
 ## Verify and build
 

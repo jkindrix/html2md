@@ -62,5 +62,13 @@ documentation or changelog updates. Preserve unrelated worktree changes. A
 green check does not authorize a package upload, tag, release, or Web Store
 submission; those remain explicit maintainer actions.
 
+`main` is protected. Merge through a pull request after all eight hosted jobs
+pass: Python 3.11/3.12/3.13, static quality, build/wheel smoke, macOS, Windows,
+and Chromium runtime. The solo-maintainer configuration does not manufacture an
+independent approval requirement, but it does prevent unverified direct pushes,
+force pushes, deletion, and merges with unresolved review conversations.
+Repository administrators can change protection only as an explicit recovery
+action and must restore and document the policy afterward.
+
 For suspected vulnerabilities, do not open a public issue. Follow
 [`SECURITY.md`](https://github.com/jkindrix/grab2md/blob/main/SECURITY.md).

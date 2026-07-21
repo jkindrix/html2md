@@ -5,7 +5,7 @@ All notable changes are documented here. This project follows
 [Semantic Versioning](https://semver.org/) once public releases begin.
 
 Versions through `0.3.0` were developed under the former `html2md` identity.
-The pending first public alpha uses `grab2md` consistently.
+The pending first public `0.4.0` alpha uses `grab2md` consistently.
 
 ## [Unreleased]
 
@@ -18,6 +18,8 @@ The pending first public alpha uses `grab2md` consistently.
   smoke rehearsal.
 - Added complete package metadata plus contribution, security-reporting, and
   alpha support policies.
+- Added an enforced Poetry requirement-export drift gate and reusable crawl
+  state ID prefixes.
 
 ### Changed
 
@@ -64,6 +66,8 @@ The pending first public alpha uses `grab2md` consistently.
   metadata to PEP 621, and added weekly Python and pre-commit update automation.
 - Refreshed the locked Python/tooling baseline after the first automated scan
   and made coverage.py's subprocess patch explicit for pytest-cov 7.
+- Made `--max-pages` a cumulative attempt budget, made `--rate-limit` a literal
+  no-burst maximum, and gave `--polite` a documented one-second delay floor.
 
 ### Fixed
 
@@ -90,6 +94,11 @@ The pending first public alpha uses `grab2md` consistently.
 - Replaced the crawler's optimizer-strippable response invariant with an
   explicit failure and made generic config updates use the same typed schema as
   command-default updates.
+- Rejected multiple conversion sources sharing one output file, confined state
+  IDs to their storage root while printing reusable full IDs, and validated
+  every archive identity before committing Markdown bytes.
+- Treated hostile or malformed document canonical links as absent and refreshed
+  committed runtime/development requirement exports from the lock.
 
 ### Security
 

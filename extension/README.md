@@ -19,12 +19,6 @@ The supported alpha surface is intentionally limited to converting the active ta
 
 ## Installation
 
-### From Chrome Web Store
-
-1. Visit the Chrome Web Store (link will be provided when published)
-2. Click "Add to Chrome"
-3. Confirm the installation
-
 ### Manual Installation (Developer Mode)
 
 1. Download or clone this repository
@@ -32,6 +26,8 @@ The supported alpha surface is intentionally limited to converting the active ta
 3. Enable "Developer mode" in the top-right corner
 4. Click "Load unpacked" and select the extension directory
 5. The GRAB2MD extension is now installed
+
+No Chrome Web Store package has been published.
 
 ## Usage
 
@@ -118,6 +114,12 @@ clipboard, and download. The temporary test copy receives access only to one
 loopback fixture origin; the committed manifest is separately asserted to have
 no persistent host permissions, and the runtime test proves another origin is
 denied.
+
+Before any Chrome Web Store submission, perform and record a manual pass for
+keyboard-only popup traversal, visible focus, control labels, conversion status
+and error announcements, all three extraction modes, preview scrolling, and
+clipboard/download completion. This is a release checklist, not a claim of
+formal accessibility conformance.
 
 ## License
 

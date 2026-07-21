@@ -11,13 +11,14 @@ to Markdown. It includes a Python CLI and an unpacked Chrome extension.
 
 ## Status and support
 
-- Development version: `0.3.0`
-- Source alpha release: `v0.3.0`
+- Unpublished development version: `0.4.0`
+- Latest historical source tag: `v0.3.0` (before the `grab2md` rename)
 - Tested Python versions: 3.11, 3.12, and 3.13
 - Planned PyPI distribution: `grab2md`
 - Installed command and Python import: `grab2md`
-- Required gates: tests and production coverage, Ruff, Black, mypy, wheel smoke,
-  extension runtime tests, Bandit, and dependency audit
+- Required gates: tests and production coverage, Ruff, Black, mypy, requirement
+  export consistency, wheel smoke, extension runtime tests, Bandit, and
+  dependency audit
 - No PyPI, Web Store, or stable API compatibility promise yet
 
 The primary tested paths are local conversion, URL conversion, batch link
@@ -127,7 +128,8 @@ Useful options include:
 
 - `--content full|main|selector` for explicit content selection (full is the
   lossless default), with `--selector` required by selector mode;
-- `--output/-o` to write a file instead of stdout;
+- `--output/-o` to write one source to a file instead of stdout (multiple
+  sources cannot share one output path);
 - `--cookie-json` for an owner-only portable cookie export on every platform;
 - `--browser-cookies` for compatible Firefox databases or the narrow legacy
   Windows Chrome DPAPI path, optionally with a one-shot `--cookie-path` that
@@ -165,10 +167,13 @@ Crawls are intentionally sequential. Available controls include:
 - `--follow` (`domain-only` for the same host and port, `host-only` for the
   exact hostname, `subdomain` for that hostname and dot-delimited descendants,
   or an explicit regular expression);
-- `--max-depth`, `--max-pages`, and jittered `--delay`;
+- `--max-depth`, a cumulative per-start `--max-pages` page-attempt budget that
+  includes failures and explicit retries, and jittered `--delay`;
 - `--respect-robots/--ignore-robots`;
-- requests-per-minute `--rate-limit` with adaptive delay and a circuit breaker;
-- `--polite` for a more conservative delay policy;
+- hard-maximum requests-per-minute `--rate-limit` with adaptive slowing and a
+  circuit breaker;
+- `--polite` for at least one second between sequential requests and twice any
+  larger explicit delay;
 - content selection, progress, output layout, visualization, and quiet-mode switches.
 
 `Ctrl+C` or termination checkpoints the active crawl and then preserves normal
@@ -201,7 +206,10 @@ silently apply per-site extraction profiles. A selector can be supplied for one
 run or configured as a CLI default together with `content_mode=selector`.
 
 Crawl state supports `list`, `resume`, `clean`, `export`, `import`, and `info`.
-State files use restrictive permissions on POSIX systems.
+State files use restrictive permissions on POSIX systems. `state list` prints
+complete reusable IDs; other state commands also accept an unambiguous prefix
+of at least eight characters. Identifiers and resolved state paths are confined
+to the configured state directory.
 
 ## Chrome extension
 
