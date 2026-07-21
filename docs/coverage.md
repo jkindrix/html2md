@@ -8,9 +8,9 @@ poetry run pytest src/grab2md/tests tests/config \
   --cov=grab2md --cov-report=term-missing:skip-covered
 ```
 
-On 2026-07-21, Python 3.11.2 measured **5,177 production statements, 619
-missed, and 88.04% total coverage** (`516 passed, 4 skipped`) at
-`23dbbfaec2d3779e3c23ad2590f75be1cffe67d0`. The enforced floor is 85%,
+On 2026-07-21, Python 3.11.2 measured **5,203 production statements, 619
+missed, and 88.10% total coverage** (`520 passed, 4 skipped`) at
+`41250315c15322819db2af375e367d4deeeef25e`. The enforced floor is 85%,
 preserving an interpreter-dependent buffer without allowing coverage to fall
 far below the earlier stabilization baseline. The floor must not be lowered
 merely to make a change pass.
@@ -22,6 +22,7 @@ or consolidated, and the browser transfer budget, schema-backed configuration
 paths, and anchored text writer added explicit production boundaries. Tests and
 configuration fixtures moved with the import package from `html2md` to
 `grab2md`; the guarded state-ID/prefix boundary added another explicit storage
+contract; persisted attempt/retry accounting added the versioned resume-budget
 contract. Production modules remain the measured denominator.
 
 The largest gaps are concentrated in:
