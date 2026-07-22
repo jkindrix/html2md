@@ -10,11 +10,17 @@ authorize publishing packages, creating remote releases, or pushing tags.
 2. Confirm `pyproject.toml`, `grab2md --version`, `python -m grab2md --version`,
    wheel metadata, and extension metadata have the intended versions.
 3. Recheck `grab2md` availability and ownership on TestPyPI and PyPI. A 404
-   observed before release is not a reservation.
+   observed before release is not a reservation. Before the first upload,
+   configure pending Trusted Publishers on both indexes for repository
+   `jkindrix/grab2md`, workflow `publish.yml`, and the corresponding protected
+   `testpypi` or `pypi` environment.
 4. Start from a clean checkout with only the intended release commit.
 5. Confirm the exact release commit is on protected `main` with every required
    hosted check successful; a green run on a different SHA is not evidence for
    the artifact being published.
+6. Confirm the GitHub `pypi` environment requires explicit approval. The
+   `testpypi` environment may omit approval, but both environments must match
+   their pending-publisher configuration exactly.
 
 ## Verify and build
 
@@ -35,43 +41,62 @@ sha256sum dist/* > dist/SHA256SUMS
 Record the commit, operating system, Python version, Poetry version, commands,
 test totals, and checksums in the release notes.
 
-## Stage and publish
+The successful `Build and wheel smoke test` job retains the wheel and source
+distribution together as the `release-distributions` artifact for 30 days.
+Record that CI run ID. The publishing workflow downloads that exact bundle and
+refuses unsuccessful, non-`main`, mismatched-SHA, or mismatched-version runs.
 
-1. Upload the already-checked artifacts to TestPyPI without rebuilding:
+## Stage on TestPyPI
 
-   ```bash
-   poetry run twine upload --repository testpypi dist/*
-   ```
+1. From the release commit on `main`, manually dispatch `publish.yml` with
+   target `testpypi`, the successful CI run ID, and the exact version. Approve
+   the protected environment if configured. The OIDC upload creates the project
+   on first use when a matching pending publisher exists; no long-lived token is
+   required.
+2. Install the exact uploaded version in a fresh environment and exercise
+   `grab2md --help`, `grab2md --version`, `python -m grab2md --help`, local
+   conversion, and a local-server URL conversion.
+3. Compare the index artifact hashes with the hashes printed by the publish
+   workflow. If any artifact, version, checksum, or smoke result differs, stop
+   the release; do not rebuild under the same version.
 
-   Install the exact uploaded version in a fresh environment. Do not pass a
-   token on the command line; use Twine's environment/keyring configuration.
-2. Exercise `grab2md --help`, `grab2md --version`, `python -m grab2md --help`,
-   local conversion, and a local-server URL conversion.
-3. Obtain explicit maintainer approval for the public release.
-4. Create a signed tag when signing is configured, otherwise an annotated tag:
+For a manual local rehearsal that does not upload anything:
+
+```bash
+./deploy.sh --dry-run
+```
+
+## Authorize and publish to PyPI
+
+1. Obtain explicit maintainer approval for the public release.
+2. Create a signed tag when signing is configured, otherwise an annotated tag:
 
    ```bash
    git tag -s vX.Y.Z -m "grab2md X.Y.Z"
    # or: git tag -a vX.Y.Z -m "grab2md X.Y.Z"
    ```
 
-5. Push the approved tag, publish the already-tested artifacts to PyPI, and
-   create the release using the same changelog text and checksums.
-6. Install from PyPI in a new environment and repeat the entry-point smoke test.
+3. Push the approved tag. From that exact tag, manually dispatch `publish.yml`
+   with target `pypi`, the same successful CI run ID, and the exact version.
+   The workflow requires the tag, CI, and artifact commit SHA to agree and then
+   pauses at the protected `pypi` environment for approval.
+4. Create the GitHub release using the same changelog text and the workflow's
+   checksums.
+5. Install from PyPI in a new environment and repeat the entry-point smoke test.
 
 If any artifact, version, checksum, or smoke result differs, stop the release;
 do not rebuild under the same version.
 
-## Post-alpha provenance hardening
+## Provenance boundary
 
-After the first authorized alpha establishes the `grab2md` project identity on
-PyPI, replace long-lived upload credentials with
-[PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/) through a
-protected GitHub release environment. Add
-[GitHub artifact attestations](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations)
-for the distributions built by that workflow.
+The first alpha and later releases use
+[PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/) through
+protected GitHub environments. The pinned official publishing action creates
+and uploads PEP 740 attestations for both distributions. Pending publishers can
+create a new project on first use, but they do not reserve the project name.
 
-That automation must preserve this release policy: a maintainer explicitly
-authorizes publication, and the workflow publishes the exact artifacts that
-passed the protected release gates without rebuilding them. This is
-post-alpha hardening, not authorization to publish the first alpha.
+The workflow does not turn green CI into publication authority: a maintainer
+still selects the target and exact CI run, public publication additionally
+requires the matching signed or annotated tag, and the protected `pypi`
+environment supplies the final approval. No release artifact is rebuilt during
+publication.

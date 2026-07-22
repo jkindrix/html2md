@@ -37,7 +37,7 @@ If you prefer to deploy manually, follow these steps:
 python -m pytest
 ```
 
-### 2. Build the package with Poetry
+### 2. Build the package with Poetry 2.4.1
 
 ```bash
 poetry build
@@ -78,6 +78,6 @@ grab2md batch urls.txt --output-dir docs --flatten
 
 If you encounter any issues:
 
-- Check that Poetry and pipx are installed and up to date
+- Check that Poetry 2.4.1 and pipx are installed
 - Ensure all development dependencies are installed: `poetry install`
 - Try uninstalling before reinstalling: `pipx uninstall grab2md`

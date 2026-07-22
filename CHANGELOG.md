@@ -20,6 +20,10 @@ The pending first public `0.4.0` alpha uses `grab2md` consistently.
   alpha support policies.
 - Added an enforced Poetry requirement-export drift gate and reusable crawl
   state ID prefixes.
+- Added a manually authorized OIDC publishing workflow that retrieves the exact
+  distributions retained by a successful protected-main CI run, verifies their
+  identity, and publishes with PEP 740 attestations through protected TestPyPI
+  and PyPI environments.
 
 ### Changed
 
@@ -34,9 +38,9 @@ The pending first public `0.4.0` alpha uses `grab2md` consistently.
 - Centralized streaming image acquisition on the guarded pinned HTTP transport,
   decomposed the large CLI/batch/crawl coordinators, and made terminal batch and
   crawl states explicit.
-- Centralized redirect and canonical archive finalization across batch and
-  crawl, unified command-failure classification, and made `--no-progress`
-  suppress crawler callbacks as documented.
+- Centralized redirect archive identity and canonical-metadata finalization
+  across batch and crawl, unified command-failure classification, and made
+  `--no-progress` suppress crawler callbacks as documented.
 - Shared the browser-cookie database copy/connection lifecycle while retaining
   format-specific Chrome and Firefox semantics, then separated browser paths,
   private database handling, and the two format implementations behind the
@@ -70,6 +74,11 @@ The pending first public `0.4.0` alpha uses `grab2md` consistently.
   no-burst maximum, and gave `--polite` a documented one-second delay floor.
 - Defined `--rate-limit` explicitly as an independent hard maximum for each
   destination origin instead of implying an aggregate crawl-wide ceiling.
+- Kept page-authored canonical URLs as document metadata without treating them
+  as archive identities; only requested and redirect-final URLs can suppress a
+  duplicate conversion.
+- Made the source-install path independent of Poetry while retaining Poetry
+  2.4.1 as the pinned contributor and release toolchain.
 
 ### Fixed
 
@@ -104,6 +113,12 @@ The pending first public `0.4.0` alpha uses `grab2md` consistently.
 - Persisted cumulative page-attempt and per-URL retry counts in crawl-state
   schema 1.1 so resumes cannot reset either `--max-pages` or the retry ceiling;
   version 1.0 and unversioned states migrate conservatively.
+- Rejected invalid crawl regular expressions and non-positive or negative crawl
+  budgets as usage errors before creating output or making network requests.
+- Escaped authored Markdown punctuation and preserved line boundaries inside
+  extension table cells.
+- Removed an unused legacy configuration file from wheel and source artifacts
+  and enforced a package-data allowlist in hosted CI.
 
 ### Security
 

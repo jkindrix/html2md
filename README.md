@@ -32,9 +32,15 @@ No PyPI release has been declared. Install from source during stabilization:
 ```bash
 git clone https://github.com/jkindrix/grab2md.git
 cd grab2md
-poetry sync --with dev
-poetry run grab2md --help
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+python -m pip install .
+grab2md --help
 ```
+
+Contributors running the complete development and release gates need Poetry
+2.4.1 and Node.js; see [CONTRIBUTING.md](CONTRIBUTING.md) for that pinned
+toolchain and its canonical commands.
 
 JavaScript rendering is an isolated optional installation:
 
@@ -46,15 +52,6 @@ grab2md https://example.com/app --render-js
 
 See [`docs/browser-rendering.md`](https://github.com/jkindrix/grab2md/blob/main/docs/browser-rendering.md) for its resource,
 network, and authentication boundaries.
-
-For an isolated non-development installation from a local checkout:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-python -m pip install .
-grab2md --version
-```
 
 The `grab2md` name had no registered PyPI project when checked on 2026-07-19,
 but availability is not a reservation and must be checked again immediately

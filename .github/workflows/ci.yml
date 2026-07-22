@@ -68,7 +68,12 @@ jobs:
           with ZipFile(wheel) as archive:
               names = archive.namelist()
           assert not any(name.startswith("grab2md/tests/") for name in names)
-          assert "grab2md/grab2md" not in names
+          unexpected_package_data = [
+              name
+              for name in names
+              if name.startswith("grab2md/") and not name.endswith(".py")
+          ]
+          assert not unexpected_package_data, unexpected_package_data
           assert "grab2md/__main__.py" in names
           PY
       - name: Run extension static regressions
@@ -79,6 +84,15 @@ jobs:
         run: |
           poetry run python scripts/release_smoke.py dist/*.whl \
             --expected-version "$(poetry version --short)"
+      - name: Preserve verified release distributions
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-distributions
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 30
 
   quality:
     name: Static quality gates
@@ -163,5 +177,6 @@ jobs:
           GRAB2MD_RUN_RENDER_E2E: "1"
         run: |
           poetry run pytest -q src/grab2md/tests/test_browser_renderer_e2e.py
-          export CHROME_BIN="$(poetry run python -c 'from playwright.sync_api import sync_playwright; p = sync_playwright().start(); print(p.chromium.executable_path); p.stop()')"
+          CHROME_BIN="$(poetry run python -c 'from playwright.sync_api import sync_playwright; p = sync_playwright().start(); print(p.chromium.executable_path); p.stop()')"
+          export CHROME_BIN
           node extension/tests/chromium-smoke.js

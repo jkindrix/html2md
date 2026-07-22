@@ -1,0 +1,152 @@
+name: Publish verified distributions
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Package index protected environment
+        required: true
+        type: choice
+        options:
+          - testpypi
+          - pypi
+      run_id:
+        description: Successful main-branch CI run containing the artifacts
+        required: true
+        type: string
+      version:
+        description: Exact release version expected in both distributions
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  publish:
+    name: Publish to ${{ inputs.target }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.target }}
+      url: ${{ inputs.target == 'pypi' && 'https://pypi.org/project/grab2md/' || 'https://test.pypi.org/project/grab2md/' }}
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    steps:
+      - name: Verify release authorization and CI provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_RUN_ID: ${{ inputs.run_id }}
+          RELEASE_TARGET: ${{ inputs.target }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RELEASE_RUN_ID}" \
+            > "${RUNNER_TEMP}/ci-run.json"
+          python - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          version = os.environ["RELEASE_VERSION"]
+          if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:[a-z]+[0-9]+)?", version) is None:
+              raise SystemExit(f"Invalid release version: {version!r}")
+
+          run = json.loads((Path(os.environ["RUNNER_TEMP"]) / "ci-run.json").read_text())
+          expected = {
+              "conclusion": "success",
+              "event": "push",
+              "head_branch": "main",
+              "head_sha": os.environ["GITHUB_SHA"],
+              "path": ".github/workflows/ci.yml",
+          }
+          mismatches = {
+              key: (run.get(key), value)
+              for key, value in expected.items()
+              if run.get(key) != value
+          }
+          if mismatches:
+              raise SystemExit(f"CI run is not an exact successful main build: {mismatches}")
+
+          target = os.environ["RELEASE_TARGET"]
+          ref = os.environ["GITHUB_REF"]
+          if target == "pypi" and ref != f"refs/tags/v{version}":
+              raise SystemExit("PyPI publication must be dispatched from the matching vX.Y.Z tag")
+          if target == "testpypi" and ref not in {"refs/heads/main", f"refs/tags/v{version}"}:
+              raise SystemExit("TestPyPI publication must be dispatched from main or its matching tag")
+          PY
+
+      - name: Download the exact CI distributions
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: release-distributions
+          path: dist
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.run_id }}
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Verify artifact set, metadata, and checksums
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          python -m pip install "twine==6.2.0"
+          python -m twine check dist/*
+          python - <<'PY'
+          import hashlib
+          import os
+          import tarfile
+          from email.parser import BytesParser
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          root = Path("dist")
+          version = os.environ["RELEASE_VERSION"]
+          wheel = list(root.glob("grab2md-*.whl"))
+          sdist = list(root.glob("grab2md-*.tar.gz"))
+          files = sorted(path for path in root.iterdir() if path.is_file())
+          if len(wheel) != 1 or len(sdist) != 1 or len(files) != 2:
+              raise SystemExit(f"Expected exactly one wheel and one sdist, found: {files}")
+
+          with ZipFile(wheel[0]) as archive:
+              names = [name for name in archive.namelist() if name.endswith(".dist-info/METADATA")]
+              if len(names) != 1:
+                  raise SystemExit(f"Expected one wheel METADATA file, found {names}")
+              wheel_metadata = BytesParser().parsebytes(archive.read(names[0]))
+          with tarfile.open(sdist[0], "r:gz") as archive:
+              members = [member for member in archive.getmembers() if member.name.endswith("/PKG-INFO")]
+              if len(members) != 1:
+                  raise SystemExit(f"Expected one sdist PKG-INFO file, found {members}")
+              extracted = archive.extractfile(members[0])
+              if extracted is None:
+                  raise SystemExit("Could not read sdist PKG-INFO")
+              sdist_metadata = BytesParser().parsebytes(extracted.read())
+
+          for label, metadata in (("wheel", wheel_metadata), ("sdist", sdist_metadata)):
+              actual = (metadata.get("Name"), metadata.get("Version"))
+              expected = ("grab2md", version)
+              if actual != expected:
+                  raise SystemExit(f"Unexpected {label} identity: {actual}, expected {expected}")
+
+          for path in files:
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              print(f"{digest}  {path.name}")
+          PY
+
+      - name: Publish to TestPyPI with OIDC
+        if: inputs.target == 'testpypi'
+        uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # v1.14.1
+        with:
+          packages-dir: dist/
+          repository-url: https://test.pypi.org/legacy/
+          attestations: true
+
+      - name: Publish to PyPI with OIDC
+        if: inputs.target == 'pypi'
+        uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # v1.14.1
+        with:
+          packages-dir: dist/
+          attestations: true
