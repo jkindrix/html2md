@@ -281,10 +281,14 @@ async function main() {
 
     const tableMarkdown = await evaluate(
       popupClient,
-      `convertToMarkdown('<table><tr><th>Name</th><th>Value</th></tr><tr><td>one</td><td>1</td></tr></table>')`
+      `convertToMarkdown('<table><tr><th>Name</th><th>Value</th></tr><tr><td>one</td><td>**literal** [x](y) _word_ | pipe\\nnext</td></tr></table>')`
     );
     assert.match(tableMarkdown, /\| Name \| Value \|/);
     assert.match(tableMarkdown, /\| --- \| --- \|/);
+    assert.match(tableMarkdown, /\\\*\\\*literal\\\*\\\*/);
+    assert.match(tableMarkdown, /\\\[x\\\]\(y\)/);
+    assert.match(tableMarkdown, /\\_word\\_/);
+    assert.match(tableMarkdown, /\\\| pipe<br>next/);
     assert.doesNotMatch(tableMarkdown, /<table|<tr|<td|<th/i);
 
     await evaluate(
