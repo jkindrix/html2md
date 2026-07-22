@@ -381,7 +381,9 @@ var TurndownService = (function () {
 
           if (cellIndex < cells.length) {
             var cell = cells[cellIndex];
-            cellContent = cell.textContent.trim().replace(/\|/g, '\\|');
+            cellContent = escapeMarkdown(cell.textContent.trim())
+              .replace(/\r\n?|\n/g, '<br>')
+              .replace(/\|/g, '\\|');
           }
 
           rowContent += ' ' + cellContent + ' |';
