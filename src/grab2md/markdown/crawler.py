@@ -24,8 +24,9 @@ from grab2md.network.request_handler import fetch_html
 from grab2md.network.request_scheduler import SequentialRequestScheduler
 from grab2md.network.robots_parser import RobotsChecker
 from grab2md.network.safe_http import DestinationPolicy
-from grab2md.utils.state_manager import StateManager
+from grab2md.utils.crawl_policy import validate_crawl_policy
 from grab2md.utils.redaction import get_redacting_logger
+from grab2md.utils.state_manager import StateManager
 from grab2md.utils.state_schema import CrawlState
 
 logger = get_redacting_logger(__name__)
@@ -334,6 +335,13 @@ def _terminal_result(
 
 def run_crawl(request: CrawlRequest, state_manager: StateManager) -> CrawlResult:
     """Coordinate one crawl lifecycle with typed initialization and termination."""
+    validate_crawl_policy(
+        follow_option=request.follow_option,
+        max_depth=request.max_depth,
+        max_pages=request.max_pages,
+        delay=request.delay,
+        rate_limit=request.rate_limit,
+    )
     callback = request.progress_callback if request.show_progress else None
     emit = _progress_sink(callback)
     context = initialize_crawl_context(request, state_manager, emit)
@@ -408,6 +416,13 @@ def crawl_website(
 ):
     """Crawl a website and return its stable aggregate result."""
     selected_mode = validate_content_request(content_mode, selector)
+    validate_crawl_policy(
+        follow_option=follow_option,
+        max_depth=max_depth,
+        max_pages=max_pages,
+        delay=delay,
+        rate_limit=rate_limit,
+    )
     request = CrawlRequest(
         start_url=start_url,
         output_dir=Path(output_dir),

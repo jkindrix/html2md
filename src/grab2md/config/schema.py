@@ -7,6 +7,14 @@ import math
 from copy import deepcopy
 from typing import Any, Mapping, Sequence
 
+from grab2md.utils.crawl_policy import (
+    compile_follow_option,
+    validate_delay,
+    validate_max_depth,
+    validate_max_pages,
+    validate_rate_limit,
+)
+
 ConfigPath = tuple[str, ...]
 NoneType = type(None)
 
@@ -95,7 +103,7 @@ CLI_OPTION_DESCRIPTIONS = {
     "images_dir": "Directory name for downloaded images",
     "local": "Treat sources as local files by default",
     "max_depth": "Maximum crawl depth",
-    "max_pages": "Maximum pages to crawl",
+    "max_pages": "Maximum page attempts per starting URL",
     "metadata": "Prepend YAML document metadata",
     "no_cookies": "Disable cookie loading by default",
     "polite": "Enable the preset polite crawl delay",
@@ -177,6 +185,28 @@ def _validate_enum(path: ConfigPath, value: Any) -> Any:
     return value
 
 
+def _validate_constraint(path: ConfigPath, value: Any) -> Any:
+    try:
+        if path == ("cli_defaults", "crawl", "follow"):
+            compile_follow_option(value)
+        elif path == ("cli_defaults", "crawl", "max_depth"):
+            validate_max_depth(value)
+        elif path == ("cli_defaults", "crawl", "max_pages"):
+            validate_max_pages(value)
+        elif path == ("cli_defaults", "crawl", "delay"):
+            validate_delay(value)
+        elif path == ("cli_defaults", "crawl", "rate_limit"):
+            validate_rate_limit(value)
+    except ValueError as error:
+        raise ConfigValidationError([f"{_path_name(path)}: {error}"]) from error
+    return value
+
+
+def _validate_known_value(path: ConfigPath, value: Any, default: Any) -> Any:
+    coerced = _coerce_known_value(path, value, default)
+    return _validate_constraint(path, _validate_enum(path, coerced))
+
+
 def validate_and_merge(
     config_data: Any,
     defaults: Mapping[str, Any],
@@ -219,9 +249,7 @@ def validate_and_merge(
                 validate_tree(value, default, current_path)
                 continue
             try:
-                target[key] = _validate_enum(
-                    current_path, _coerce_known_value(current_path, value, default)
-                )
+                target[key] = _validate_known_value(current_path, value, default)
             except ConfigValidationError as error:
                 errors.extend(error.errors)
                 if not strict:
@@ -291,7 +319,7 @@ def parse_cli_value(
             [f"{_path_name(path)} cannot be set from a command-line string"]
         )
 
-    return _validate_enum(path, _coerce_known_value(path, candidate, default))
+    return _validate_known_value(path, candidate, default)
 
 
 def parse_config_value(

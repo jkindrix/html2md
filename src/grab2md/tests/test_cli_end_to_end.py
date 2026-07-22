@@ -386,6 +386,24 @@ def test_batch_subprocess_fetches_and_writes_url(tmp_path, cli_server, monkeypat
     )
 
 
+def test_invalid_crawl_policy_is_a_usage_error_without_side_effects(tmp_path):
+    output_dir = tmp_path / "crawl-output"
+
+    result = run_cli(
+        tmp_path,
+        "crawl",
+        "https://example.com",
+        "--output-dir",
+        output_dir,
+        "--follow",
+        "[",
+    )
+
+    assert result.returncode == 2
+    assert "Invalid --follow regex pattern" in result.stdout
+    assert not output_dir.exists()
+
+
 def test_crawl_state_resume_and_traversal_containment_in_subprocess(
     tmp_path, cli_server
 ):

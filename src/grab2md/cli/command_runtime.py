@@ -13,6 +13,7 @@ from grab2md.cli.runtime import build_header_config, build_header_manager
 from grab2md.markdown.batch_processor import BatchResult
 from grab2md.markdown.content_extractor import ContentMode, validate_content_request
 from grab2md.markdown.crawler import CrawlResult
+from grab2md.utils.crawl_policy import validate_crawl_policy
 from grab2md.utils.parser import is_url
 from grab2md.utils.state_manager import StateManager
 
@@ -247,6 +248,16 @@ def execute_crawls(
 ) -> CrawlExecution:
     """Validate and execute starting URLs without owning presentation."""
     validate_content_request(options.content_mode, options.selector)
+    try:
+        validate_crawl_policy(
+            follow_option=options.follow_option,
+            max_depth=options.max_depth,
+            max_pages=options.max_pages,
+            delay=options.delay,
+            rate_limit=options.rate_limit,
+        )
+    except ValueError as error:
+        raise CommandUsageError(str(error)) from error
     options.output_dir.mkdir(parents=True, exist_ok=True)
     header_config = build_header_config(
         config,

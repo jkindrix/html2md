@@ -193,3 +193,28 @@ def test_crawl_execution_reports_invalid_and_failed_starts_without_typer(tmp_pat
     assert execution.failed_count == 2
     assert execution.processed_page_count == 0
     crawler.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        ({"follow_option": "["}, "Invalid --follow regex pattern"),
+        ({"max_depth": -1}, "--max-depth must be non-negative"),
+        ({"max_pages": 0}, "--max-pages must be positive"),
+        ({"delay": -0.1}, "--delay must be"),
+        ({"rate_limit": 0}, "--rate-limit must be positive"),
+    ],
+)
+def test_crawl_policy_validation_precedes_side_effects(tmp_path, changes, message):
+    crawler = Mock()
+    output = tmp_path / "output"
+
+    with pytest.raises(CommandUsageError, match=message):
+        execute_crawls(
+            crawl_options(tmp_path, **changes),
+            crawler=crawler,
+            config={},
+        )
+
+    crawler.assert_not_called()
+    assert not output.exists()

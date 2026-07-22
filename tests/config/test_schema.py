@@ -113,3 +113,20 @@ def test_default_lookup_returns_a_defensive_copy():
     value["max_pages"] = 1
 
     assert DEFAULT_CONFIG["cli_defaults"]["crawl"]["max_pages"] == 100
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("follow", "["),
+        ("max_depth", -1),
+        ("max_pages", 0),
+        ("delay", -1.0),
+        ("rate_limit", 0),
+    ],
+)
+def test_crawl_policy_values_obey_semantic_constraints(key, value):
+    supplied = {"cli_defaults": {"crawl": {key: value}}}
+
+    with pytest.raises(ConfigValidationError, match=f"crawl.{key}"):
+        validate_and_merge(supplied, DEFAULT_CONFIG, strict=True)

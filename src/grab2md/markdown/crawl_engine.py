@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict, deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Iterable, Mapping, MutableMapping, Optional
 
 import requests
@@ -24,6 +24,7 @@ from grab2md.network.request_scheduler import SequentialRequestScheduler
 from grab2md.network.robots_parser import RobotsChecker
 from grab2md.network.safe_http import DestinationPolicy, UnsafeNetworkTarget
 from grab2md.utils.parser import extract_links_from_html, should_follow_link
+from grab2md.utils.crawl_policy import FollowRule, compile_follow_option
 from grab2md.utils.state_manager import StateManager
 
 MAX_RATE_LIMIT_RETRIES = 2
@@ -121,9 +122,13 @@ class CrawlFrontier:
 class CrawlScope:
     root_url: str
     follow_option: str
+    _follow_rule: FollowRule = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        self._follow_rule = compile_follow_option(self.follow_option)
 
     def allows(self, url: str) -> bool:
-        return should_follow_link(url, self.root_url, self.follow_option)
+        return should_follow_link(url, self.root_url, self._follow_rule)
 
 
 class CrawlCheckpointStore:

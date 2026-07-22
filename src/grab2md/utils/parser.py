@@ -1,11 +1,12 @@
 import os
 import re
+from typing import Pattern
 from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup, Tag
 
+from grab2md.utils.crawl_policy import FollowRule, compile_follow_option
 from grab2md.utils.html_references import resolve_document_base
-
 from grab2md.utils.markdown_links import scan_inline_links
 from grab2md.utils.redaction import get_redacting_logger
 
@@ -133,14 +134,14 @@ def extract_links_from_html(html_content, base_url):
     return unique_urls
 
 
-def should_follow_link(url, base_url, follow_option):
+def should_follow_link(url: str, base_url: str, follow_option: FollowRule) -> bool:
     """
     Determine if a link should be followed based on the follow option.
 
     Args:
         url (str): The URL to check
         base_url (str): The original base URL
-        follow_option (str): The follow option (domain-only, host-only, subdomain, or regex pattern)
+        follow_option: A built-in scope name or compiled regular expression.
 
     Returns:
         bool: True if the link should be followed, False otherwise
@@ -181,14 +182,16 @@ def should_follow_link(url, base_url, follow_option):
     elif follow_option == "subdomain":
         return url_host == base_host or url_host.endswith(f".{base_host}")
 
-    # Regex pattern: Follow links matching the regex pattern
+    # Regex pattern: follow links matching the precompiled expression.
+    pattern: Pattern[str]
+    if isinstance(follow_option, str):
+        compiled = compile_follow_option(follow_option)
+        if isinstance(compiled, str):
+            raise ValueError(f"Unknown built-in follow option: {compiled}")
+        pattern = compiled
     else:
-        try:
-            pattern = re.compile(follow_option)
-            return bool(pattern.search(url))
-        except re.error:
-            logger.error(f"Invalid regex pattern: {follow_option}")
-            return False
+        pattern = follow_option
+    return bool(pattern.search(url))
 
 
 def get_urls_from_file(file_path):

@@ -2,6 +2,7 @@
 
 import pytest
 
+from grab2md.utils.crawl_policy import compile_follow_option
 from grab2md.utils.parser import should_follow_link
 
 
@@ -60,3 +61,17 @@ def test_all_follow_modes_reject_malformed_or_credential_urls(candidate):
         assert not should_follow_link(
             candidate, "https://example.com/start", follow_option
         )
+
+
+def test_follow_regex_is_compiled_before_link_evaluation():
+    pattern = compile_follow_option(r"/docs(?:/|$)")
+
+    assert should_follow_link(
+        "https://example.com/docs/guide", "https://example.com/start", pattern
+    )
+    assert not should_follow_link(
+        "https://example.com/blog/post", "https://example.com/start", pattern
+    )
+
+    with pytest.raises(ValueError, match="Invalid --follow regex pattern"):
+        compile_follow_option("[")
