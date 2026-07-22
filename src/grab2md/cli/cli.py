@@ -109,12 +109,12 @@ class DefaultSourceGroup(TyperGroup):
 app = typer.Typer(
     cls=DefaultSourceGroup,
     help=(
-        "Grab a URL or local HTML file as Markdown. Use batch, crawl, config, "
-        "or state for alternate workflows."
+        "Convert HTTP(S) URLs or local HTML files to Markdown. Use batch, "
+        "crawl, config, or state for alternate workflows."
     ),
     epilog=(
         "Examples: grab2md https://example.com -o page.md | "
-        "grab2md page.html --local | grab2md crawl https://docs.example.com"
+        "grab2md page.html -o page.md | grab2md crawl https://docs.example.com"
     ),
     no_args_is_help=True,
     subcommand_metavar="[SOURCE ...] | COMMAND [ARGS]...",

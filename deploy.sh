@@ -17,10 +17,11 @@ fi
 echo "Running release gates..."
 poetry check --lock
 python scripts/check_requirement_exports.py
+python scripts/check_documentation.py
 python scripts/check_package_readme.py README.md
-poetry run ruff check src/grab2md tests/config tests/scripts scripts/check_package_readme.py
-poetry run black --check src/grab2md tests/config tests/scripts scripts/check_package_readme.py
-poetry run mypy src/grab2md tests/config tests/scripts scripts/check_package_readme.py
+poetry run ruff check src/grab2md tests/config tests/scripts scripts/check_documentation.py scripts/check_package_readme.py
+poetry run black --check src/grab2md tests/config tests/scripts scripts/check_documentation.py scripts/check_package_readme.py
+poetry run mypy src/grab2md tests/config tests/scripts scripts/check_documentation.py scripts/check_package_readme.py
 poetry run mypy --check-untyped-defs --exclude 'src/grab2md/tests/' src/grab2md
 poetry run pytest src/grab2md/tests tests/config tests/scripts
 

@@ -44,10 +44,13 @@ def test_default_source_routing_preserves_root_options_and_real_commands():
 
 def test_root_help_presents_direct_sources_and_deemphasizes_convert_alias():
     result = CliRunner().invoke(cli.app, ["--help"])
+    normalized_output = " ".join(result.output.split())
 
     assert result.exit_code == 0
     assert "[SOURCE ...] | COMMAND [ARGS]..." in result.output
     assert "grab2md https://example.com" in result.output
+    assert "grab2md page.html -o page.md" in normalized_output
+    assert "grab2md page.html --local" not in normalized_output
     assert "\n│ convert" not in result.output
 
     alias_help = CliRunner().invoke(cli.app, ["convert", "--help"])

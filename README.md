@@ -1,25 +1,29 @@
 # grab2md
 
-`grab2md` converts local HTML, web pages, link collections, and crawlable sites
-to Markdown. It includes a Python CLI and an unpacked Chrome extension.
+`grab2md` is a local-first HTML-to-Markdown tool. Its CLI converts individual
+local HTML files and HTTP(S) URLs, processes link lists in batches, and archives
+bounded site crawls. Its unpacked Chrome extension converts the active page,
+main article, or current selection.
 
 > [!IMPORTANT]
 > This is an alpha-stage, pre-1.0 project. The primary workflows are covered by
-> end-to-end tests, but no stable package or extension release has been
-> published. Review the limitations and security boundaries before using it on
-> sensitive or unattended workloads.
+> end-to-end tests, but no production package or extension release has been
+> published. TestPyPI artifacts are staging rehearsals, not supported releases.
+> Review the limitations and security boundaries before using it on sensitive
+> or unattended workloads.
 
 ## Status and support
 
-- Unpublished development version: `0.4.1`
+- Development/release-candidate version: `0.4.2`
 - Latest historical source tag: `v0.3.0` (before the `grab2md` rename)
 - Tested Python versions: 3.11, 3.12, and 3.13
-- Planned PyPI distribution: `grab2md`
+- Production PyPI distribution: `grab2md` (pending first authorized release)
 - Installed command and Python import: `grab2md`
 - Required gates: tests and production coverage, Ruff, Black, mypy, requirement
   export consistency, wheel smoke, extension runtime tests, Bandit, and
   dependency audit
-- No PyPI, Web Store, or stable API compatibility promise yet
+- TestPyPI rehearsals exist; no production PyPI release, Web Store release, or
+  stable API compatibility promise exists yet
 
 The primary tested paths are local conversion, URL conversion, batch link
 processing, sequential crawling, interruption/resume, configuration recovery,
@@ -27,7 +31,8 @@ and the extension's full-page/article/selection conversion modes.
 
 ## Installation
 
-No PyPI release has been declared. Install from source during stabilization:
+No production PyPI release has been authorized. Install from source during
+stabilization:
 
 ```bash
 git clone https://github.com/jkindrix/grab2md.git
@@ -55,9 +60,11 @@ grab2md https://example.com/app --render-js
 See [`docs/browser-rendering.md`](https://github.com/jkindrix/grab2md/blob/main/docs/browser-rendering.md) for its resource,
 network, and authentication boundaries.
 
-The `grab2md` name had no registered PyPI project when checked on 2026-07-19,
-but availability is not a reservation and must be checked again immediately
-before publication.
+The production `grab2md` PyPI endpoint still returned 404 on 2026-07-22. A
+matching pending Trusted Publisher is configured, but that does not reserve the
+name. TestPyPI contains staging-only `0.4.0` and `0.4.1` rehearsals; neither is
+a production release. Production availability must be checked again
+immediately before publication.
 
 ## Quick start
 
@@ -68,8 +75,9 @@ grab2md https://example.com --output example.md
 grab2md page.html --output page.md
 ```
 
-The earlier explicit form, `grab2md convert SOURCE`, remains accepted for
-pre-release scripts, but direct sources are the primary interface.
+The hidden compatibility alias `grab2md convert SOURCE` remains accepted for
+pre-release scripts. Direct sources are the primary interface and the alias is
+deliberately omitted from normal command help.
 
 Process Markdown files or plain URL lists and rewrite links between successful
 local outputs:
@@ -102,7 +110,7 @@ Run `grab2md COMMAND --help` for the complete, configuration-aware option list.
 
 | Command | Purpose |
 |---|---|
-| `convert` | Convert one or more URLs or local HTML files. |
+| `grab2md SOURCE...` | Convert one or more HTTP(S) URLs or local HTML files. |
 | `batch` | Extract links from input files, convert them, and rewrite successful local links. |
 | `crawl` | Recursively fetch and convert pages using a sequential, robots-aware policy. |
 | `config` | Inspect, validate, back up, restore, and change configuration. |
@@ -195,6 +203,10 @@ grab2md config backup
 grab2md config list-backups
 ```
 
+`convert` in these configuration commands is the persisted namespace for
+direct-conversion defaults and the hidden compatibility alias; users still run
+direct conversions as `grab2md SOURCE...`.
+
 CLI defaults are typed and loaded at invocation time. Optional values accept
 `null`; invalid updates fail without replacing the existing file. Concurrent
 configuration changes from separate processes use last-write-wins semantics,
@@ -205,10 +217,11 @@ silently apply per-site extraction profiles. A selector can be supplied for one
 run or configured as a CLI default together with `content_mode=selector`.
 
 Crawl state supports `list`, `resume`, `clean`, `export`, `import`, and `info`.
-State files use restrictive permissions on POSIX systems. `state list` prints
+State files default to `~/.grab2md/states`, independently of the platform config
+root, and use restrictive permissions on POSIX systems. `state list` prints
 complete reusable IDs; other state commands also accept an unambiguous prefix
 of at least eight characters. Identifiers and resolved state paths are confined
-to the configured state directory.
+to that state directory.
 
 ## Chrome extension
 
@@ -288,7 +301,8 @@ language fields. Local references remain relative. See
   regions and a confidence-gated readability fallback, whose quality varies by
   document. The measured decision is recorded in
   [`ADR 0002`](https://github.com/jkindrix/grab2md/blob/main/docs/adr/0002-select-main-content-extraction.md).
-- JavaScript rendering is opt-in for `convert`; batch and crawl remain static.
+- JavaScript rendering is opt-in for direct URL conversion; batch and crawl
+  remain static.
 - Metadata extraction intentionally uses declared HTML/meta fields rather than
   text inference or executable structured data.
 - Crawling is sequential; removed concurrency options are not advertised.

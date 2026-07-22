@@ -65,11 +65,11 @@ mode with ordinary user privileges and avoid sensitive network environments.
 
 ## Scope
 
-Rendering is supported by `convert` only. Batch and crawl remain static so their
-single-fetch, robots, rate-limit, retry, and checkpoint contracts are not
-bypassed by a second browser request. Expanding rendering to those workflows
-requires a browser-backed fetch result integrated at the crawler boundary, not
-an after-the-fact second fetch.
+Rendering is supported by direct URL conversion only. Batch and crawl remain
+static so their single-fetch, robots, rate-limit, retry, and checkpoint
+contracts are not bypassed by a second browser request. Expanding rendering to
+those workflows requires a browser-backed fetch result integrated at the
+crawler boundary, not an after-the-fact second fetch.
 
 Cross-origin redirects and API-driven applications may render incompletely
 because their requests are blocked. This is an intentional default-deny

@@ -23,6 +23,7 @@ is safe.
 
 This is a volunteer alpha project with no guaranteed response SLA. Expect an
 acknowledgement target of seven days; if no acknowledgement arrives, send one
-follow-up. Package publication and operational use remain unsupported, so
-users should assess the documented network and credential boundaries before
-using the source on sensitive workloads.
+follow-up. TestPyPI artifacts are staging-only, and production package
+publication and operational use remain unsupported. Users should assess the
+documented network and credential boundaries before using the source on
+sensitive workloads.

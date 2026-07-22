@@ -59,6 +59,7 @@ jobs:
       - name: Validate distribution metadata and rendered README
         run: |
           poetry run twine check dist/*
+          poetry run python scripts/check_documentation.py
           poetry run python scripts/check_package_readme.py README.md
       - name: Verify wheel contents
         run: |
@@ -113,12 +114,12 @@ jobs:
       - name: Verify committed requirement exports
         run: python scripts/check_requirement_exports.py
       - name: Ruff
-        run: poetry run ruff check src/grab2md tests/config tests/scripts scripts/check_package_readme.py
+        run: poetry run ruff check src/grab2md tests/config tests/scripts scripts/check_documentation.py scripts/check_package_readme.py
       - name: Black
-        run: poetry run black --check src/grab2md tests/config tests/scripts scripts/check_package_readme.py
+        run: poetry run black --check src/grab2md tests/config tests/scripts scripts/check_documentation.py scripts/check_package_readme.py
       - name: Mypy
         run: |
-          poetry run mypy src/grab2md tests/config tests/scripts scripts/check_package_readme.py
+          poetry run mypy src/grab2md tests/config tests/scripts scripts/check_documentation.py scripts/check_package_readme.py
           poetry run mypy --check-untyped-defs \
             --exclude 'src/grab2md/tests/' src/grab2md
       - name: Bandit

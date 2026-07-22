@@ -15,7 +15,7 @@ def build_header_config(
     enhanced_headers: bool,
     user_agent_contact: str | None,
 ) -> HeaderConfig:
-    """Build one deliberate header identity for convert, batch, and crawl."""
+    """Build one header identity for direct conversion, batch, and crawl."""
     header_settings = config.get("headers", {})
     contact_email = user_agent_contact if "@" in (user_agent_contact or "") else None
     contact_url = (

@@ -15,14 +15,14 @@ repos:
     rev: 26.5.1
     hooks:
       - id: black
-        files: ^(?:(?:src/grab2md/|tests/config/|tests/scripts/).*|scripts/check_package_readme)\.py$
+        files: ^(?:(?:src/grab2md/|tests/config/|tests/scripts/).*|scripts/check_(?:documentation|package_readme))\.py$
         language_version: python3.11
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.22
     hooks:
       - id: ruff-check
-        files: ^(?:(?:src/grab2md/|tests/config/|tests/scripts/).*|scripts/check_package_readme)\.py$
+        files: ^(?:(?:src/grab2md/|tests/config/|tests/scripts/).*|scripts/check_(?:documentation|package_readme))\.py$
         language_version: python3.11
         args: ["--fix"]
 
@@ -57,10 +57,18 @@ repos:
         always_run: true
         stages: [pre-commit, pre-push]
 
+      - id: documentation-consistency
+        name: verify documentation metadata, commands, and local links
+        entry: python scripts/check_documentation.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit, pre-push]
+
       - id: mypy
         name: run mypy
         entry: poetry run mypy
-        args: ["src/grab2md", "tests/config", "tests/scripts", "scripts/check_package_readme.py"]
+        args: ["src/grab2md", "tests/config", "tests/scripts", "scripts/check_documentation.py", "scripts/check_package_readme.py"]
         language: system
         pass_filenames: false
         always_run: true

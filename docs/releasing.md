@@ -9,18 +9,20 @@ authorize publishing packages, creating remote releases, or pushing tags.
    `CHANGELOG.md` into a dated version section.
 2. Confirm `pyproject.toml`, `grab2md --version`, `python -m grab2md --version`,
    wheel metadata, and extension metadata have the intended versions.
-3. Recheck `grab2md` availability and ownership on TestPyPI and PyPI. A 404
-   observed before release is not a reservation. Before the first upload,
-   configure pending Trusted Publishers on both indexes for repository
-   `jkindrix/grab2md`, workflow `publish.yml`, and the corresponding protected
-   `testpypi` or `pypi` environment.
+3. Recheck the `grab2md` project state and Trusted Publisher mapping on both
+   indexes. TestPyPI already hosts staging rehearsals and must authorize
+   repository `jkindrix/grab2md`, workflow `publish.yml`, and environment
+   `testpypi`. Production PyPI must have the equivalent pending or established
+   mapping for environment `pypi`. A pending publisher does not reserve a new
+   project name, so confirm production availability immediately before the
+   first upload.
 4. Start from a clean checkout with only the intended release commit.
 5. Confirm the exact release commit is on protected `main` with every required
    hosted check successful; a green run on a different SHA is not evidence for
    the artifact being published.
 6. Confirm the GitHub `pypi` environment requires explicit approval. The
    `testpypi` environment may omit approval, but both environments must match
-   their pending-publisher configuration exactly.
+   their index-side Trusted Publisher configuration exactly.
 
 ## Verify and build
 
@@ -48,11 +50,17 @@ refuses unsuccessful, non-`main`, mismatched-SHA, or mismatched-version runs.
 
 ## Stage on TestPyPI
 
+Test indexes are immutable just like production indexes. A version used for an
+earlier rehearsal cannot be rebuilt or reused for production. Before the final
+staging pass, choose a version absent from both indexes, date its changelog
+section, build it once on protected `main`, and use that exact CI artifact for
+both TestPyPI and PyPI.
+
 1. From the release commit on `main`, manually dispatch `publish.yml` with
    target `testpypi`, the successful CI run ID, and the exact version. Approve
-   the protected environment if configured. The OIDC upload creates the project
-   on first use when a matching pending publisher exists; no long-lived token is
-   required.
+   the protected environment if configured. The existing TestPyPI project
+   accepts the upload through OIDC; no long-lived token is required. On a new
+   index, a matching pending publisher can create the project on first use.
 2. Install the exact uploaded version in a fresh environment and exercise
    `grab2md --help`, `grab2md --version`, `python -m grab2md --help`, local
    conversion, and a local-server URL conversion.

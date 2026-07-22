@@ -5,8 +5,8 @@ All notable changes are documented here. This project follows
 [Semantic Versioning](https://semver.org/) once public releases begin.
 
 Versions through `0.3.0` were developed under the former `html2md` identity.
-Version `0.4.0` was used only for the first TestPyPI release rehearsal. The
-pending first public `0.4.1` alpha uses `grab2md` consistently.
+Versions `0.4.0` and `0.4.1` were used only for TestPyPI release rehearsals.
+The pending first public `0.4.2` alpha uses `grab2md` consistently.
 
 ## [Unreleased]
 
@@ -28,6 +28,12 @@ pending first public `0.4.1` alpha uses `grab2md` consistently.
 
 ### Changed
 
+- Audited user-facing documentation, CLI help, release status, and production
+  comments against the current implementation; direct conversion is now
+  consistently presented as `grab2md SOURCE...`, while `convert` is identified
+  only as its hidden compatibility and persisted-configuration namespace.
+- Added an enforced documentation consistency check for version alignment,
+  primary command presentation, and valid repository-relative Markdown links.
 - Renamed the distribution, executable, import package, extension, repository,
   runtime identity, and local storage namespaces from `html2md`/`html2md-cli`
   to `grab2md` before the first public release.

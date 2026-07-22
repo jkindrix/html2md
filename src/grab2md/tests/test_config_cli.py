@@ -228,7 +228,7 @@ def test_config_cli_default_listing_handles_empty_and_populated_state():
         populated = runner.invoke(app, ["config", "list-cli-defaults"])
 
     assert "No CLI defaults" in empty.output
-    assert "Convert Command Defaults" in populated.output
+    assert "Direct Conversion Defaults (`convert` namespace)" in populated.output
     assert "--content-mode" in populated.output
 
 
@@ -271,6 +271,8 @@ def test_set_cli_default_parses_and_saves_schema_type(command, option, raw, expe
         result = runner.invoke(app, ["config", "set-cli-default", command, option, raw])
 
     assert result.exit_code == 0
+    if command == "convert":
+        assert "when using 'grab2md SOURCE'" in " ".join(result.output.split())
     saved = save.call_args.args[0]
     assert saved["cli_defaults"][command][option] == expected
     assert type(saved["cli_defaults"][command][option]) is type(expected)

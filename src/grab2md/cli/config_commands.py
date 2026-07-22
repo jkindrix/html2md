@@ -177,7 +177,10 @@ def reset_config():
 
 @config_app.command(name="set-cli-default")
 def set_cli_default(
-    command: str = typer.Argument(..., help="Command name (convert, batch, crawl)"),
+    command: str = typer.Argument(
+        ...,
+        help=("Defaults namespace (convert for direct conversion, batch, or crawl)"),
+    ),
     option: str = typer.Argument(
         ..., help="Option name (e.g., browser_cookies, hierarchical)"
     ),
@@ -234,8 +237,10 @@ def set_cli_default(
     console.print(
         f"[bold green]Updated:[/bold green] {command}.{option} = {parsed_value}"
     )
+    invocation = "grab2md SOURCE" if command == "convert" else f"grab2md {command}"
     console.print(
-        f"\n[bold blue]Tip:[/bold blue] This will be the default value for --{option.replace('_', '-')} when using 'grab2md {command}'"
+        f"\n[bold blue]Tip:[/bold blue] This will be the default value for "
+        f"--{option.replace('_', '-')} when using '{invocation}'"
     )
 
 
@@ -251,7 +256,12 @@ def list_cli_defaults():
 
     # Create a table for each command
     for command, options in cli_defaults.items():
-        table = Table(title=f"{command.capitalize()} Command Defaults")
+        title = (
+            "Direct Conversion Defaults (`convert` namespace)"
+            if command == "convert"
+            else f"{command.capitalize()} Command Defaults"
+        )
+        table = Table(title=title)
         table.add_column("Option", style="cyan")
         table.add_column("Default Value", style="green")
         table.add_column("CLI Flag", style="magenta")
@@ -278,9 +288,12 @@ def show_config_options():
     console.print("Configure default values for command-line options\n")
 
     for command, options in cli_option_rows(DEFAULT_CONFIG).items():
-        table = Table(
-            title=f"{command.capitalize()} Command Options", title_style="bold blue"
+        title = (
+            "Direct Conversion Options (`convert` namespace)"
+            if command == "convert"
+            else f"{command.capitalize()} Command Options"
         )
+        table = Table(title=title, title_style="bold blue")
         table.add_column("Option", style="cyan")
         table.add_column("Type", style="green")
         table.add_column("Description", style="white")

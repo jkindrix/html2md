@@ -2,7 +2,7 @@
 
 `grab2md` converts the fetched or local HTML document to Markdown. Existing
 content behavior remains the default; metadata front matter is opt-in with
-`--metadata` on `convert`, `batch`, and `crawl`.
+`--metadata` on direct conversion, `batch`, and `crawl`.
 
 ## URLs
 
