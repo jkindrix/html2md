@@ -4,6 +4,7 @@ import sys
 from importlib.metadata import version
 from pathlib import Path
 
+from click import unstyle
 from typer.testing import CliRunner
 
 from grab2md import __version__
@@ -44,7 +45,7 @@ def test_default_source_routing_preserves_root_options_and_real_commands():
 
 def test_root_help_presents_direct_sources_and_deemphasizes_convert_alias():
     result = CliRunner().invoke(cli.app, ["--help"])
-    normalized_output = " ".join(result.output.split())
+    normalized_output = " ".join(unstyle(result.output).split())
 
     assert result.exit_code == 0
     assert "[SOURCE ...] | COMMAND [ARGS]..." in result.output
