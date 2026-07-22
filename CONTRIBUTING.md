@@ -29,14 +29,15 @@ content as fixtures.
 Run these before opening a pull request:
 
 ```bash
-poetry run pytest src/grab2md/tests tests/config \
+poetry run pytest src/grab2md/tests tests/config tests/scripts \
   --cov=grab2md --cov-report=term-missing:skip-covered
-poetry run ruff check src/grab2md tests/config
-poetry run black --check src/grab2md tests/config
-poetry run mypy src/grab2md tests/config
+poetry run ruff check src/grab2md tests/config tests/scripts scripts/check_package_readme.py
+poetry run black --check src/grab2md tests/config tests/scripts scripts/check_package_readme.py
+poetry run mypy src/grab2md tests/config tests/scripts scripts/check_package_readme.py
 poetry run mypy --check-untyped-defs \
   --exclude 'src/grab2md/tests/' src/grab2md
 python scripts/check_requirement_exports.py
+python scripts/check_package_readme.py README.md
 poetry run bandit -r src/grab2md -x src/grab2md/tests -ll
 poetry export --only main --extras render --without-hashes \
   --format requirements.txt --output .tmp/render-requirements.txt

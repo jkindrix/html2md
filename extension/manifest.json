@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "GRAB2MD",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Convert web pages to Markdown with a single click",
   "action": {
     "default_popup": "popup.html",

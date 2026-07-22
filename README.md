@@ -11,7 +11,7 @@ to Markdown. It includes a Python CLI and an unpacked Chrome extension.
 
 ## Status and support
 
-- Unpublished development version: `0.4.0`
+- Unpublished development version: `0.4.1`
 - Latest historical source tag: `v0.3.0` (before the `grab2md` rename)
 - Tested Python versions: 3.11, 3.12, and 3.13
 - Planned PyPI distribution: `grab2md`
@@ -39,7 +39,9 @@ grab2md --help
 ```
 
 Contributors running the complete development and release gates need Poetry
-2.4.1 and Node.js; see [CONTRIBUTING.md](CONTRIBUTING.md) for that pinned
+2.4.1 and Node.js; see
+[CONTRIBUTING.md](https://github.com/jkindrix/grab2md/blob/main/CONTRIBUTING.md)
+for that pinned
 toolchain and its canonical commands.
 
 JavaScript rendering is an isolated optional installation:

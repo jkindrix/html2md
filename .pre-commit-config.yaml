@@ -15,14 +15,14 @@ repos:
     rev: 26.5.1
     hooks:
       - id: black
-        files: ^(src/grab2md/|tests/config/).*\.py$
+        files: ^(?:(?:src/grab2md/|tests/config/|tests/scripts/).*|scripts/check_package_readme)\.py$
         language_version: python3.11
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.22
     hooks:
       - id: ruff-check
-        files: ^(src/grab2md/|tests/config/).*\.py$
+        files: ^(?:(?:src/grab2md/|tests/config/|tests/scripts/).*|scripts/check_package_readme)\.py$
         language_version: python3.11
         args: ["--fix"]
 
@@ -49,10 +49,18 @@ repos:
         always_run: true
         stages: [pre-commit, pre-push]
 
+      - id: package-readme-links
+        name: reject relative package-description links
+        entry: python scripts/check_package_readme.py README.md
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit, pre-push]
+
       - id: mypy
         name: run mypy
         entry: poetry run mypy
-        args: ["src/grab2md", "tests/config"]
+        args: ["src/grab2md", "tests/config", "tests/scripts", "scripts/check_package_readme.py"]
         language: system
         pass_filenames: false
         always_run: true
@@ -69,7 +77,7 @@ repos:
       - id: tests
         name: run tests
         entry: poetry run pytest
-        args: ["--no-header", "-x", "src/grab2md/tests", "tests/config"]
+        args: ["--no-header", "-x", "src/grab2md/tests", "tests/config", "tests/scripts"]
         language: system
         pass_filenames: false
         always_run: true

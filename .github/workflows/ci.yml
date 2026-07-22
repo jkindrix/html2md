@@ -38,7 +38,7 @@ jobs:
       - name: Validate metadata and lock
         run: poetry check --lock
       - name: Run tests with production coverage gate
-        run: poetry run pytest src/grab2md/tests tests/config --cov=grab2md --cov-report=term-missing:skip-covered
+        run: poetry run pytest src/grab2md/tests tests/config tests/scripts --cov=grab2md --cov-report=term-missing:skip-covered
 
   package:
     name: Build and wheel smoke test
@@ -57,7 +57,9 @@ jobs:
       - name: Build distributions
         run: poetry build
       - name: Validate distribution metadata and rendered README
-        run: poetry run twine check dist/*
+        run: |
+          poetry run twine check dist/*
+          poetry run python scripts/check_package_readme.py README.md
       - name: Verify wheel contents
         run: |
           python - <<'PY'
@@ -111,12 +113,12 @@ jobs:
       - name: Verify committed requirement exports
         run: python scripts/check_requirement_exports.py
       - name: Ruff
-        run: poetry run ruff check src/grab2md tests/config
+        run: poetry run ruff check src/grab2md tests/config tests/scripts scripts/check_package_readme.py
       - name: Black
-        run: poetry run black --check src/grab2md tests/config
+        run: poetry run black --check src/grab2md tests/config tests/scripts scripts/check_package_readme.py
       - name: Mypy
         run: |
-          poetry run mypy src/grab2md tests/config
+          poetry run mypy src/grab2md tests/config tests/scripts scripts/check_package_readme.py
           poetry run mypy --check-untyped-defs \
             --exclude 'src/grab2md/tests/' src/grab2md
       - name: Bandit
@@ -145,7 +147,7 @@ jobs:
       - name: Validate metadata and platform contracts
         run: |
           poetry check --lock
-          poetry run pytest -q src/grab2md/tests tests/config
+          poetry run pytest -q src/grab2md/tests tests/config tests/scripts
       - name: Build and smoke-test the installed wheel
         run: |
           poetry build

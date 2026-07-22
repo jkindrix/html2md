@@ -1,6 +1,6 @@
 [project]
 name = "grab2md"
-version = "0.4.0"
+version = "0.4.1"
 description = "Local-first CLI for converting HTML, web pages, batches, and crawls to Markdown"
 authors = [{ name = "Justin Kindrix", email = "jkindrix@gmail.com" }]
 license = "MIT"

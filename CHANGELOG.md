@@ -5,7 +5,8 @@ All notable changes are documented here. This project follows
 [Semantic Versioning](https://semver.org/) once public releases begin.
 
 Versions through `0.3.0` were developed under the former `html2md` identity.
-The pending first public `0.4.0` alpha uses `grab2md` consistently.
+Version `0.4.0` was used only for the first TestPyPI release rehearsal. The
+pending first public `0.4.1` alpha uses `grab2md` consistently.
 
 ## [Unreleased]
 
@@ -68,6 +69,8 @@ The pending first public `0.4.0` alpha uses `grab2md` consistently.
   traversal, and derive CLI option help from the canonical defaults and schema.
 - Updated Ruff and Poetry to their current verified releases, migrated package
   metadata to PEP 621, and added weekly Python and pre-commit update automation.
+- Made every package-description link absolute and added a build gate that
+  rejects relative links before publishing to a package index.
 - Refreshed the locked Python/tooling baseline after the first automated scan
   and made coverage.py's subprocess patch explicit for pytest-cov 7.
 - Made `--max-pages` a cumulative attempt budget, made `--rate-limit` a literal

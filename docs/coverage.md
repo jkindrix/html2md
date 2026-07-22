@@ -4,7 +4,7 @@ Coverage is measured against production code in `src/grab2md`; package-internal 
 
 ```bash
 poetry run coverage erase
-poetry run pytest src/grab2md/tests tests/config \
+poetry run pytest src/grab2md/tests tests/config tests/scripts \
   --cov=grab2md --cov-report=term-missing:skip-covered
 ```
 
