@@ -51,14 +51,6 @@ class ArchiveCoordinator:
         output_path = self.planner.plan(page.final_url)
         document = convert(output_path)
         canonical_url = document.metadata.canonical_url
-        canonical_record = (
-            self.manifest.resolve(canonical_url) if canonical_url else None
-        )
-        if canonical_record is not None:
-            self.manifest.register_alias(requested_url, canonical_record)
-            self.manifest.register_alias(page.final_url, canonical_record)
-            return ArchiveOutcome(canonical_record.output_path, reused=True)
-
         record = ArtifactRecord(
             requested_url=requested_url,
             final_url=page.final_url,

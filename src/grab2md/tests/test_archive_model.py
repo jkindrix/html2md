@@ -1,6 +1,6 @@
 """Archive identity, planning, manifest, and structural rewriting tests."""
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 import pytest
 
@@ -40,7 +40,7 @@ def test_output_planner_is_readable_stable_and_collision_resistant(tmp_path):
     assert planner.plan(f"https://example.com/docs/{common}-one#section") == first
 
 
-def test_manifest_resolves_requested_redirect_and_canonical_aliases(tmp_path):
+def test_manifest_resolves_only_requested_and_redirect_identities(tmp_path):
     record = ArtifactRecord(
         "https://example.com/start",
         "https://www.example.com/final",
@@ -52,7 +52,7 @@ def test_manifest_resolves_requested_redirect_and_canonical_aliases(tmp_path):
 
     assert manifest.resolve("https://example.com/start#top") is record
     assert manifest.resolve("https://www.example.com/final") is record
-    assert manifest.resolve("https://example.com/guide") is record
+    assert manifest.resolve("https://example.com/guide") is None
 
 
 def test_archive_coordinator_reuses_final_identity_without_reconversion(tmp_path):
@@ -104,7 +104,7 @@ def test_archive_coordinator_reuses_final_identity_without_reconversion(tmp_path
     )
 
 
-def test_archive_coordinator_validates_all_identities_before_writing(tmp_path):
+def test_archive_coordinator_validates_acquisition_identities_before_writing(tmp_path):
     manifest = ArtifactManifest()
     store = Mock()
     archiver = ArchiveCoordinator(
@@ -114,7 +114,7 @@ def test_archive_coordinator_validates_all_identities_before_writing(tmp_path):
     )
     page = AcquiredPage(
         "https://example.com/requested",
-        "https://example.com/final",
+        "javascript:alert(1)",
         "<h1>Final</h1>",
         200,
         {},
@@ -125,7 +125,7 @@ def test_archive_coordinator_validates_all_identities_before_writing(tmp_path):
         page,
         "# Final",
         page.html,
-        DocumentMetadata(canonical_url="javascript:alert(1)"),
+        DocumentMetadata(canonical_url="https://example.com/metadata-only"),
     )
 
     with pytest.raises(ValueError, match=r"HTTP\(S\) URL"):
@@ -134,6 +134,124 @@ def test_archive_coordinator_validates_all_identities_before_writing(tmp_path):
     store.write_text.assert_not_called()
     assert not list(tmp_path.rglob("*.md"))
     assert manifest.records == ()
+
+
+def test_authored_canonical_cannot_suppress_a_distinct_page(tmp_path):
+    manifest = ArtifactManifest()
+    store = Mock()
+    archiver = ArchiveCoordinator(
+        manifest=manifest,
+        planner=OutputPlanner(tmp_path),
+        write_text=store.write_text,
+    )
+    first_url = "https://example.com/first"
+    second_url = "https://example.com/second"
+    first_page = AcquiredPage(
+        first_url,
+        first_url,
+        '<link rel="canonical" href="/second"><h1>First</h1>',
+        200,
+        {},
+        "text/html",
+        "utf-8",
+    )
+    second_page = AcquiredPage(
+        second_url,
+        second_url,
+        "<h1>Second</h1>",
+        200,
+        {},
+        "text/html",
+        "utf-8",
+    )
+    first_document = ConvertedDocument(
+        first_page,
+        "# First",
+        first_page.html,
+        DocumentMetadata(canonical_url=second_url),
+    )
+    second_document = ConvertedDocument(
+        second_page,
+        "# Second",
+        second_page.html,
+        DocumentMetadata(canonical_url=second_url),
+    )
+    first_convert = Mock(return_value=first_document)
+    second_convert = Mock(return_value=second_document)
+
+    first = archiver.archive(first_url, first_page, first_convert)
+    second = archiver.archive(second_url, second_page, second_convert)
+
+    assert first.reused is False
+    assert second.reused is False
+    assert first.output_path != second.output_path
+    assert len(manifest.records) == 2
+    assert manifest.resolve(second_url) is manifest.records[1]
+    first_convert.assert_called_once_with(first.output_path)
+    second_convert.assert_called_once_with(second.output_path)
+    assert store.write_text.call_args_list == [
+        call(first.output_path, "# First"),
+        call(second.output_path, "# Second"),
+    ]
+
+
+def test_authored_canonical_cannot_discard_the_declaring_page(tmp_path):
+    manifest = ArtifactManifest()
+    store = Mock()
+    archiver = ArchiveCoordinator(
+        manifest=manifest,
+        planner=OutputPlanner(tmp_path),
+        write_text=store.write_text,
+    )
+    target_url = "https://example.com/target"
+    declaring_url = "https://example.com/declaring"
+    target_page = AcquiredPage(
+        target_url,
+        target_url,
+        "<h1>Target</h1>",
+        200,
+        {},
+        "text/html",
+        "utf-8",
+    )
+    declaring_page = AcquiredPage(
+        declaring_url,
+        declaring_url,
+        '<link rel="canonical" href="/target"><h1>Declaring</h1>',
+        200,
+        {},
+        "text/html",
+        "utf-8",
+    )
+
+    target = archiver.archive(
+        target_url,
+        target_page,
+        Mock(
+            return_value=ConvertedDocument(
+                target_page,
+                "# Target",
+                target_page.html,
+                DocumentMetadata(canonical_url=target_url),
+            )
+        ),
+    )
+    declaring_convert = Mock(
+        return_value=ConvertedDocument(
+            declaring_page,
+            "# Declaring",
+            declaring_page.html,
+            DocumentMetadata(canonical_url=target_url),
+        )
+    )
+    declaring = archiver.archive(declaring_url, declaring_page, declaring_convert)
+
+    assert target.reused is False
+    assert declaring.reused is False
+    assert target.output_path != declaring.output_path
+    assert len(manifest.records) == 2
+    declaring_convert.assert_called_once_with(declaring.output_path)
+    store.write_text.assert_any_call(declaring.output_path, "# Declaring")
 
 
 def test_structural_rewriter_handles_parentheses_titles_and_fenced_code(tmp_path):

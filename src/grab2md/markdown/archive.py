@@ -32,7 +32,7 @@ def canonical_url_identity(url: str) -> str:
 
 @dataclass(frozen=True)
 class ArtifactRecord:
-    """One durable Markdown artifact and every web identity that names it."""
+    """One durable Markdown artifact and its acquisition identities."""
 
     requested_url: str
     final_url: str
@@ -41,12 +41,15 @@ class ArtifactRecord:
 
     @property
     def aliases(self) -> tuple[str, ...]:
-        values = (self.requested_url, self.final_url, self.canonical_url)
+        # Page-authored canonical metadata is untrusted and cannot establish
+        # archival equivalence. Only acquisition identities may suppress a
+        # later conversion; canonical_url remains available for front matter.
+        values = (self.requested_url, self.final_url)
         return tuple(dict.fromkeys(value for value in values if value))
 
 
 class ArtifactManifest:
-    """Resolve requested, redirected, and document-canonical URLs to artifacts."""
+    """Resolve requested and redirected URLs to durable artifacts."""
 
     def __init__(self) -> None:
         self._records: list[ArtifactRecord] = []
