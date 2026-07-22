@@ -8,9 +8,9 @@ poetry run pytest src/grab2md/tests tests/config \
   --cov=grab2md --cov-report=term-missing:skip-covered
 ```
 
-On 2026-07-21, Python 3.11.2 measured **5,203 production statements, 619
-missed, and 88.10% total coverage** (`520 passed, 4 skipped`) at
-`eca143671430e989ed001a88a1bc8b3f8e4677a7`. The enforced floor is 85%,
+On 2026-07-21, Python 3.11.2 measured **5,264 production statements, 613
+missed, and 88.35% total coverage** (`534 passed, 4 skipped`) at
+`36728f127263b7f63d8571a6a9998121f57e1a03`. The enforced floor is 85%,
 preserving an interpreter-dependent buffer without allowing coverage to fall
 far below the earlier stabilization baseline. The floor must not be lowered
 merely to make a change pass.
@@ -23,14 +23,15 @@ paths, and anchored text writer added explicit production boundaries. Tests and
 configuration fixtures moved with the import package from `html2md` to
 `grab2md`; the guarded state-ID/prefix boundary added another explicit storage
 contract; persisted attempt/retry accounting added the versioned resume-budget
-contract. Production modules remain the measured denominator.
+contract; shared crawl-policy preflight added an explicit no-side-effect usage
+boundary. Production modules remain the measured denominator.
 
 The largest gaps are concentrated in:
 
 | Module | Statements | Missed | Coverage | Tracked work |
 |---|---:|---:|---:|---|
-| `cli/cli.py` | 237 | 65 | 73% | Keep callbacks limited to dispatch, option translation, rendering, and exit status |
-| `cli/command_runtime.py` | 156 | 4 | 97% | Preserve direct presentation-neutral command tests |
+| `cli/cli.py` | 237 | 64 | 73% | Keep callbacks limited to dispatch, option translation, rendering, and exit status |
+| `cli/command_runtime.py` | 161 | 4 | 98% | Preserve direct presentation-neutral command tests |
 | `cli/state_commands.py` | 96 | 31 | 68% | Add remaining interactive/error presentation fixtures without duplicating store tests |
 | `cli/conversion_presenter.py` | 53 | 10 | 81% | Preserve success/failure/output presentation fixtures |
 | `cli/config_commands.py` | 216 | 33 | 85% | Add remaining interactive/error fixtures |
