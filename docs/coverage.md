@@ -8,9 +8,9 @@ poetry run pytest src/grab2md/tests tests/config tests/scripts \
   --cov=grab2md --cov-report=term-missing:skip-covered
 ```
 
-On 2026-07-22, Python 3.11.2 measured **5,264 production statements, 613
-missed, and 88.35% total coverage** (`536 passed, 4 skipped`) at
-`379590dcfd61f0f1157d9dc50806ffbeeab0aafa`. The enforced floor is 85%,
+On 2026-07-22, Python 3.11.2 measured **5,267 production statements, 613
+missed, and 88.36% total coverage** (`540 passed, 4 skipped`) at
+`2596030a6276d289cd584eb2ee3b818543752fb8`. The enforced floor is 85%,
 preserving an interpreter-dependent buffer without allowing coverage to fall
 far below the earlier stabilization baseline. The floor must not be lowered
 merely to make a change pass.
@@ -34,7 +34,7 @@ The largest gaps are concentrated in:
 | `cli/command_runtime.py` | 161 | 4 | 98% | Preserve direct presentation-neutral command tests |
 | `cli/state_commands.py` | 96 | 31 | 68% | Add remaining interactive/error presentation fixtures without duplicating store tests |
 | `cli/conversion_presenter.py` | 53 | 10 | 81% | Preserve success/failure/output presentation fixtures |
-| `cli/config_commands.py` | 216 | 33 | 85% | Add remaining interactive/error fixtures |
+| `cli/config_commands.py` | 219 | 33 | 85% | Add remaining interactive/error fixtures |
 | `cookies/browser_paths.py` | 45 | 18 | 60% | Preserve platform/config path contracts and add WSL edge fixtures as behavior evolves |
 | `cookies/chrome.py` | 103 | 36 | 65% | Add supported Windows DPAPI fixtures on hosted Windows as formats evolve |
 | `cookies/firefox.py` | 102 | 23 | 77% | Preserve profile-selection, row-isolation, and database-failure fixtures |
